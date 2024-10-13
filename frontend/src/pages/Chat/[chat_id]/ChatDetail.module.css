@@ -1,0 +1,106 @@
+.chatDetailContainer {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.chatInputGroup {
+  width: 100%;
+  max-width: var(--max-width);
+  box-sizing: border-box;
+  position: fixed;
+  bottom: 0;
+  display: flex;
+  padding: 10px 20px 30px 20px;
+  align-items: start;
+  gap: 8px;
+  align-self: stretch;
+  border-top: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-default, #fbfbfb);
+  transition: bottom 0.3s ease;
+}
+
+.chatInputGroup.menuOpen {
+  bottom: 75px;
+}
+
+.uploadMenu {
+  width: 100%;
+  max-width: var(--max-width);
+  box-sizing: border-box;
+  position: fixed;
+  bottom: -75px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--box-default, #fbfbfb);
+  padding: 7px 44px 20px;
+  display: flex;
+  justify-content: start;
+  gap: 20px;
+  transition: bottom 0.3s ease;
+}
+
+.uploadMenu.visible {
+  bottom: 0;
+}
+
+.fileInputLabel,
+.actionButton {
+  width: 48px;
+  height: 48px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-default, #222);
+  text-align: center;
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 123%;
+  cursor: pointer;
+}
+
+@media (min-width: 425px) {
+  .uploadMenu {
+    justify-content: start;
+  }
+}
+
+.chatDetailContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.chatContainer {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chatInputGroup {
+  width: 100%;
+  max-width: var(--max-width);
+  box-sizing: border-box;
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  padding: 10px 20px 30px 20px;
+  align-items: start;
+  gap: 8px;
+  border-top: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-default, #fbfbfb);
+  transition: bottom 0.3s ease;
+}
+
+.chatInputGroup.menuOpen {
+  bottom: 75px;
+}
