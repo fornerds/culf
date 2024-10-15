@@ -30,12 +30,6 @@ export function Mypage() {
 
   return (
     <>
-      <Header
-        title="마이페이지"
-        showBackButton={true}
-        onBackClick={() => console.log('뒤로 가기')}
-      />
-
       <div className={styles.userInfo}>
         <div className="font-text-3">
           <span className="font-title-3">컬프랜드</span> 님

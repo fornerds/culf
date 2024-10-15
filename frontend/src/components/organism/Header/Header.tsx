@@ -2,27 +2,29 @@ import React from 'react';
 import styles from './Header.module.css';
 import LeftIcon from '@/assets/icons/left.svg?react';
 import MenuIcon from '@/assets/icons/menu.svg?react';
+import { useNavigate } from 'react-router-dom';
+import { useHeaderStore } from '../../../state/client/useHeaderStore';
+import { useSideMenuStore } from '../../../state/client/useSideMenuStore';
 
-interface HeaderProps {
-  title: string | React.ReactNode;
-  showBackButton?: boolean;
-  showMenuButton?: boolean;
-  onBackClick?: () => void;
-  onMenuClick?: () => void;
-}
+export function Header() {
+  const navigate = useNavigate();
+  const { title, showBackButton, showMenuButton } = useHeaderStore();
+  const { toggle } = useSideMenuStore();
 
-export function Header({
-  title,
-  showBackButton = false,
-  showMenuButton = false,
-  onBackClick,
-  onMenuClick,
-}: HeaderProps) {
+  const handleBackClick = () => {
+    navigate(-1);
+  };
+
+  const handleMenuClick = () => {
+    console.log('Menu button clicked in Header');
+    toggle();
+  };
+
   return (
     <header className={styles.header}>
       <div className={styles.leftSection}>
         {showBackButton ? (
-          <button className={styles.button} onClick={onBackClick}>
+          <button className={styles.button} onClick={handleBackClick}>
             <LeftIcon />
           </button>
         ) : (
@@ -38,7 +40,7 @@ export function Header({
       </div>
       <div className={styles.rightSection}>
         {showMenuButton ? (
-          <button className={styles.button} onClick={onMenuClick}>
+          <button className={styles.button} onClick={handleMenuClick}>
             <MenuIcon />
           </button>
         ) : (
