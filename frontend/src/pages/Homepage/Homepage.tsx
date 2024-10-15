@@ -1,5 +1,4 @@
 import styles from './Homepage.module.css';
-import logoimage from '../../assets/images/culf.png';
 import curatorimage from '../../assets/images/curator01.png';
 import { Header, Cards, ChatList } from '../../components/organism';
 import { Footer } from '../../components/molecule';
@@ -96,11 +95,6 @@ export function Homepage() {
 
   return (
     <>
-      <Header
-        title={<img src={logoimage} alt="로고" width="54" height="19" />}
-        showMenuButton={true}
-        onMenuClick={() => console.log('메뉴 열기')}
-      />
       <main className={styles.main}>
         <HeroBanner slides={slides} />
         <section className={styles.curatorListSection}>

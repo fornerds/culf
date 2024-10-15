@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Header } from '@/components/organism';
 import styles from './ChatDetail.module.css';
 import {
   ChatInput,
@@ -16,7 +15,7 @@ type MessageType =
   | { type: 'suggestion'; content: string };
 
 export function ChatDetail() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [messages, setMessages] = useState<MessageType[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isMobile = window.innerWidth < 425;
@@ -62,32 +61,26 @@ export function ChatDetail() {
 
   const handleFileSelect = (file: File) => {
     console.log('Selected file:', file.name);
-    setIsMenuOpen(false);
+    setIsUploadMenuOpen(false);
     // Implement file upload logic here
   };
 
   const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+    setIsUploadMenuOpen(!isUploadMenuOpen);
   };
 
   const handleCameraCapture = () => {
     console.log('Camera capture');
-    setIsMenuOpen(false);
+    setIsUploadMenuOpen(false);
   };
 
   const handleAlbumSelect = () => {
     console.log('Album select');
-    setIsMenuOpen(false);
+    setIsUploadMenuOpen(false);
   };
 
   return (
     <div className={styles.chatDetailContainer}>
-      <Header
-        title="해외여행 큐레이터"
-        showBackButton={true}
-        showMenuButton={true}
-        onMenuClick={() => console.log('메뉴 열기')}
-      />
       <div className={styles.chatContainer} ref={chatContainerRef}>
         {messages.map((message, index) =>
           message.type === 'ai' ? (
@@ -110,16 +103,16 @@ export function ChatDetail() {
         />
       )}
       <section
-        className={`${styles.chatInputGroup} ${isMenuOpen ? styles.menuOpen : ''}`}
+        className={`${styles.chatInputGroup} ${isUploadMenuOpen ? styles.menuOpen : ''}`}
       >
         <FileUploadButton
-          isOpen={isMenuOpen}
-          onToggle={() => setIsMenuOpen(!isMenuOpen)}
+          isOpen={isUploadMenuOpen}
+          onToggle={() => setIsUploadMenuOpen(!isUploadMenuOpen)}
         />
         <ChatInput onSendMessage={handleSendMessage} />
       </section>
       <div
-        className={`${styles.uploadMenu} ${isMenuOpen ? styles.visible : ''}`}
+        className={`${styles.uploadMenu} ${isUploadMenuOpen ? styles.visible : ''}`}
       >
         {isMobile ? (
           <>
