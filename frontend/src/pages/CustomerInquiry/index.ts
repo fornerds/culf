@@ -1,0 +1,1 @@
+export { CustomerInquiry } from './CustomerInquiry';

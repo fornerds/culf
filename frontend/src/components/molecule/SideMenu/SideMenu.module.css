@@ -1,0 +1,188 @@
+.sideMenu {
+  position: absolute;
+  top: 0;
+  right: -70%;
+  width: 70%;
+  height: 100vh;
+  background-color: white;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+  transition: right 0.3s ease-in-out;
+  z-index: 1000;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  animation: slideIn 0.3s forwards;
+}
+
+.sideMenuHeader {
+  margin-top: 44px;
+  display: flex;
+  width: 100%;
+  padding: 10px 22px;
+  justify-content: space-between;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.sideMenuHeaderTitle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.open {
+  right: 0;
+}
+
+.closeButton {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  padding: 5px 5px 5.12px 5px;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tokenInfo {
+  padding: 42px 22px 10px;
+}
+
+.tokenRemainInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  align-self: stretch;
+}
+
+.tokenRemainCount {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.tokenRemainCountText {
+  color: var(--text-sub, #767676);
+
+  /* culf/Text_2 */
+  font-family: 'Pretendard Variable';
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 150%; /* 24px */
+}
+
+.tokenDesc {
+  margin-top: 8px;
+  margin-bottom: 20px;
+  color: var(--text-sub, #767676);
+
+  /* culf/Text_4 */
+  font-family: 'Pretendard Variable';
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 150%; /* 21px */
+}
+
+.buyTokensButton {
+  display: flex;
+  padding: 11px 10px;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  align-self: stretch;
+
+  border-radius: 10px;
+  border: 1px solid var(--keycolor-2, #6314e4);
+  background: var(--box-default, #fbfbfb);
+  text-decoration: none;
+}
+
+.menuItems {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 30px;
+}
+
+.menuItems a {
+  display: flex;
+  padding: 20px;
+  align-items: center;
+  justify-content: space-between;
+  align-self: stretch;
+  text-decoration: none;
+  overflow: hidden;
+  color: var(--text-default, #222);
+  text-overflow: ellipsis;
+
+  border-top: 1px solid var(--line-less-highlight, #c9c9c9);
+}
+
+.menuItems a span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.3s forwards;
+}
+
+.overlay.closing {
+  animation: fadeOut 0.3s forwards;
+}
+
+.sideMenu.closing {
+  animation: slideOut 0.3s forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}

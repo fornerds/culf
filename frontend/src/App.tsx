@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Routes,
   Route,
   useNavigationType,
   useLocation,
+  matchPath,
 } from 'react-router-dom';
+import { useHeaderStore } from './state/client/useHeaderStore';
+import { useSideMenuStore } from './state/client/useSideMenuStore';
 // AI가 만든 페이지
 import _Home from './_pages/Home';
 import _NotificationDetail from './_pages/NotificationDetail';
@@ -43,122 +46,86 @@ import { Payment } from './pages/Payment';
 import { CancelPayment } from './pages/CancelPayment';
 import { DeleteAccount } from './pages/DeleteAccount';
 import { Notification } from './pages/Notification';
+import { CustomerInquiry } from './pages/CustomerInquiry';
+import logoimage from './assets/images/culf.png';
 
 function App() {
+  const {
+    setUseHeader,
+    setTitle,
+    setShowBackButton,
+    setShowMenuButton,
+    setOnMenuClick,
+    resetHeader,
+  } = useHeaderStore();
+  const { isOpen, toggle } = useSideMenuStore();
   const action = useNavigationType();
   const location = useLocation();
   const pathname = location.pathname;
 
+  const handleMenuClick = useCallback(() => {
+    console.log('Menu clicked in App.tsx');
+    toggle();
+  }, [toggle]);
+
   useEffect(() => {
-    if (action !== 'POP') {
-      window.scrollTo(0, 0);
+    setOnMenuClick(handleMenuClick);
+  }, [setOnMenuClick, handleMenuClick]);
+
+  useEffect(() => {
+    console.log('App effect, SideMenu isOpen:', isOpen);
+  }, [isOpen]);
+
+  useEffect(() => {
+    resetHeader();
+
+    if (matchPath('/', pathname)) {
+      setUseHeader(true);
+      setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
+      setShowBackButton(false);
+      setShowMenuButton(true);
+    } else if (matchPath('/mypage', pathname)) {
+      setUseHeader(true);
+      setTitle('마이페이지');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else if (matchPath('/chat/:chat_id', pathname)) {
+      setUseHeader(true);
+      setTitle('해외여행 큐레이터');
+      setShowBackButton(true);
+      setShowMenuButton(true);
+    } else if (matchPath('/notification', pathname)) {
+      setUseHeader(true);
+      setTitle('알림');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else if (matchPath('/inquiry', pathname)) {
+      setUseHeader(true);
+      setTitle('문의하기');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else if (matchPath('/pricing', pathname)) {
+      setUseHeader(true);
+      setTitle('서비스결제');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else {
+      setUseHeader(false);
     }
-  }, [action, pathname]);
 
-  // useEffect(() => {
-  //   let title = '';
-  //   let metaDescription = '';
-
-  //   switch (pathname) {
-  //     case '/':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/notification-detail':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/payment-cancel':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/subscription-management':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/payment':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/notification':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/account-management':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/inquiries':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/delete-account':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/add-payment':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/terms-agreement':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/find-email':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/find-password':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/payment-history':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/signup-done':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/signup':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/login':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/chat':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/announcement':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/payment-item':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //     case '/':
-  //       title = '';
-  //       metaDescription = '';
-  //       break;
-  //   }
-
-  //   if (title) {
-  //     document.title = title;
-  //   }
-
-  //   if (metaDescription) {
-  //     const metaDescriptionTag: HTMLMetaElement | null = document.querySelector(
-  //       'head > meta[name="description"]',
-  //     );
-  //     if (metaDescriptionTag) {
-  //       metaDescriptionTag.content = metaDescription;
-  //     }
-  //   }
-  // }, [pathname]);
+    console.log('Header state updated:', {
+      pathname,
+      useHeader: useHeaderStore.getState().useHeader,
+      showMenuButton: useHeaderStore.getState().showMenuButton,
+    }); // Debug log
+  }, [
+    pathname,
+    setUseHeader,
+    setTitle,
+    setShowBackButton,
+    setShowMenuButton,
+    resetHeader,
+  ]);
 
   return (
     <Layout>
@@ -177,6 +144,7 @@ function App() {
         <Route path="/payment" element={<Payment />} />
         <Route path="/cancel-payment" element={<CancelPayment />} />
         <Route path="/delete-account" element={<DeleteAccount />} />
+        <Route path="/inquiry" element={<CustomerInquiry />} />
         <Route path="/notification" element={<Notification />} />
         {/* AI가 만든 페이지목록 */}
         <Route path="/ai/" element={<_Home />} />
