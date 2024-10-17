@@ -4,7 +4,7 @@ from uuid import UUID
 import time
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Union
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.domains.user.models import User
@@ -25,7 +25,7 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 @router.post("/chat", response_model=schemas.ConversationResponse)
 async def create_chat(
         question: str = Form(...),
-        image_file: Optional[UploadFile] = File(None),
+        image_file: Union[UploadFile, None, str] = File(default=None),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -36,6 +36,10 @@ async def create_chat(
     선택적으로 이미지를 처리합니다.
     """
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
+
+    # 빈 문자열을 None으로 처리
+    if isinstance(image_file, str) and image_file == "":
+        image_file = None
 
     # 개발 모드가 아닌 경우 토큰 검사
     if not settings.DEV_MODE:
