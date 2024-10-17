@@ -3,6 +3,7 @@ import styles from './Mypage.module.css';
 import { Tab } from '@/modules';
 import { Account } from '@/components/organism';
 import { Subscription } from '@/components/organism/Subscription';
+import { PaymentHistory } from '@/components/organism/PaymentHistory';
 
 export function Mypage() {
   const tabs = [
@@ -19,12 +20,7 @@ export function Mypage() {
     {
       id: 'payment',
       label: '결제 내역',
-      content: (
-        <div>
-          <h2>결제 내역</h2>
-          <p>여기에 결제 내역 내용이 들어갑니다.</p>
-        </div>
-      ),
+      content: <PaymentHistory />,
     },
   ];
 
