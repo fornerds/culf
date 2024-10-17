@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
 from pydantic import HttpUrl
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -9,10 +9,18 @@ from app.domains.curator import schemas as curator_schemas
 from app.domains.curator import services as curator_services
 from app.core.deps import get_current_active_superuser
 from app.domains.user.models import User
-from typing import List,Optional
+from typing import List, Optional
+from app.core.config import settings
 
 router = APIRouter()
 
+def get_current_admin_user(
+    current_user: User = Depends(get_current_active_superuser)
+) -> User:
+    if settings.DEV_MODE:
+        # In development mode, return a mock admin user
+        return User(user_id=1, email="admin@example.com", role="ADMIN")
+    return current_user
 
 @router.post("/banners", response_model=banner_schemas.Banner)
 async def create_banner(
@@ -22,7 +30,7 @@ async def create_banner(
     end_date: date = Form(..., description="Banner end date (YYYY-MM-DD)"),
     is_public: bool = Form(True, description="Whether the banner is public"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     배너 생성
@@ -50,7 +58,7 @@ async def read_banners(
     limit: int = 100,
     is_public: bool = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     배너 목록 조회
@@ -68,7 +76,7 @@ async def read_banners(
 async def read_banner(
     banner_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     특정 배너 조회
@@ -87,7 +95,7 @@ async def update_banner(
     banner_id: int,
     banner: banner_schemas.BannerUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     배너 수정
@@ -107,7 +115,7 @@ async def update_banner(
 async def delete_banner(
     banner_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     배너 삭제
@@ -126,7 +134,7 @@ async def delete_banner(
 async def create_curator(
     curator: curator_schemas.CuratorCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     큐레이터 생성
@@ -142,7 +150,7 @@ async def read_curators(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     큐레이터 목록 조회
@@ -159,7 +167,7 @@ async def read_curators(
 async def read_curator(
     curator_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     특정 큐레이터 조회
@@ -178,7 +186,7 @@ async def update_curator(
     curator_id: int,
     curator: curator_schemas.CuratorUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     큐레이터 수정
@@ -198,7 +206,7 @@ async def update_curator(
 async def delete_curator(
     curator_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """
     큐레이터 삭제

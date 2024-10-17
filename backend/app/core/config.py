@@ -1,4 +1,4 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import os
 
@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 8  # 8 days
     ALGORITHM: str = "HS256"
 
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
+    DB_HOST: str = os.getenv("DB_HOST")
+    DB_PORT: int = os.getenv("DB_PORT")
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     OPENAI_ASSISTANT_ID: str
 
     # 개발 모드 설정 추가
-    DEV_MODE: bool = False
+    DEV_MODE: bool = os.getenv("DEV_MODE", "False") == "True"
 
     CLOUDFRONT_DOMAIN: str
     CLOUDFRONT_DISTRIBUTION_ID: str

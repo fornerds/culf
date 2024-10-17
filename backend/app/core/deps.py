@@ -11,30 +11,29 @@ import logging
 from datetime import datetime, date
 import uuid
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/form/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
 async def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> user_schemas.User:
     if settings.DEV_MODE:
-        if not token:
-            logging.warning("Using dev mode authentication")
-            dev_email = "dev@example.com"
-            dev_user = services.get_user_by_email(db, email=dev_email)
-            if not dev_user:
-                dev_user = user_services.create_user(db, user_schemas.UserCreate(
-                    email=dev_email,
-                    password="devpassword",
-                    password_confirmation="devpassword",
-                    nickname="DevAdmin",
-                    birthdate=date(1990, 1, 1),
-                    gender="N",
-                    phone_number="1234567890",
-                    marketing_agreed=False
-                ))
-                dev_user.role = 'ADMIN'
-                db.commit()
-            return dev_user
+        logging.warning("Using dev mode authentication")
+        dev_email = "dev@example.com"
+        dev_user = services.get_user_by_email(db, email=dev_email)
+        if not dev_user:
+            dev_user = user_services.create_user(db, user_schemas.UserCreate(
+                email=dev_email,
+                password="devpassword",
+                password_confirmation="devpassword",
+                nickname="DevUser",
+                birthdate=date(1990, 1, 1),
+                gender="N",
+                phone_number="1234567890",
+                marketing_agreed=False
+            ))
+            dev_user.role = 'ADMIN'  # Set the user as admin in dev mode
+            db.commit()
+        return dev_user
 
     if not token:
         raise HTTPException(
@@ -49,11 +48,11 @@ async def get_current_user(
         )
         user_id: str = payload.get("sub")
         if user_id is None:
-            raise credentials_exception
+            raise HTTPException(status_code=401, detail="Invalid token")
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Access token has expired")
     except JWTError:
-        raise credentials_exception
+        raise HTTPException(status_code=401, detail="Invalid token")
     user = services.get_user(db, user_id=user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")

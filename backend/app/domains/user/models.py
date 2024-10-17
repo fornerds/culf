@@ -30,7 +30,7 @@ class User(Base):
     corporate_info = relationship("CorporateUser", back_populates="user", uselist=False)
     inquiries = relationship("Inquiry", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
-    notification_settings = relationship("NotificationSetting", back_populates="user")
+    notification_settings = relationship("UserNotificationSetting", back_populates="user")
     notice_reads = relationship("UserNoticeRead", back_populates="user")
 
 

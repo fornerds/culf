@@ -10,9 +10,9 @@ from app.domains.notice.schemas import UserNoticeRead
 class UserBase(BaseModel):
     email: EmailStr
     nickname: str = Field(..., min_length=2, max_length=50)
-    phone_number: Optional[str] = Field(None, regex=r'^\d{10,11}$')
+    phone_number: Optional[str] = Field(None, pattern=r'^\d{10,11}$')
     birthdate: date
-    gender: str = Field(..., regex='^(M|F|N)$')
+    gender: str = Field(..., pattern='^(M|F|N)$')
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
@@ -55,7 +55,7 @@ class UserInfo(BaseModel):
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = Field(None, min_length=2, max_length=50)
-    phone_number: Optional[str] = Field(None, regex=r'^\d{10,11}$')
+    phone_number: Optional[str] = Field(None, pattern=r'^\d{10,11}$')
 
 class UserUpdateResponse(BaseModel):
     message: str
