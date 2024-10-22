@@ -34,6 +34,22 @@ class Settings(BaseSettings):
     CLOUDFRONT_DOMAIN: str
     CLOUDFRONT_DISTRIBUTION_ID: str
 
+    KAKAO_CLIENT_ID: str
+    KAKAO_CLIENT_SECRET: str
+    KAKAO_AUTH_URI: str
+    KAKAO_TOKEN_URI: str
+    KAKAO_REDIRECT_URI: str
+    KAKAO_REST_API_KEY: str
+    
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
+    PROJECT_ID: str
+    GOOGLE_AUTH_URI: str
+    GOOGLE_TOKEN_URI: str
+    GOOGLE_AUTH_PROVIDER_X509_CERT_URL: str
+    GOOGLE_REDIRECT_URI: str
+    GOOGLE_JAVASCRIPT_ORIGINS: str
+
     class Config:
         env_file = ".env"
 

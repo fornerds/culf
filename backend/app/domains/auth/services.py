@@ -70,3 +70,20 @@ def get_json_response(access_token :str,refresh_token :str,) -> JSONResponse:
         samesite="lax",  # 쿠키의 SameSite 속성
     )
     return response
+
+def get_oauth_user_info(provider: str, token: str) -> Optional[dict]:
+    import requests
+
+    if provider == "kakao":
+        url = "https://kapi.kakao.com/v2/user/me"
+        headers = {"Authorization": f"Bearer {token}"}
+    elif provider == "google":
+        url = "https://www.googleapis.com/oauth2/v2/userinfo"
+        headers = {"Authorization": f"Bearer {token}"}
+    else:
+        return None
+
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    return None
