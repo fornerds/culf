@@ -26,7 +26,7 @@ def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[Type[User]]:
 def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     db_user = models.User(
         email=user.email,
-        password=get_password_hash(user.password),
+        password=get_password_hash(user.password) if user.password is not None else None,
         nickname=user.nickname,
         phone_number=user.phone_number,
         birthdate=user.birthdate,
@@ -98,3 +98,23 @@ def is_active(user: schemas.User) -> bool:
 
 def is_superuser(user: schemas.User) -> bool:
     return user.role == 'ADMIN'
+
+
+def get_user_by_provider_id(db: Session, provider: str, provider_id: str) -> Optional[User]:
+    return db.query(User).filter(User.provider == provider, User.provider_id == str(provider_id)).first()
+
+def create_oauth_user(db: Session, user: schemas.OAuthUserCreate, provider: str, provider_id: str, email: str) -> models.User:
+    new_db_user = models.User(
+        email=email,
+        provider=provider,
+        provider_id=str(provider_id),
+        nickname=user.nickname,
+        phone_number=user.phone_number,
+        birthdate=user.birthdate,
+        gender=user.gender,
+        marketing_agreed=user.marketing_agreed
+    )
+    return create_user(db=db, user=new_db_user)
+
+def is_oauth_account_linked(db_user: models.User, provider: str) -> bool:
+    return db_user.provider == provider and db_user.provider_id is not None

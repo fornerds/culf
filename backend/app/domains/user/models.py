@@ -10,7 +10,7 @@ class User(Base):
 
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password = Column(String(255), nullable=False)
+    password = Column(String(255), nullable=True)
     nickname = Column(String(50), unique=True, nullable=False)
     phone_number = Column(String(20), unique=True)
     birthdate = Column(Date, nullable=False)
@@ -24,6 +24,8 @@ class User(Base):
     delete_reason = Column(Text)
     marketing_agreed = Column(Boolean, nullable=False, default=False)
     is_corporate = Column(Boolean, nullable=False, default=False)
+    provider = Column(String(50))
+    provider_id = Column(String(255))
 
     conversations = relationship("Conversation", back_populates="user")
     tokens = relationship("Token", back_populates="user", uselist=False)

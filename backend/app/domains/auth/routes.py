@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.domains.auth import schemas as auth_schemas
 from app.domains.auth import services as auth_services
@@ -12,7 +12,9 @@ from app.core.deps import get_current_user
 from app.core.config import settings
 from datetime import timedelta
 from starlette.responses import RedirectResponse
+from starlette.requests import Request
 import httpx
+import json
 
 router = APIRouter()
 
@@ -189,31 +191,190 @@ async def fetch_token_and_user_info(
 
     return user_info
 
-@router.get("/auth/callback/google")
-async def google_auth_callback(code: str, request: Request):
+async def process_oauth_callback(
+    provider: str,
+    code: str,
+    db: Session,
+    request: Request,
+    token_url: str,
+    redirect_uri: str,
+    client_id: str,
+    client_secret: str,
+    get_email: callable
+):
     user_info = await fetch_token_and_user_info(
+        provider=provider,
+        code=code,
+        token_url=token_url,
+        redirect_uri=redirect_uri,
+        client_id=client_id,
+        client_secret=client_secret
+    )
+    
+    email = get_email(user_info)
+    provider_id = user_info["id"]
+    
+    if email:
+        db_user = user_services.get_user_by_email(db, email=email)
+
+        if db_user:
+            if user_services.is_oauth_account_linked(db_user, provider=provider):
+                access_token, refresh_token = auth_services.create_tokens(str(db_user.user_id))
+                return auth_services.get_json_response(access_token, refresh_token)
+            else:
+                return JSONResponse(content={"detail": "Account exists. Please link your accounts."}, status_code=400)
+        else:
+            # ... within the process_oauth_callback function:
+            response = RedirectResponse(url="/v1/register/more-info", status_code=status.HTTP_302_FOUND)
+            # Assuming user_info is a dictionary that can be serialized to a JSON string
+            response.set_cookie(key="oauth_user_info", value=json.dumps(user_info), httponly=True)
+            return response
+    else:
+        db_user = user_services.get_user_by_provider_id(db, provider=provider, provider_id=provider_id)
+        
+        if db_user:
+            access_token, refresh_token = auth_services.create_tokens(str(db_user.user_id))
+            return auth_services.get_json_response(access_token, refresh_token)
+        else:
+            # ... within the process_oauth_callback function:
+            response = RedirectResponse(url="/v1/register/more-info", status_code=status.HTTP_302_FOUND)
+            # Assuming user_info is a dictionary that can be serialized to a JSON string
+            response.set_cookie(key="oauth_user_info", value=json.dumps(user_info), httponly=True)
+        return response
+
+@router.get("/register/more-info", response_class=HTMLResponse)
+async def more_info_form(request: Request):
+    oauth_user_info = request.cookies.get("oauth_user_info")
+    if not oauth_user_info:
+        raise HTTPException(status_code=400, detail="Missing OAuth user info")
+
+    user_info = json.loads(oauth_user_info)
+    email = user_info.get("email", "")
+    
+    script_txt = """
+                <script>
+                async function submitForm(event) {
+                    event.preventDefault();
+                    const email = document.getElementById('email').value
+                    const nickname = document.getElementById('nickname').value;
+                    const phoneNumber = document.getElementById('phone_number').value;
+                    const birthdate = document.getElementById('birthdate').value;
+                    const gender = document.getElementById('gender').value;
+                    const marketingAgreed = document.getElementById('marketing_agreed').checked;
+                    
+                    const data = {
+                        email: email,
+                        nickname: nickname,
+                        phone_number: phoneNumber,
+                        birthdate: birthdate,
+                        gender: gender,
+                        marketing_agreed: marketingAgreed
+                    };
+                    
+                    const response = await fetch('/v1/register/more-info', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    const result = await response.json();
+                    console.log(result);
+                }
+            </script>
+        """
+    # Render a simple form
+    form_html = f"""
+    <html>
+        <body>
+            {script_txt}
+            <form onsubmit="submitForm(event)">
+                <label>Email:</label><br>
+                <input type="email" id="email" name="email" value="{email}" {'' if email else 'required'} {'' if not email else 'disabled'} /><br>
+                <label>Nickname:</label><br>
+                <input type="text" id="nickname" name="nickname" required/><br>
+                <label>Phone Number:</label><br>
+                <input type="tel" id="phone_number" name="phone_number"/><br>
+                <label>Birthdate:</label><br>
+                <input type="date" id="birthdate" name="birthdate"/><br>
+                <label>Gender:</label><br>
+                <select id="gender" name="gender" required>
+                    <option value="" disabled selected>Select your gender</option>
+                    <option value="M">Male</option>
+                    <option value="F">Female</option>
+                    <option value="N">Other</option>
+                </select><br>
+                <label>Marketing Agreed:</label><br>
+                <input type="checkbox" id="marketing_agreed" name="marketing_agreed" value="true"/><br>
+                <input type="submit" value="Submit"/>
+            </form>
+        </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=form_html)
+
+@router.post("/register/more-info")
+async def register_more_info(
+    request: Request,
+    user: user_schemas.OAuthUserCreate,
+    db: Session = Depends(get_db)
+):
+    # SNS 로그인 유저 비밀번호/비밀번호 확인 값 받지 않는 것으로 처리 별도 Schema
+    # SNS 가입 유저는 email-password 로그인 불가?
+
+    oauth_user_info = request.cookies.get("oauth_user_info")
+    if not oauth_user_info:
+        raise HTTPException(status_code=400, detail="Missing OAuth user info")
+
+    user_info = json.loads(oauth_user_info)
+    email = user_info.get("email") or user.email
+    provider = user_info.get("provider")
+    provider_id = user_info.get("id")
+
+    # Ensure the username does not already exist
+    existing_user = user_services.get_user_by_nickname(db, user.nickname)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    # Complete the registration of the new user
+    new_user = user_services.create_oauth_user(
+        db=db,
+        user=user,
+        provider=provider,
+        provider_id=provider_id,
+        email=email
+    )
+    access_token, refresh_token = auth_services.create_tokens(str(new_user.user_id))
+    response = auth_services.get_json_response(access_token, refresh_token)
+    response.delete_cookie("oauth_user_info")
+    return response
+
+@router.get("/auth/callback/google")
+async def google_auth_callback(code: str, request: Request, db: Session = Depends(get_db)):
+    return await process_oauth_callback(
         provider="google",
         code=code,
+        db=db,
+        request=request,
         token_url=settings.GOOGLE_TOKEN_URI,
         redirect_uri=settings.GOOGLE_REDIRECT_URI,
         client_id=settings.GOOGLE_CLIENT_ID,
-        client_secret=settings.GOOGLE_CLIENT_SECRET
-    )
-    
-    # Process user_info and return or update user record as needed
-    return JSONResponse(content={"user_info": user_info})
+        client_secret=settings.GOOGLE_CLIENT_SECRET,
+        get_email=lambda user_info: user_info.get("email")
+            )
 
 @router.get("/auth/callback/kakao")
-async def kakao_auth_callback(code: str, request: Request):
-    user_info = await fetch_token_and_user_info(
+async def kakao_auth_callback(code: str, request: Request, db: Session = Depends(get_db)):
+    return await process_oauth_callback(
         provider="kakao",
         code=code,
+        db=db,
+        request=request,
         token_url=settings.KAKAO_TOKEN_URI,
         redirect_uri=settings.KAKAO_REDIRECT_URI,
         client_id=settings.KAKAO_CLIENT_ID,
-        client_secret=settings.KAKAO_CLIENT_SECRET
+        client_secret=settings.KAKAO_CLIENT_SECRET,
+        get_email=lambda user_info: user_info.get("kakao_account", {}).get("email")
     )
-    
-    # Process user_info and return or update user record as needed
-    
-    return JSONResponse(content={"user_info": user_info})

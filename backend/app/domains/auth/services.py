@@ -8,6 +8,7 @@ from app.domains.auth.schemas import TokenPayload
 from jose import jwt
 from app.core.config import settings
 from app.domains.user import services as user_services
+from app.domains.user import schemas as user_schemas
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     user = user_services.get_user_by_email(db, email)

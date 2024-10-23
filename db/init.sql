@@ -30,7 +30,9 @@ CREATE TABLE Users (
     role role_enum NOT NULL DEFAULT 'USER',
     delete_reason VARCHAR(255),
     is_corporate BOOLEAN NOT NULL DEFAULT FALSE,
-    marketing_agreed BOOLEAN NOT NULL DEFAULT FALSE
+    marketing_agreed BOOLEAN NOT NULL DEFAULT FALSE,
+    provider VARCHAR(50),
+    provider_id VARCHAR(255) UNIQUE
 );
 
 -- Curators 테이블
