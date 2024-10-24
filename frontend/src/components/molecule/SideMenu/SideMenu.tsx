@@ -31,7 +31,7 @@ export function SideMenu({ isOpen, onClose, remainingTokens }: SideMenuProps) {
               <p className="font-text-1">님</p>
             </div>
             <button className={styles.closeButton} onClick={onClose}>
-              <CloseIcon />
+              <CloseIcon width="18px" height="20px" />
             </button>
           </div>
           <section className={styles.tokenInfo}>

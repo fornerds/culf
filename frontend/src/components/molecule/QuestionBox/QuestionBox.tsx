@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import styles from './QuestionBox.module.css';
 
 interface BaseQuestionBoxProps {
-  content: string;
+  content: ReactNode;
 }
 
 // AI QuestionBox
 interface AIQuestionBoxProps extends BaseQuestionBoxProps {
-  image?: string; // 이미지를 선택적으로 변경
+  image?: string;
 }
 
 function AIQuestionBox({ content, image }: AIQuestionBoxProps) {

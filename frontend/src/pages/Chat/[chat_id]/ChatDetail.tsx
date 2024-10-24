@@ -6,20 +6,67 @@ import {
   QuestionBox,
 } from '@/components/molecule';
 import CameraIcon from '@/assets/icons/camera.svg?react';
+import CloseIcon from '@/assets/icons/close.svg?react';
 import AlbumIcon from '@/assets/icons/album.svg?react';
 import curatorImage from '../../../assets/images/curator01.png';
+import { LoadingDots } from '@/components/atom';
 
 type MessageType =
-  | { type: 'ai'; content: string }
+  | {
+      [x: string]: any;
+      type: 'ai';
+      content: string;
+    }
   | { type: 'user'; content: string }
   | { type: 'suggestion'; content: string };
+
+type PreviewImage = {
+  id: string;
+  file: File;
+  url: string;
+};
 
 export function ChatDetail() {
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [messages, setMessages] = useState<MessageType[]>([]);
+  const [previewImages, setPreviewImages] = useState<PreviewImage[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const chatInputGroupRef = useRef<HTMLElement>(null);
+  const [inputGroupHeight, setInputGroupHeight] = useState(0);
   const isMobile = window.innerWidth < 425;
   const [showSuggestions, setShowSuggestions] = useState(true);
+
+  // ChatInputGroup 높이 감지
+  useEffect(() => {
+    const updateInputHeight = () => {
+      if (chatInputGroupRef.current) {
+        const height = chatInputGroupRef.current.offsetHeight;
+        setInputGroupHeight(height);
+        document.documentElement.style.setProperty(
+          '--input-group-height',
+          `${height}px`,
+        );
+      }
+    };
+
+    updateInputHeight();
+    window.addEventListener('resize', updateInputHeight);
+
+    // MutationObserver를 사용하여 ChatInputGroup의 크기 변화 감지
+    const observer = new MutationObserver(updateInputHeight);
+    if (chatInputGroupRef.current) {
+      observer.observe(chatInputGroupRef.current, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateInputHeight);
+      observer.disconnect();
+    };
+  }, []);
 
   const suggestions = [
     '9박 10일 유럽여행 일정 짜줘',
@@ -38,11 +85,20 @@ export function ChatDetail() {
   const handleSendMessage = (message: string) => {
     setShowSuggestions(false);
     setMessages([...messages, { type: 'user', content: message }]);
-    // AI 응답 시뮬레이션
+
+    setMessages((prev) => [
+      ...prev,
+      { type: 'ai', content: '', isLoading: true },
+    ]);
+
     setTimeout(() => {
       setMessages((prev) => [
-        ...prev,
-        { type: 'ai', content: '네, 알겠습니다. 어떤 도움이 필요하신가요?' },
+        ...prev.slice(0, -1),
+        {
+          type: 'ai',
+          content: '네, 알겠습니다. 어떤 도움이 필요하신가요?',
+          isLoading: false,
+        },
       ]);
     }, 1000);
   };
@@ -51,18 +107,27 @@ export function ChatDetail() {
     handleSendMessage(suggestion);
   };
 
-  useEffect(() => {
-    // 새 메시지가 추가될 때마다 스크롤을 아래로 이동
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop =
-        chatContainerRef.current.scrollHeight;
-    }
-  }, [messages]);
-
   const handleFileSelect = (file: File) => {
-    console.log('Selected file:', file.name);
+    if (previewImages.length >= 4) {
+      alert('최대 4개의 이미지만 업로드할 수 있습니다.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const newImage: PreviewImage = {
+        id: Date.now().toString(),
+        file: file,
+        url: e.target?.result as string,
+      };
+      setPreviewImages((prev) => [...prev, newImage]);
+    };
+    reader.readAsDataURL(file);
     setIsUploadMenuOpen(false);
-    // Implement file upload logic here
+  };
+
+  const handleRemoveImage = (id: string) => {
+    setPreviewImages((prev) => prev.filter((image) => image.id !== id));
   };
 
   const toggleMenu = () => {
@@ -81,13 +146,47 @@ export function ChatDetail() {
 
   return (
     <div className={styles.chatDetailContainer}>
+      {previewImages.length > 0 && (
+        <div
+          className={styles.imagePreviewContainer}
+          style={
+            {
+              '--preview-bottom': isUploadMenuOpen
+                ? `calc(var(--input-group-height) + 75px + env(safe-area-inset-bottom) - 17px )`
+                : `calc(var(--input-group-height) + env(safe-area-inset-bottom) - 17px )`,
+            } as React.CSSProperties
+          }
+        >
+          {previewImages.map((image) => (
+            <div key={image.id} className={styles.imagePreviewWrapper}>
+              <img
+                src={image.url}
+                alt="Preview"
+                className={styles.previewImage}
+              />
+              <button
+                onClick={() => handleRemoveImage(image.id)}
+                className={styles.removeImageButton}
+              >
+                <CloseIcon width="8px" height="10px" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className={styles.chatContainer} ref={chatContainerRef}>
         {messages.map((message, index) =>
           message.type === 'ai' ? (
             <QuestionBox
               key={index}
               type="ai"
-              content={message.content}
+              content={
+                message.isLoading ? (
+                  <LoadingDots color="#8381FF" size={7} />
+                ) : (
+                  message.content
+                )
+              }
               image={curatorImage}
             />
           ) : (
@@ -103,6 +202,7 @@ export function ChatDetail() {
         />
       )}
       <section
+        ref={chatInputGroupRef}
         className={`${styles.chatInputGroup} ${isUploadMenuOpen ? styles.menuOpen : ''}`}
       >
         <FileUploadButton
@@ -134,6 +234,7 @@ export function ChatDetail() {
             파일
             <input
               type="file"
+              accept="image/*"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleFileSelect(file);
