@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.domains.user import routes as user_routes
 from app.domains.conversation import routes as conversation_routes
@@ -32,6 +33,14 @@ app = FastAPI(
     - 관리자 기능
     """,
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 모든 출처 허용
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(curator_routes.router, prefix=f"{settings.API_V1_STR}", tags=["curators"])

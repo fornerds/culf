@@ -105,7 +105,8 @@ CREATE TABLE User_Subscriptions (
     plan_id INTEGER REFERENCES Subscription_Plans(plan_id),
     start_date DATE NOT NULL,
     next_billing_date DATE NOT NULL,
-    status subscription_status NOT NULL DEFAULT 'ACTIVE'
+    status subscription_status NOT NULL DEFAULT 'ACTIVE',
+    subscription_number VARCHAR(20) UNIQUE NULL
 );
 
 -- Token Plans 테이블
@@ -134,11 +135,12 @@ CREATE TABLE Coupons (
 
 -- Payments 테이블
 CREATE TABLE Payments (
-    payment_id SERIAL PRIMARY KEY,
+    payment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES Users(user_id),
     subscription_id BIGINT REFERENCES User_Subscriptions(subscription_id),
     token_plan_id INTEGER REFERENCES Token_Plans(token_plan_id),
     payment_number VARCHAR(20) UNIQUE NOT NULL,
+    transaction_number VARCHAR(20) UNIQUE NULL,
     tokens_purchased INTEGER,
     amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
     payment_method VARCHAR(50) NOT NULL,
@@ -151,7 +153,7 @@ CREATE TABLE Payments (
 -- Refunds 테이블
 CREATE TABLE Refunds (
     refund_id SERIAL PRIMARY KEY,
-    payment_id BIGINT REFERENCES Payments(payment_id),
+    payment_id UUID REFERENCES Payments(payment_id),
     user_id UUID REFERENCES Users(user_id),
     amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
     reason TEXT,

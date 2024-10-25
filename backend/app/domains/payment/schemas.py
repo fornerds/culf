@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class PaymentBase(BaseModel):
@@ -65,38 +65,57 @@ class UserCouponResponse(UserCouponBase):
 
 
 # 카카오페이
-class KakaoPayRequest(BaseModel):
-    partner_order_id: str
-    partner_user_id: str
-    item_name: str
-    quantity: int
-    total_amount: float
-    user_id: int
-    plan_id: Optional[int] 
-
 class KakaoPaySubscriptionRequest(BaseModel):
-    partner_order_id: str
     partner_user_id: str
-    item_name: str
     quantity: int
-    total_amount: float
-    user_id: int
     plan_id: int  
-    sid: Optional[str]  
+    coupon_id: Optional[int] = None
+
+class KakaoPayRequest(BaseModel):
+    partner_user_id: str
+    quantity: int
+    plan_id: int
+    coupon_id: Optional[int] = None
+
+class Amount(BaseModel):
+    total: int
+    tax_free: int
+    vat: int
+    point: int
+    discount: int
+    green_deposit: int
+
+class CardInfo(BaseModel):
+    interest_free_install: str
+    bin: str
+    card_type: str
+    card_mid: str
+    approved_id: str
+    install_month: str
+    installment_type: Optional[str] = None  # 선택 사항
+    kakaopay_purchase_corp: str
+    kakaopay_purchase_corp_code: str
+    kakaopay_issuer_corp: str
+    kakaopay_issuer_corp_code: str
+
+class SequentialPaymentMethod(BaseModel):
+    payment_priority: int
+    sid: str
+    payment_method_type: str
+    card_info: Optional[CardInfo] = None  # 선택 사항, 카드 결제일 경우
 
 class KakaoPayApproval(BaseModel):
-    aid: str
     tid: str
+    aid: str
     cid: str
+    sid: Optional[str] = None  # 정기 결제일 경우
     partner_order_id: str
     partner_user_id: str
     payment_method_type: str
-    amount: dict
-    item_name: Optional[str]
+    item_name: str
+    quantity: int
+    amount: Amount
+    card_info: Optional[CardInfo] = None  # 카드 결제일 경우
+    sequential_payment_methods: Optional[List[SequentialPaymentMethod]] = None  # 정기 결제 시 순차결제일 경우
     created_at: datetime
     approved_at: datetime
-
-class KakaoPayRefundRequest(BaseModel):
-    payment_id: int
-    amount: float
-    reason: Optional[str]

@@ -1,12 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from ..subscription.models import SubscriptionPlan
-from schemas import PaymentCreate, PaymentResponse, RefundBase, RefundResponse, CouponBase, CouponResponse, UserCouponBase, UserCouponResponse, KakaoPayRequest, KakaoPayRefundRequest, KakaoPaySubscriptionRequest,KakaoPayApproval
-from services import PaymentService
+from app.domains.subscription.models import SubscriptionPlan
+from app.domains.payment.schemas import PaymentCreate, PaymentResponse, RefundBase, RefundResponse, CouponBase, CouponResponse, UserCouponBase, UserCouponResponse, KakaoPayRequest, KakaoPaySubscriptionRequest,KakaoPayApproval
+from app.domains.payment.services import PaymentService
+from app.domains.payment.kakaopay_service import KakaoPayService
 from app.db.session import get_db
-from kakaopay_service import KakaoPayService
 from dotenv import load_dotenv
 import os
+
+import logging
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -68,6 +74,7 @@ def create_coupon(coupon_data: CouponBase, db: Session = Depends(get_db)):
     coupon = PaymentService.create_coupon(db, coupon_data)
     return coupon
 
+# 필터 조회 형식
 @router.get("/coupons", response_model=list[CouponResponse])
 def get_coupons(page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
     coupons = PaymentService.get_coupons(db, page, limit)
@@ -85,37 +92,40 @@ def use_coupon(user_coupon_data: UserCouponBase, db: Session = Depends(get_db)):
     user_coupon = PaymentService.use_coupon(db, user_coupon_data)
     return user_coupon
 
-
 # .env 파일 로드
 load_dotenv()
 
 kakao_service = KakaoPayService()
-
+    
 @router.post("/pay")
 async def initiate_payment(payment_request: KakaoPayRequest, db: Session = Depends(get_db)):
     try:
-        # 구독 플랜 정보를 데이터베이스에서 가져옴
-        plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.plan_id == payment_request.plan_id).first()
-        if not plan:
-            raise HTTPException(status_code=404, detail="Subscription plan not found")
-        
-        payment_url = kakao_service.initiate_payment(payment_request, db, plan)
-        return {"redirect_url": payment_url}
+        token_plan = kakao_service.get_token_plan(db, payment_request.plan_id)
+        payment_data = kakao_service.initiate_payment(payment_request, token_plan, db)
+        return payment_data
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Error initiating payment: {str(e)}")
+        raise HTTPException(status_code=400, detail="결제 준비에 실패했습니다.")
 
 @router.get("/pay/success")
-async def approve_payment(pg_token: str, tid: str, db: Session = Depends(get_db)):
+async def approve_payment(pg_token: str, db: Session = Depends(get_db)):
     try:
-        payment_approval = kakao_service.approve_payment(pg_token, tid, db)
+        # 승인 요청 처리
+        payment_approval = kakao_service.approve_payment(pg_token, db)
+
+        logger.info(f"Payment approved successfully: {payment_approval}")
         return payment_approval
+
     except Exception as e:
+        logger.error(f"Error during payment approval: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/refund")
-async def request_refund(refund_request: KakaoPayRefundRequest, db: Session = Depends(get_db)):
-    try:
-        refund = kakao_service.process_refund(refund_request, db)
+@router.post("/admin/refund/{refund_id}/{status}")
+async def request_refund(tid: str, db: Session = Depends(get_db)):
+    try:        
+        refund = kakao_service.process_refund(tid, db)
         return refund
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -123,36 +133,31 @@ async def request_refund(refund_request: KakaoPayRefundRequest, db: Session = De
 @router.post("/subscription")
 async def initiate_subscription(subscription_request: KakaoPaySubscriptionRequest, db: Session = Depends(get_db)):
     try:
-        # 구독 플랜 정보를 데이터베이스에서 가져옴
-        plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.plan_id == subscription_request.plan_id).first()
-        if not plan:
-            raise HTTPException(status_code=404, detail="Subscription plan not found")
-
-        sid = kakao_service.initiate_subscription(subscription_request, db, plan)
-        return {"sid": sid}
+        subscription_date = kakao_service.initiate_subscription(subscription_request, db)
+        return subscription_date
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
 @router.post("/subscription/pay")
-async def pay_subscription(subscription_request: KakaoPaySubscriptionRequest, db: Session = Depends(get_db)):
+async def pay_subscription(db: Session = Depends(get_db)):
     try:
-        payment_result = kakao_service.pay_subscription(subscription_request, db)
-        return payment_result
+        payment_results = kakao_service.pay_subscription(db)
+        return payment_results
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/subscription/cancel")
-async def cancel_subscription(sid: str, db: Session = Depends(get_db)):
+async def cancel_subscription(user_id: str, db: Session = Depends(get_db)):
     try:
-        cancellation_response = kakao_service.cancel_subscription(sid, db)
+        cancellation_response = kakao_service.cancel_subscription(user_id, db)
         return cancellation_response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/subscription/status")
-async def subscription_status(sid: str, db: Session = Depends(get_db)):
+async def subscription_status(user_id: str, db: Session = Depends(get_db)):
     try:
-        status_response = kakao_service.get_subscription_status(sid, db)
+        status_response = kakao_service.get_subscription_status(user_id, db)
         return status_response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models import Payment, Refund, Coupon, UserCoupon
+from app.domains.payment.models import Payment, Refund, Coupon, UserCoupon
 from datetime import datetime
 
 class PaymentService:

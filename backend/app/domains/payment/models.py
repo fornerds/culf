@@ -1,17 +1,18 @@
 from sqlalchemy import Column, Integer, String, Float, Enum, TIMESTAMP, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from sqlalchemy.dialects.postgresql import UUID
+from app.db.base_class import Base
+import uuid
 
 class Payment(Base):
     __tablename__ = 'payments'
 
-    payment_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
-    subscription_id = Column(Integer, ForeignKey('subscriptions.subscription_id'), nullable=True)
+    payment_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
+    subscription_id = Column(Integer, ForeignKey('subscription_plans.plan_id'), nullable=True)
     token_plan_id = Column(Integer, ForeignKey('token_plans.token_plan_id'), nullable=True)
     payment_number = Column(String(20), unique=True, nullable=False)
+    transaction_number = Column(String(20), unique=True, nullable=True)  # 새로운 칼럼 추가
     tokens_purchased = Column(Integer, nullable=True)
     amount = Column(Float, nullable=False, default=0)
     payment_method = Column(String(50), nullable=False)
@@ -21,10 +22,10 @@ class Payment(Base):
     manual_payment_reason = Column(String, nullable=True)
 
     # Relationships
-    user = relationship("User")
-    subscription = relationship("Subscription")
-    token_plan = relationship("TokenPlan")
+    subscription = relationship("SubscriptionPlan", back_populates="payments")
+    token_plan = relationship("TokenPlan", back_populates="payments")
     used_coupon = relationship("Coupon")
+    user = relationship("User", back_populates="payments")
 
     def __repr__(self):
         return f"<Payment(payment_id={self.payment_id}, amount={self.amount}, status={self.status})>"
@@ -33,8 +34,8 @@ class Refund(Base):
     __tablename__ = 'refunds'
 
     refund_id = Column(Integer, primary_key=True, autoincrement=True)
-    payment_id = Column(Integer, ForeignKey('payments.payment_id'), nullable=False)
-    user_id = Column(Integer, ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
+    payment_id = Column(UUID(as_uuid=True), ForeignKey('payments.payment_id'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
     amount = Column(Float, nullable=False, default=0)
     reason = Column(String, nullable=True)
     status = Column(Enum('PENDING', 'APPROVED', 'REJECTED'), nullable=False, default='PENDING')
@@ -64,7 +65,7 @@ class Coupon(Base):
 class UserCoupon(Base):
     __tablename__ = 'user_coupons'
 
-    user_id = Column(Integer, ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
     coupon_id = Column(Integer, primary_key=True)
     used_at = Column(TIMESTAMP, nullable=True)
 

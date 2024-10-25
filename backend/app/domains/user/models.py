@@ -32,6 +32,7 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user")
     notification_settings = relationship("NotificationSetting", back_populates="user")
     notice_reads = relationship("UserNoticeRead", back_populates="user")
+    payments = relationship("Payment", back_populates="user")
 
 
 class CorporateUser(Base):
