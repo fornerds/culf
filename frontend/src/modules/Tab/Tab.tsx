@@ -10,9 +10,10 @@ interface TabItem {
 interface TabProps {
   tabs: TabItem[];
   defaultActiveTab?: string;
+  onClickTab?: (tabId: string) => void;
 }
 
-export function Tab({ tabs, defaultActiveTab }: TabProps) {
+export function Tab({ tabs, defaultActiveTab, onClickTab }: TabProps) {
   const [activeTab, setActiveTab] = useState(defaultActiveTab || tabs[0].id);
 
   return (
@@ -22,7 +23,10 @@ export function Tab({ tabs, defaultActiveTab }: TabProps) {
           <button
             key={tab.id}
             className={`font-tag-1 ${styles.tabButton} ${activeTab === tab.id ? styles.active : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              onClickTab && onClickTab(tab.id);
+            }}
           >
             {tab.label}
           </button>

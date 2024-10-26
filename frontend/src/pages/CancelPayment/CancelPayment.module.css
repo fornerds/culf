@@ -1,0 +1,48 @@
+.main {
+  margin: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.textarea {
+  padding: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 128px;
+  border-radius: 0px 12px 12px 12px;
+  border: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-default, #fbfbfb);
+  color: var(--text-sub, #767676);
+}
+
+.textareaLength {
+  margin-top: 5px;
+  margin-left: 6px;
+  color: var(--text-guidetext, #a7a7a7);
+}
+
+.selectedImageWrapper {
+  display: flex;
+  position: relative;
+}
+
+.selectedImage {
+  position: relative;
+  display: inline-block;
+  width: 80px;
+  height: 77px;
+}
+
+.removeBtn {
+  position: absolute;
+  top: -8px;
+  left: 72px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.bottomBtn {
+  margin-top: 20px;
+}

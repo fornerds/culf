@@ -5,6 +5,7 @@ import {
   useNavigationType,
   useLocation,
   matchPath,
+  Navigate,
 } from 'react-router-dom';
 import { useHeaderStore } from './state/client/useHeaderStore';
 import { useSideMenuStore } from './state/client/useSideMenuStore';
@@ -84,7 +85,7 @@ function App() {
       setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
       setShowBackButton(false);
       setShowMenuButton(true);
-    } else if (matchPath('/mypage', pathname)) {
+    } else if (matchPath('/mypage/:tab', pathname)) {
       setUseHeader(true);
       setTitle('마이페이지');
       setShowBackButton(true);
@@ -109,6 +110,11 @@ function App() {
       setTitle('서비스결제');
       setShowBackButton(true);
       setShowMenuButton(false);
+    } else if (matchPath('/cancel-payment', pathname)) {
+      setUseHeader(true);
+      setTitle('취소 요청');
+      setShowBackButton(true);
+      setShowMenuButton(false);
     } else {
       setUseHeader(false);
     }
@@ -131,7 +137,11 @@ function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Homepage />} />
-        <Route path="/mypage" element={<Mypage />} />
+        <Route
+          path="/mypage"
+          element={<Navigate to="/mypage/account" replace />}
+        />
+        <Route path="/mypage/:tab" element={<Mypage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/signup" element={<Signup />} />

@@ -4,8 +4,12 @@ import { Tab } from '@/modules';
 import { Account } from '@/components/organism';
 import { Subscription } from '@/components/organism/Subscription';
 import { PaymentHistory } from '@/components/organism/PaymentHistory';
+import { useNavigate, useParams } from 'react-router-dom';
 
 export function Mypage() {
+  const { tab } = useParams();
+  const navigate = useNavigate();
+
   const tabs = [
     {
       id: 'account',
@@ -36,7 +40,11 @@ export function Mypage() {
         </div>
       </div>
 
-      <Tab tabs={tabs} defaultActiveTab="account" />
+      <Tab
+        tabs={tabs}
+        defaultActiveTab={tab}
+        onClickTab={(tabId) => navigate(`/mypage/${tabId}`, { replace: true })}
+      />
     </>
   );
 }

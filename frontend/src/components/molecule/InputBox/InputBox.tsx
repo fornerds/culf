@@ -21,6 +21,7 @@ interface InputBoxProps
   buttonClassName?: string;
   buttonText?: string;
   onChange?: (value: string) => void;
+  onChangeObj?: (id: string, value: string) => void;
   onClick?: () => void;
 }
 
@@ -38,6 +39,7 @@ export function InputBox({
   buttonClassName,
   buttonText,
   onChange,
+  onChangeObj,
   onClick,
   ...props
 }: InputBoxProps) {
@@ -51,6 +53,7 @@ export function InputBox({
           disabled={disabled}
           type={type}
           onChange={onChange}
+          onChangeObj={onChangeObj}
           {...props}
         />
         {buttonText && (
