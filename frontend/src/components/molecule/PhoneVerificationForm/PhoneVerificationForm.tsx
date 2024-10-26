@@ -2,20 +2,22 @@ import { useState } from 'react';
 import { InputBox } from '@/components/molecule/InputBox';
 import styles from './PhoneVerificationForm.module.css';
 
-export function PhoneVerificationForm() {
-  const [phoneNumber, setPhoneNumber] = useState('');
+interface PhoneVerificationFormProps {
+  phoneNumber: string;
+  onChangeObj?: (id: string, value: string) => void;
+}
+
+export function PhoneVerificationForm({
+  phoneNumber,
+  onChangeObj,
+}: PhoneVerificationFormProps) {
   const [phoneNumberMessage, setPhoneNumberMessage] = useState('');
 
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationCodeMessage, setVerificationCodeMessage] = useState('');
 
-  const handlePhoneNumberChange = (value: string) => {
-    setPhoneNumber(value);
-    console.log('휴대폰 번호 정책 확인');
-  };
-
   const handleVerificationCodeChange = (value: string) => {
-    setPhoneNumber(value);
+    setVerificationCode(value);
     console.log('인증번호 정책 확인');
   };
   return (
@@ -28,7 +30,7 @@ export function PhoneVerificationForm() {
         buttonSize="size4"
         buttonVariant="default"
         buttonText="인증번호 발송"
-        onChange={handlePhoneNumberChange}
+        onChangeObj={onChangeObj}
       />
       <div className={styles.inputGroup}>
         <InputBox

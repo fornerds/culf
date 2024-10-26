@@ -5,44 +5,28 @@ import { InputBox } from '@/components/molecule/InputBox';
 import { PhoneVerificationForm } from '@/components/molecule/PhoneVerificationForm';
 
 export function Account() {
-  const [email, setEmail] = useState('');
+  const [form, setForm] = useState({
+    email: '',
+    nickname: '',
+    phoneNumber: '',
+    password: '',
+    newPassword: '',
+  });
   const [emailMessage, setEmailMessage] = useState('');
-
-  const [nickname, setNickname] = useState('');
   const [nicknameMessage, setNicknameMessage] = useState('');
-
-  const [password, setPassword] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
-
   const [isPasswordValid, setIsPasswordValid] = useState(false);
-
-  const [newPassword, setNewPassword] = useState('');
-
   const [newPasswordCheck, setNewPasswordCheck] = useState('');
 
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    if (!value.includes('@')) {
-      setEmailMessage('유효한 이메일 주소를 입력해주세요.');
-    } else {
-      setEmailMessage('');
-    }
-  };
-
-  const handleNicknameChange = (value: string) => {
-    setNickname(value);
-  };
-
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
+  const handleFormChange = (id: string, value: string) => {
+    setForm({
+      ...form,
+      [id]: value,
+    });
   };
 
   const handlePasswordCheckClick = () => {
     setIsPasswordValid(!isPasswordValid);
-  };
-
-  const handleNewPasswordChange = (value: string) => {
-    setNewPassword(value);
   };
 
   const handleNewPasswordCheckChange = (value: string) => {
@@ -59,29 +43,32 @@ export function Account() {
             label="이메일"
             type="email"
             placeholder="example@gmail.com"
-            value={email}
+            value={form.email}
             validationMessage={emailMessage}
             validationMessageType="error"
-            onChange={handleEmailChange}
+            onChangeObj={handleFormChange}
           />
           <InputBox
             id="nickname"
             label="닉네임"
             placeholder="닉네임 입력"
-            value={nickname}
-            onChange={handleNicknameChange}
+            value={form.nickname}
+            onChangeObj={handleFormChange}
           />
-          <PhoneVerificationForm />
+          <PhoneVerificationForm
+            phoneNumber={form.phoneNumber}
+            onChangeObj={handleFormChange}
+          />
           <section className={styles.passwordSection}>
             <InputBox
               id="changePassword"
               label="비밀번호 변경"
               placeholder="기존 비밀번호 입력"
-              value={password}
+              value={form.password}
               buttonSize="size4"
               buttonVariant="default"
               buttonText="확인"
-              onChange={handlePasswordChange}
+              onChangeObj={handleFormChange}
               onClick={handlePasswordCheckClick}
             />
             {isPasswordValid && (
@@ -90,12 +77,12 @@ export function Account() {
                   id="newPassword"
                   label="신규 비밀번호"
                   placeholder="비밀번호 입력"
-                  value={newPassword}
-                  onChange={handleNewPasswordChange}
+                  value={form.newPassword}
+                  onChangeObj={handleFormChange}
                 />
                 <InputBox
                   id="newPasswordCheck"
-                  label="비밀번호 변경"
+                  label="신규 비밀번호 확인"
                   placeholder="기존 비밀번호 입력"
                   value={newPasswordCheck}
                   onChange={handleNewPasswordCheckChange}
