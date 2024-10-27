@@ -115,6 +115,11 @@ function App() {
       setTitle('취소 요청');
       setShowBackButton(true);
       setShowMenuButton(false);
+    } else if (matchPath('/delete-account', pathname)) {
+      setUseHeader(true);
+      setTitle('계정 탈퇴');
+      setShowBackButton(true);
+      setShowMenuButton(false);
     } else {
       setUseHeader(false);
     }

@@ -3,8 +3,10 @@ import { useState } from 'react';
 import styles from './Account.module.css';
 import { InputBox } from '@/components/molecule/InputBox';
 import { PhoneVerificationForm } from '@/components/molecule/PhoneVerificationForm';
+import { useNavigate } from 'react-router-dom';
 
 export function Account() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     email: '',
     nickname: '',
@@ -94,7 +96,11 @@ export function Account() {
         <div className={styles.accountBottom}>
           <Button>변경사항 저장</Button>
           <div className={styles.buttonGroup}>
-            <Button size="size3" variant="warning">
+            <Button
+              size="size3"
+              variant="warning"
+              onClick={() => navigate('/delete-account')}
+            >
               계정탈퇴하기
             </Button>
             <Button size="size3" variant="less-highlight">
