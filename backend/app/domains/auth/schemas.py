@@ -40,3 +40,6 @@ class PasswordReset(BaseModel):
 
 class Msg(BaseModel):
     message: str
+
+class EmailCheckRequest(BaseModel):
+    email: str
