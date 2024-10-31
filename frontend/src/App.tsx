@@ -6,7 +6,10 @@ import {
   useLocation,
   matchPath,
   Navigate,
+  BrowserRouter,
 } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useHeaderStore } from './state/client/useHeaderStore';
 import { useSideMenuStore } from './state/client/useSideMenuStore';
 // AI가 만든 페이지
@@ -50,7 +53,21 @@ import { Notification } from './pages/Notification';
 import { CustomerInquiry } from './pages/CustomerInquiry';
 import logoimage from './assets/images/culf.png';
 
-function App() {
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+      gcTime: 5 * 60 * 1000, // 5분 (이전의 cacheTime)
+      staleTime: 5 * 60 * 1000, // 5분
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
+
+function AppRoutes() {
   const {
     setUseHeader,
     setTitle,
@@ -193,4 +210,18 @@ function App() {
     </Layout>
   );
 }
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+      {import.meta.env.MODE === 'development' && (
+        <ReactQueryDevtools initialIsOpen={false} />
+      )}
+    </QueryClientProvider>
+  );
+}
+
 export default App;
