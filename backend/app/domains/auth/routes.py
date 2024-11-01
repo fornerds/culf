@@ -110,7 +110,12 @@ def reset_password(email: str, db: Session = Depends(get_db)):
     # For this example, we'll just return a success message
     return {"msg": "Password reset email sent"}
 
-# Add more routes as needed (e.g., email verification, password change, etc.)
+@router.post("/auth/check-email", response_model=dict)
+def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depends(get_db)):
+    db_user = user_services.get_user_by_email(db, email=email_check.email)
+    if db_user:
+        return {"available": False}
+    return {"available": True}
 
 @router.post("/auth/phone-verification/request")
 def send_verification_code(

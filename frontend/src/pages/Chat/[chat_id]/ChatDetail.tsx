@@ -10,15 +10,13 @@ import CloseIcon from '@/assets/icons/close.svg?react';
 import AlbumIcon from '@/assets/icons/album.svg?react';
 import curatorImage from '../../../assets/images/curator01.png';
 import { LoadingDots } from '@/components/atom';
+import { useSendMessage } from '@/state/server/chatQueries';
 
-type MessageType =
-  | {
-      [x: string]: any;
-      type: 'ai';
-      content: string;
-    }
-  | { type: 'user'; content: string }
-  | { type: 'suggestion'; content: string };
+type MessageType = {
+  type: 'user' | 'ai' | 'suggestion';
+  content: string;
+  isLoading?: boolean;
+};
 
 type PreviewImage = {
   id: string;
@@ -36,6 +34,15 @@ export function ChatDetail() {
   const isMobile = window.innerWidth < 425;
   const [showSuggestions, setShowSuggestions] = useState(true);
 
+  const { mutate: sendMessage, isLoading: isSending } = useSendMessage();
+
+  const suggestions = [
+    '9박 10일 유럽여행 일정 짜줘',
+    '사람들이 잘 모르는 제주도 여행 명소를 알려줘',
+    '겨울 여행지 추천해줘',
+    '가족여행 갈만한 곳 알려줘',
+  ];
+
   // ChatInputGroup 높이 감지
   useEffect(() => {
     const updateInputHeight = () => {
@@ -52,7 +59,6 @@ export function ChatDetail() {
     updateInputHeight();
     window.addEventListener('resize', updateInputHeight);
 
-    // MutationObserver를 사용하여 ChatInputGroup의 크기 변화 감지
     const observer = new MutationObserver(updateInputHeight);
     if (chatInputGroupRef.current) {
       observer.observe(chatInputGroupRef.current, {
@@ -68,13 +74,7 @@ export function ChatDetail() {
     };
   }, []);
 
-  const suggestions = [
-    '9박 10일 유럽여행 일정 짜줘',
-    '사람들이 잘 모르는 제주도 여행 명소를 알려줘',
-    '겨울 여행지 추천해줘',
-    '가족여행 갈만한 곳 알려줘',
-  ];
-
+  // 스크롤 자동 조절
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop =
@@ -84,23 +84,50 @@ export function ChatDetail() {
 
   const handleSendMessage = (message: string) => {
     setShowSuggestions(false);
-    setMessages([...messages, { type: 'user', content: message }]);
 
+    // 사용자 메시지 추가
+    setMessages((prev) => [...prev, { type: 'user', content: message }]);
+
+    // 로딩 메시지 추가
     setMessages((prev) => [
       ...prev,
       { type: 'ai', content: '', isLoading: true },
     ]);
 
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          type: 'ai',
-          content: '네, 알겠습니다. 어떤 도움이 필요하신가요?',
-          isLoading: false,
+    const imageFile =
+      previewImages.length > 0 ? previewImages[0].file : undefined;
+
+    sendMessage(
+      { question: message, imageFile },
+      {
+        onSuccess: (data) => {
+          // 로딩 메시지 제거 후 실제 응답 추가
+          setMessages((prev) => [
+            ...prev.slice(0, -1),
+            {
+              type: 'ai',
+              content: data.answer,
+              isLoading: false,
+            },
+          ]);
+          // 이미지 프리뷰 초기화
+          setPreviewImages([]);
         },
-      ]);
-    }, 1000);
+        onError: (error) => {
+          console.error('Error sending message:', error);
+          alert('메시지 전송 중 오류가 발생했습니다.');
+          // 로딩 메시지를 에러 메시지로 교체
+          setMessages((prev) => [
+            ...prev.slice(0, -1),
+            {
+              type: 'ai',
+              content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
+              isLoading: false,
+            },
+          ]);
+        },
+      },
+    );
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -130,17 +157,13 @@ export function ChatDetail() {
     setPreviewImages((prev) => prev.filter((image) => image.id !== id));
   };
 
-  const toggleMenu = () => {
-    setIsUploadMenuOpen(!isUploadMenuOpen);
-  };
-
   const handleCameraCapture = () => {
-    console.log('Camera capture');
+    // 모바일 카메라 캡처 구현
     setIsUploadMenuOpen(false);
   };
 
   const handleAlbumSelect = () => {
-    console.log('Album select');
+    // 모바일 앨범 선택 구현
     setIsUploadMenuOpen(false);
   };
 
@@ -152,8 +175,8 @@ export function ChatDetail() {
           style={
             {
               '--preview-bottom': isUploadMenuOpen
-                ? `calc(var(--input-group-height) + 75px + env(safe-area-inset-bottom) - 17px )`
-                : `calc(var(--input-group-height) + env(safe-area-inset-bottom) - 17px )`,
+                ? `calc(var(--input-group-height) + 75px + env(safe-area-inset-bottom) - 17px)`
+                : `calc(var(--input-group-height) + env(safe-area-inset-bottom) - 17px)`,
             } as React.CSSProperties
           }
         >
@@ -174,6 +197,7 @@ export function ChatDetail() {
           ))}
         </div>
       )}
+
       <div className={styles.chatContainer} ref={chatContainerRef}>
         {messages.map((message, index) =>
           message.type === 'ai' ? (
@@ -194,6 +218,7 @@ export function ChatDetail() {
           ),
         )}
       </div>
+
       {showSuggestions && (
         <QuestionBox
           type="suggestion"
@@ -201,6 +226,7 @@ export function ChatDetail() {
           onSuggestionClick={handleSuggestionClick}
         />
       )}
+
       <section
         ref={chatInputGroupRef}
         className={`${styles.chatInputGroup} ${isUploadMenuOpen ? styles.menuOpen : ''}`}
@@ -211,6 +237,7 @@ export function ChatDetail() {
         />
         <ChatInput onSendMessage={handleSendMessage} />
       </section>
+
       <div
         className={`${styles.uploadMenu} ${isUploadMenuOpen ? styles.visible : ''}`}
       >

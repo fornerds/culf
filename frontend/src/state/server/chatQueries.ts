@@ -11,7 +11,7 @@ import { AxiosError } from 'axios';
 
 interface Message {
   question: string;
-  question_image?: string;
+  imageFile?: File;
 }
 
 interface Conversation {
@@ -56,10 +56,13 @@ export const useSendMessage = (): UseMutationResult<
   Message
 > =>
   useMutation({
-    mutationFn: (message: Message) =>
-      chat
-        .sendMessage(message.question, message.question_image)
-        .then((response) => response.data),
+    mutationFn: async (message: Message) => {
+      const response = await chat.sendMessage(
+        message.question,
+        message.imageFile,
+      );
+      return response.data;
+    },
   });
 
 export const useGetConversations = (

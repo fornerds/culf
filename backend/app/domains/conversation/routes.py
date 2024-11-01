@@ -160,10 +160,22 @@ def get_conversations(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
+    """
+    대화 목록을 조회하는 엔드포인트
+
+    Parameters:
+    - page: 페이지 번호 (1부터 시작)
+    - limit: 페이지당 대화 수
+    - sort: 정렬 기준 (필드명:정렬방향)
+    - summary: 요약 보기 여부
+    """
     conversations, total_count = services.get_user_conversations(
         db, current_user.user_id, page, limit, sort, summary
     )
-    return schemas.ConversationList(conversations=conversations, total_count=total_count)
+    return schemas.ConversationList(
+        conversations=conversations,
+        total_count=total_count
+    )
 
 @router.get("/conversations/{conversation_id}", response_model=schemas.ConversationDetail)
 def get_conversation(
