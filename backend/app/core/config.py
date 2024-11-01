@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     CLOUDFRONT_DOMAIN: str
     CLOUDFRONT_DISTRIBUTION_ID: str
 
+    ALIGO_KEY: str
+    ALIGO_USER_ID: str
+    ALIGO_SENDER: str
+    ALIGO_TESTMODE_YN: str
+
+    PHONE_NUMBER_VERIFICATION_SECONDS: int
     class Config:
         env_file = ".env"
 

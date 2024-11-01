@@ -1,12 +1,15 @@
 from datetime import datetime, timedelta
-from fastapi.responses import JSONResponse
 from typing import Optional, Tuple
-from sqlalchemy.orm import Session
-from app.domains.user.models import User
-from app.core.security import create_access_token, create_refresh_token, verify_password, get_password_hash
-from app.domains.auth.schemas import TokenPayload
+
+import hashlib
 from jose import jwt
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
+from app.core.security import create_access_token, create_refresh_token, get_password_hash, verify_password
+from app.domains.auth.schemas import TokenPayload
+from app.domains.user.models import User
 from app.domains.user import services as user_services
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
@@ -70,3 +73,7 @@ def get_json_response(access_token :str,refresh_token :str,) -> JSONResponse:
         samesite="lax",  # 쿠키의 SameSite 속성
     )
     return response
+
+def encrypt(verification_number: str) -> str:
+    # One-way encryption using SHA-256
+    return hashlib.sha256(verification_number.encode()).hexdigest()
