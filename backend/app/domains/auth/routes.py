@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import random
+from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -10,7 +11,8 @@ from app.core.security import get_password_hash
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.core.config import settings
-from datetime import timedelta
+from app.utils.sms import AligoService
+from datetime import timedelta, datetime
 
 router = APIRouter()
 
@@ -109,3 +111,31 @@ def reset_password(email: str, db: Session = Depends(get_db)):
     return {"msg": "Password reset email sent"}
 
 # Add more routes as needed (e.g., email verification, password change, etc.)
+
+@router.post("/auth/phone-verification/request")
+def send_verification_code(
+    phone_number: str = Body(..., embed=True), 
+    db: Session = Depends(get_db)
+):
+    user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
+    if user:
+        raise HTTPException(status_code=400, detail="User already exists with this phone number")
+
+    # Generate a random 6-digit verification code
+    verification_code = ''.join(random.sample('0123456789', 6))
+    encrypted_code = auth_services.encrypt(str(verification_code))  # Ensure you have an encrypt method
+    expires_in = settings.PHONE_NUMBER_VERIFICATION_SECONDS  # Set expiry time
+    # Send the SMS using AligoService
+    aligo = AligoService()
+    response = aligo.send_message(
+        receiver=phone_number,
+        destination=phone_number + '|테스트',
+        msg=f'[컬프] 핸드폰 인증 번호: {verification_code}',
+        title='[컬프] 핸드폰 인증 번호'
+    )
+    if response.get('success'):
+        response = JSONResponse(content={"msg": "Verification code sent"})
+        response.set_cookie(key="verification_code", value=encrypted_code, httponly=True, expires=expires_in)
+        return response
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send verification code")
