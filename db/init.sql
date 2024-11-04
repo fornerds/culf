@@ -318,6 +318,10 @@ INSERT INTO Users (user_id, email, password, nickname, phone_number, birthdate, 
 (uuid_generate_v4(), 'user2@example.com', 'hashedpassword2', '사용자2', '01023456789', '1992-02-02', 'F', 'ACTIVE', 'USER'),
 (uuid_generate_v4(), 'admin@example.com', 'hashedpassword3', '관리자', '01034567890', '1988-03-03', 'N', 'ACTIVE', 'ADMIN');
 
+INSERT INTO public.users
+(user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed)
+VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, true);
+
 -- Curators 테이블 mock 데이터
 INSERT INTO Curators (name, profile_image, introduction, category) VALUES
 ('여행 전문가', 'travel_expert.jpg', '세계 각국의 숨은 명소를 소개합니다.', '여행'),
