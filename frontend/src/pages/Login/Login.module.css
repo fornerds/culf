@@ -1,0 +1,95 @@
+.main {
+  padding: 45px 22px;
+}
+
+.inputWrapper {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.buttonArea {
+  margin-top: 32px;
+}
+
+.linkWrapper {
+  margin: 24px 4px 0 4px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.linkWrapper span {
+  color: var(--text-guidetext, #a7a7a7);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: normal;
+}
+
+.linkWrapper .linkRight span {
+  margin: 0 4px;
+}
+
+.bottom {
+  margin-top: 76px;
+}
+
+.bottomText {
+  color: var(--text-guidetext, #a7a7a7);
+  position: relative;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 100%;
+  text-align: center;
+}
+
+.bottomText::before,
+.bottomText::after {
+  content: '';
+  display: inline-block;
+  width: calc(50% - 50px);
+  height: 1px;
+  position: absolute;
+  top: calc(50% - 1px);
+  background: var(--text-guidetext, #a7a7a7);
+}
+
+.bottomText::before {
+  left: 0;
+}
+
+.bottomText::after {
+  right: 0;
+}
+
+.buttonGroup {
+  margin-top: 29px;
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+
+.buttonGroup div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 45px;
+  border-radius: 4px;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 150%;
+}
+
+.naverBtn {
+  background: var(--naver-bg, #03c75a);
+  color: var(--naver-text, #fff);
+}
+
+.kakaoBtn {
+  background: var(--kakao-bg, #fee500);
+  color: var(--kakao-text, rgba(0, 0, 0, 0.85));
+}
