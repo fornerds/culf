@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import random
+from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -10,7 +11,8 @@ from app.core.security import get_password_hash
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.core.config import settings
-from datetime import timedelta
+from app.utils.sms import AligoService
+from datetime import timedelta, datetime
 
 router = APIRouter()
 
@@ -108,4 +110,73 @@ def reset_password(email: str, db: Session = Depends(get_db)):
     # For this example, we'll just return a success message
     return {"msg": "Password reset email sent"}
 
-# Add more routes as needed (e.g., email verification, password change, etc.)
+@router.post("/auth/check-email", response_model=dict)
+def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depends(get_db)):
+    db_user = user_services.get_user_by_email(db, email=email_check.email)
+    if db_user:
+        return {"available": False}
+    return {"available": True}
+
+@router.post("/auth/phone-verification/request")
+def send_verification_code(
+    phone_number: str = Body(..., embed=True), 
+    db: Session = Depends(get_db)
+):
+    user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
+    if user:
+        raise HTTPException(status_code=400, detail="User already exists with this phone number")
+
+    # Generate a random 6-digit verification code
+    verification_code = ''.join(random.sample('0123456789', 6))
+    encrypted_code = auth_services.encrypt(str(verification_code)+phone_number)  # Ensure you have an encrypt method
+    expires_in = settings.PHONE_NUMBER_VERIFICATION_SECONDS  # Set expiry time
+    # Send the SMS using AligoService
+    aligo = AligoService()
+    response = aligo.send_message(
+        receiver=phone_number,
+        destination=phone_number + '|테스트',
+        msg=f'[컬프] 핸드폰 인증 번호: {verification_code}',
+        title='[컬프] 핸드폰 인증 번호'
+    )
+    if response.get('success'):
+        response = JSONResponse(content={
+            "message": "인증번호가 전송되었습니다.",
+            "expiration_time": expires_in
+        })
+        response.set_cookie(key="verification_code", value=encrypted_code, httponly=True, expires=expires_in)
+        return response
+    else:
+        raise HTTPException(status_code=400, detail={
+            "message": "유효하지 않은 휴대폰 번호입니다.",
+            "error": "invalid_phone_number"
+        })
+
+@router.post("/auth/phone-verification/verify")
+def verify_verification_code(
+    request: Request,
+    verification_code: str = Body(..., embed=True), 
+    phone_number: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    encrypted_code = request.cookies.get("verification_code")
+    if not encrypted_code:
+        raise HTTPException(status_code=400, detail={
+            "error": "invalid_code",
+            "message": "유효하지 않은(만료된) 인증코드입니다.",
+            "is_verified": False
+        })
+
+    if auth_services.encrypt(verification_code+phone_number) != encrypted_code:
+        raise HTTPException(status_code=400, detail={
+            "error": "invalid_code",
+            "message": "잘못된 인증번호입니다.",
+            "is_verified": False
+        })
+
+    response = JSONResponse(content={
+        "message": "인증이 완료되었습니다.",
+        "verified_phone_number":phone_number,
+        "is_verified": True
+    })
+    response.set_cookie(key="verified_phone_number",value=auth_services.encrypt(phone_number),httponly=True,expires=1200)
+    return response

@@ -1,12 +1,14 @@
+// frontend/src/api/index.ts
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL_DEV;
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Request interceptor for API calls
@@ -98,8 +100,18 @@ export const user = {
 
 // Chat API
 export const chat = {
-  sendMessage: (question: string, questionImage?: string) =>
-    api.post('/chat', { question, question_image: questionImage }),
+  sendMessage: (question: string, imageFile?: File) => {
+    const formData = new FormData();
+    formData.append('question', question);
+    if (imageFile) {
+      formData.append('image_file', imageFile);
+    }
+    return api.post('/chat', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
   getConversations: (
     page: number = 1,
     limit: number = 10,

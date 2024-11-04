@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
+from typing import List
 import os
 
 # 환경 변수에 따라 적절한 .env 파일 로드
@@ -20,6 +21,12 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
 
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8000",
+    ]
+
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
     AWS_REGION: str
@@ -34,6 +41,12 @@ class Settings(BaseSettings):
     CLOUDFRONT_DOMAIN: str
     CLOUDFRONT_DISTRIBUTION_ID: str
 
+    ALIGO_KEY: str
+    ALIGO_USER_ID: str
+    ALIGO_SENDER: str
+    ALIGO_TESTMODE_YN: str
+
+    PHONE_NUMBER_VERIFICATION_SECONDS: int
     class Config:
         env_file = ".env"
 

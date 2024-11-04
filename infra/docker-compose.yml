@@ -1,6 +1,6 @@
 services:
   db:
-    build: 
+    build:
       context: ../db
       dockerfile: Dockerfile
     container_name: culf_db
