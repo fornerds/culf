@@ -48,13 +48,8 @@ export function HistoryListItem({
         {status === 'SUCCESS' && (
           <Link to="/cancel-payment" className={styles.cancelButton}>
             <div className={styles.cancelButtonText}>취소요청</div>
-            <div>
-              <button
-                className={styles.button}
-                onClick={() => console.log('취소요청')}
-              >
-                <RightIcon />
-              </button>
+            <div className={styles.button}>
+              <RightIcon />
             </div>
           </Link>
         )}

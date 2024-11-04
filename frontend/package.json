@@ -19,6 +19,7 @@
     "typescript": "^5.5.4",
     "vite-tsconfig-paths": "^5.0.1",
     "web-vitals": "^2.1.4",
+    "yup": "^1.4.0",
     "zustand": "^5.0.1"
   },
   "devDependencies": {

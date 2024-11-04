@@ -102,6 +102,11 @@ function AppRoutes() {
       setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
       setShowBackButton(false);
       setShowMenuButton(true);
+    } else if (matchPath('/login', pathname)) {
+      setUseHeader(true);
+      setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
+      setShowBackButton(false);
+      setShowMenuButton(false);
     } else if (matchPath('/mypage/:tab', pathname)) {
       setUseHeader(true);
       setTitle('마이페이지');
