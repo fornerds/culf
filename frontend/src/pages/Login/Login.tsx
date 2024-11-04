@@ -4,19 +4,38 @@ import { useState } from 'react';
 import { Button, Link } from '@/components/atom';
 import NaverIcon from '@/assets/icons/naver.svg?react';
 import KakaoIcon from '@/assets/icons/kakao.svg?react';
+import { schemas } from '@/utils/validation';
 
 export function Login() {
   const [form, setForm] = useState({
     email: '',
     password: '',
   });
-  const [emailMessage, setEmailMessage] = useState('');
+  const [formMessage, setFormMessage] = useState({
+    email: '',
+    password: '',
+  });
 
-  const handleFormChange = (id: string, value: string) => {
+  const handleFormChange = async (id: string, value: string) => {
     setForm({
       ...form,
       [id]: value,
     });
+    setFormMessage({
+      ...formMessage,
+      [id]: '',
+    });
+  };
+
+  const handleBlur = async (id: keyof typeof form) => {
+    try {
+      const schema = schemas[id];
+      if (schema) {
+        await schema.validate(form[id]);
+      }
+    } catch (validationError: any) {
+      setFormMessage({ ...formMessage, [id]: validationError.message });
+    }
   };
 
   return (
@@ -30,9 +49,10 @@ export function Login() {
             type="email"
             placeholder="이메일을 입력하세요"
             value={form.email}
-            validationMessage={emailMessage}
+            validationMessage={formMessage.email}
             validationMessageType="error"
             onChangeObj={handleFormChange}
+            onBlur={() => handleBlur('email')}
           />
           <InputBox
             id="password"
@@ -40,7 +60,10 @@ export function Login() {
             type="password"
             placeholder="비밀번호를 입력하세요"
             value={form.password}
+            validationMessage={formMessage.password}
+            validationMessageType="error"
             onChangeObj={handleFormChange}
+            onBlur={() => handleBlur('password')}
           />
         </div>
         <div className={styles.buttonArea}>

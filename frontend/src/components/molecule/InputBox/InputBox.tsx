@@ -23,6 +23,7 @@ interface InputBoxProps
   onChange?: (value: string) => void;
   onChangeObj?: (id: string, value: string) => void;
   onClick?: () => void;
+  onBlur?: () => void;
 }
 
 export function InputBox({
@@ -41,6 +42,7 @@ export function InputBox({
   onChange,
   onChangeObj,
   onClick,
+  onBlur,
   ...props
 }: InputBoxProps) {
   return (
@@ -54,6 +56,7 @@ export function InputBox({
           type={type}
           onChange={onChange}
           onChangeObj={onChangeObj}
+          onBlur={onBlur}
           {...props}
         />
         {buttonText && (

@@ -8,6 +8,7 @@ interface InputProps
   type?: 'text' | 'password' | 'email' | 'number' | 'tel' | 'url';
   onChange?: (value: string) => void;
   onChangeObj?: (id: string, value: string) => void;
+  onBlur?: () => void;
 }
 
 export function Input({
@@ -18,6 +19,7 @@ export function Input({
   value: propValue,
   onChange,
   onChangeObj,
+  onBlur,
   ...props
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -31,7 +33,12 @@ export function Input({
   }, [propValue]);
 
   const handleFocus = () => setIsFocused(true);
-  const handleBlur = () => setIsFocused(false);
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (onBlur) {
+      onBlur();
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value: newValue } = e.target;
