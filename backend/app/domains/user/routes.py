@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.deps import get_current_user
+from app.domains.auth import services as auth_services
 from app.domains.user import schemas as user_schemas
 from app.domains.user import services as user_services
 from app.domains.token import services as token_services
@@ -10,7 +11,7 @@ from uuid import UUID
 router = APIRouter()
 
 @router.post("/users", response_model=user_schemas.UserCreationResponse)
-def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(request:Request, user: user_schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = user_services.get_user_by_email(db, email=user.email)
     if db_user:
         detail_message = "사용할 수 없는 이메일입니다." if db_user.status == 'WITHDRAWN' else "이미 등록된 이메일 주소입니다."
@@ -33,6 +34,13 @@ def create_user(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
             "message": "입력 정보가 올바르지 않습니다.",
             "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
         })
+    verified_phone_number = request.cookies.get("verified_phone_number")
+    if not verified_phone_number or auth_services.encrypt(user.phone_number)!=verified_phone_number:
+        raise HTTPException(status_code=400, detail={
+            "error": "phone_number_verification_failed",
+            "message": "전화번호 확인이 필요합니다."
+        })
+    
     if user.password != user.password_confirmation:
         raise HTTPException(status_code=400, detail={
             "error": "validation_error",

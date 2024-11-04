@@ -128,7 +128,7 @@ def send_verification_code(
 
     # Generate a random 6-digit verification code
     verification_code = ''.join(random.sample('0123456789', 6))
-    encrypted_code = auth_services.encrypt(str(verification_code))  # Ensure you have an encrypt method
+    encrypted_code = auth_services.encrypt(str(verification_code)+phone_number)  # Ensure you have an encrypt method
     expires_in = settings.PHONE_NUMBER_VERIFICATION_SECONDS  # Set expiry time
     # Send the SMS using AligoService
     aligo = AligoService()
@@ -139,8 +139,44 @@ def send_verification_code(
         title='[컬프] 핸드폰 인증 번호'
     )
     if response.get('success'):
-        response = JSONResponse(content={"msg": "Verification code sent"})
+        response = JSONResponse(content={
+            "message": "인증번호가 전송되었습니다.",
+            "expiration_time": expires_in
+        })
         response.set_cookie(key="verification_code", value=encrypted_code, httponly=True, expires=expires_in)
         return response
     else:
-        raise HTTPException(status_code=500, detail="Failed to send verification code")
+        raise HTTPException(status_code=400, detail={
+            "message": "유효하지 않은 휴대폰 번호입니다.",
+            "error": "invalid_phone_number"
+        })
+
+@router.post("/auth/phone-verification/verify")
+def verify_verification_code(
+    request: Request,
+    verification_code: str = Body(..., embed=True), 
+    phone_number: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    encrypted_code = request.cookies.get("verification_code")
+    if not encrypted_code:
+        raise HTTPException(status_code=400, detail={
+            "error": "invalid_code",
+            "message": "유효하지 않은(만료된) 인증코드입니다.",
+            "is_verified": False
+        })
+
+    if auth_services.encrypt(verification_code+phone_number) != encrypted_code:
+        raise HTTPException(status_code=400, detail={
+            "error": "invalid_code",
+            "message": "잘못된 인증번호입니다.",
+            "is_verified": False
+        })
+
+    response = JSONResponse(content={
+        "message": "인증이 완료되었습니다.",
+        "verified_phone_number":phone_number,
+        "is_verified": True
+    })
+    response.set_cookie(key="verified_phone_number",value=auth_services.encrypt(phone_number),httponly=True,expires=1200)
+    return response
