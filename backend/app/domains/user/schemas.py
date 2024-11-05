@@ -10,8 +10,11 @@ from app.domains.notice.schemas import UserNoticeRead
 class UserBase(BaseModel):
     email: EmailStr
     nickname: str = Field(..., min_length=2, max_length=50)
-    phone_number: Optional[str] = Field(None, pattern=r'^\d{10,11}$')
-    birthdate: date
+    phone_number: Optional[str] = Field(
+        None, 
+        pattern=r'^\d{10,11}$'  # Example: '1234567890' or '01234567890'
+    )
+    birthdate: Optional[date]
     gender: str = Field(..., pattern='^(M|F|N)$')
 
 class UserCreate(UserBase):
@@ -24,6 +27,9 @@ class UserCreate(UserBase):
         if 'password' in values and v != values['password']:
             raise ValueError('passwords do not match')
         return v
+
+class OAuthUserCreate(UserBase):
+    marketing_agreed: bool = False
 
 class UserCreationResponse(BaseModel):
     user_id: UUID
