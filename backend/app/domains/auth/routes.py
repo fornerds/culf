@@ -13,6 +13,8 @@ from app.core.deps import get_current_user
 from app.core.config import settings
 from app.utils.sms import AligoService
 from datetime import timedelta, datetime
+from starlette.responses import RedirectResponse
+import httpx
 
 router = APIRouter()
 
@@ -180,3 +182,110 @@ def verify_verification_code(
     })
     response.set_cookie(key="verified_phone_number",value=auth_services.encrypt(phone_number),httponly=True,expires=1200)
     return response
+@router.get("/login/{provider}")
+def login_with_provider(provider: str, request: Request):
+    if provider not in ["google", "kakao"]:  # Add any other supported providers
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported provider",
+        )
+
+    # Redirect user to the appropriate OAuth provider's login page
+    if provider == "kakao":
+        login_url = settings.KAKAO_AUTH_URI  # Kakao OAuth authorize URL
+        redirect_uri = settings.KAKAO_REDIRECT_URI  # Your app's redirect URI
+        client_id = settings.KAKAO_CLIENT_ID  # Retrieve your Kakao app client ID from settings
+        response_type = "code"
+        
+        # Construct the full URL to redirect the user
+        login_url = f"{login_url}?client_id={client_id}&redirect_uri={redirect_uri}&response_type={response_type}"
+        return RedirectResponse(url=login_url, status_code=status.HTTP_302_FOUND)
+    elif provider == "google":
+        login_url = settings.GOOGLE_AUTH_URI  # Google OAuth authorize URL
+        redirect_uri = settings.GOOGLE_REDIRECT_URI  # Your app's Google redirect URI
+        client_id = settings.GOOGLE_CLIENT_ID  # Retrieve your Google app client ID from settings
+        response_type = "code"
+        scope = "email profile"  # Define the scope your app needs
+
+        # Construct the full URL to redirect the user
+        login_url = (
+            f"{login_url}?client_id={client_id}&redirect_uri={redirect_uri}"
+            f"&response_type={response_type}&scope={scope}"
+        )
+        return RedirectResponse(url=login_url, status_code=status.HTTP_302_FOUND)
+
+async def fetch_token_and_user_info(
+    provider: str, code: str, token_url: str, redirect_uri: str, client_id: str, client_secret: str
+):
+    token_data = {
+        "grant_type": "authorization_code",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "code": code,
+    }
+    
+    async with httpx.AsyncClient() as client:
+        # Request access token
+        token_response = await client.post(token_url, data=token_data)
+        token_response_data = token_response.json()
+        
+        if "access_token" not in token_response_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to retrieve access token from {provider}"
+            )
+        
+        access_token = token_response_data["access_token"]
+        
+        # Determine user info URL and headers based on provider
+        if provider == "google":
+            user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+        elif provider == "kakao":
+            user_info_url = "https://kapi.kakao.com/v2/user/me"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unsupported provider"
+            )
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+        user_info_response = await client.get(user_info_url, headers=headers)
+        user_info = user_info_response.json()
+
+        if user_info_response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to retrieve user info from {provider}"
+            )
+
+    return user_info
+
+@router.get("/auth/callback/google")
+async def google_auth_callback(code: str, request: Request):
+    user_info = await fetch_token_and_user_info(
+        provider="google",
+        code=code,
+        token_url=settings.GOOGLE_TOKEN_URI,
+        redirect_uri=settings.GOOGLE_REDIRECT_URI,
+        client_id=settings.GOOGLE_CLIENT_ID,
+        client_secret=settings.GOOGLE_CLIENT_SECRET
+    )
+    
+    # Process user_info and return or update user record as needed
+    return JSONResponse(content={"user_info": user_info})
+
+@router.get("/auth/callback/kakao")
+async def kakao_auth_callback(code: str, request: Request):
+    user_info = await fetch_token_and_user_info(
+        provider="kakao",
+        code=code,
+        token_url=settings.KAKAO_TOKEN_URI,
+        redirect_uri=settings.KAKAO_REDIRECT_URI,
+        client_id=settings.KAKAO_CLIENT_ID,
+        client_secret=settings.KAKAO_CLIENT_SECRET
+    )
+    
+    # Process user_info and return or update user record as needed
+    
+    return JSONResponse(content={"user_info": user_info})
