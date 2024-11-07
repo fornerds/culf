@@ -14,7 +14,7 @@ const api: AxiosInstance = axios.create({
 // Request interceptor for API calls
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = sessionStorage.getItem('accessToken');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -32,19 +32,19 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     if (error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refreshToken');
       try {
-        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        const res = await axios.post(
+          `${API_BASE_URL}/refresh`,
+          {},
+          { withCredentials: true },
+        );
         if (res.status === 200) {
-          localStorage.setItem('accessToken', res.data.access_token);
+          sessionStorage.setItem('accessToken', res.data.access_token);
           return api(originalRequest);
         }
       } catch (refreshError) {
         // Refresh token is invalid, logout the user
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        sessionStorage.removeItem('accessToken');
         // Redirect to login page or dispatch a logout action
       }
     }
@@ -55,7 +55,7 @@ api.interceptors.response.use(
 // Auth API
 export const auth = {
   login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }),
+    api.post('/login', { email, password }),
   register: (userData: any) => api.post('/users', userData),
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),
