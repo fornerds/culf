@@ -100,30 +100,102 @@ export const user = {
 
 // Chat API
 export const chat = {
-  sendMessage: (question: string, imageFile?: File) => {
+  sendMessage: async (
+    question: string,
+    imageFile?: File,
+    onMessage?: (message: string) => void,
+  ): Promise<(() => void) | null> => {
     const formData = new FormData();
     formData.append('question', question);
     if (imageFile) {
       formData.append('image_file', imageFile);
     }
-    return api.post('/chat', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!onMessage || !data.answer) {
+        return null;
+      }
+
+      const text = data.answer;
+      let isCancelled = false;
+      let currentIndex = 0;
+
+      return new Promise<(() => void) | null>((resolve) => {
+        const streamText = () => {
+          if (isCancelled) {
+            resolve(() => {
+              isCancelled = true;
+            });
+            return;
+          }
+
+          if (currentIndex < text.length) {
+            let endIndex = currentIndex + 2;
+
+            while (
+              endIndex < text.length &&
+              !text[endIndex - 1].match(/[\s\n.!?,;:]/)
+            ) {
+              endIndex++;
+            }
+
+            const chunk = text.slice(currentIndex, endIndex);
+            onMessage(chunk);
+            currentIndex = endIndex;
+
+            const lastChar = chunk[chunk.length - 1];
+            const delay = lastChar?.match(/[.!?]/)
+              ? 300
+              : lastChar?.match(/[,;:]/)
+                ? 200
+                : lastChar?.match(/\s/)
+                  ? 100
+                  : 50;
+
+            setTimeout(streamText, delay);
+          } else {
+            resolve(() => {
+              isCancelled = true;
+            });
+          }
+        };
+
+        streamText();
+      });
+    } catch (error) {
+      console.error('Streaming error:', error);
+      throw error;
+    }
   },
+
+  // 나머지 메서드들은 유지
   getConversations: (
     page: number = 1,
     limit: number = 10,
     sort: string = 'question_time:desc',
     summary: boolean = false,
   ) => api.get('/conversations', { params: { page, limit, sort, summary } }),
+
   getConversationById: (conversationId: string) =>
     api.get(`/conversations/${conversationId}`),
+
   deleteConversation: (conversationId: string) =>
     api.delete(`/conversations/${conversationId}`),
 };
-
 // Token API
 export const token = {
   getMyTokenInfo: () => api.get('/users/me/tokens'),

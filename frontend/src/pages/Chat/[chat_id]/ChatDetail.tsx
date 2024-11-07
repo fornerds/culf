@@ -11,11 +11,13 @@ import AlbumIcon from '@/assets/icons/album.svg?react';
 import curatorImage from '../../../assets/images/curator01.png';
 import { LoadingDots } from '@/components/atom';
 import { useSendMessage } from '@/state/server/chatQueries';
+import { chat } from '@/api';
 
 type MessageType = {
   type: 'user' | 'ai' | 'suggestion';
   content: string;
   isLoading?: boolean;
+  isStreaming?: boolean;
 };
 
 type PreviewImage = {
@@ -33,6 +35,8 @@ export function ChatDetail() {
   const [inputGroupHeight, setInputGroupHeight] = useState(0);
   const isMobile = window.innerWidth < 425;
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const cleanupRef = useRef<(() => void) | null>(null);
+  const messageCompleteRef = useRef<boolean>(false);
 
   const { mutate: sendMessage, isLoading: isSending } = useSendMessage();
 
@@ -74,6 +78,82 @@ export function ChatDetail() {
     };
   }, []);
 
+  const handleSendMessage = async (message: string) => {
+    try {
+      setShowSuggestions(false);
+      messageCompleteRef.current = false;
+
+      // 이전 스트리밍 정리
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+
+      // 사용자 메시지 추가
+      setMessages((prev) => [...prev, { type: 'user', content: message }]);
+
+      // AI 메시지 컨테이너 추가
+      setMessages((prev) => [
+        ...prev,
+        { type: 'ai', content: '', isStreaming: true },
+      ]);
+
+      const imageFile =
+        previewImages.length > 0 ? previewImages[0].file : undefined;
+
+      const cleanup = await chat.sendMessage(message, imageFile, (chunk) => {
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage?.isStreaming) {
+            return [
+              ...prev.slice(0, -1),
+              {
+                ...lastMessage,
+                content: lastMessage.content + chunk,
+              },
+            ];
+          }
+          return prev;
+        });
+      });
+
+      // cleanup이 undefined일 경우 null 할당
+      cleanupRef.current = cleanup || null;
+      messageCompleteRef.current = true;
+
+      // 스트리밍 완료 후 처리
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.isStreaming ? { ...msg, isStreaming: false } : msg,
+        ),
+      );
+
+      setPreviewImages([]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('메시지 전송 중 오류가 발생했습니다.');
+
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        {
+          type: 'ai',
+          content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
+          isStreaming: false,
+        },
+      ]);
+    }
+  };
+
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+    };
+  }, []);
+
   // 스크롤 자동 조절
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -82,53 +162,53 @@ export function ChatDetail() {
     }
   }, [messages]);
 
-  const handleSendMessage = (message: string) => {
-    setShowSuggestions(false);
+  // const handleSendMessage = (message: string) => {
+  //   setShowSuggestions(false);
 
-    // 사용자 메시지 추가
-    setMessages((prev) => [...prev, { type: 'user', content: message }]);
+  //   // 사용자 메시지 추가
+  //   setMessages((prev) => [...prev, { type: 'user', content: message }]);
 
-    // 로딩 메시지 추가
-    setMessages((prev) => [
-      ...prev,
-      { type: 'ai', content: '', isLoading: true },
-    ]);
+  //   // 로딩 메시지 추가
+  //   setMessages((prev) => [
+  //     ...prev,
+  //     { type: 'ai', content: '', isLoading: true },
+  //   ]);
 
-    const imageFile =
-      previewImages.length > 0 ? previewImages[0].file : undefined;
+  //   const imageFile =
+  //     previewImages.length > 0 ? previewImages[0].file : undefined;
 
-    sendMessage(
-      { question: message, imageFile },
-      {
-        onSuccess: (data) => {
-          // 로딩 메시지 제거 후 실제 응답 추가
-          setMessages((prev) => [
-            ...prev.slice(0, -1),
-            {
-              type: 'ai',
-              content: data.answer,
-              isLoading: false,
-            },
-          ]);
-          // 이미지 프리뷰 초기화
-          setPreviewImages([]);
-        },
-        onError: (error) => {
-          console.error('Error sending message:', error);
-          alert('메시지 전송 중 오류가 발생했습니다.');
-          // 로딩 메시지를 에러 메시지로 교체
-          setMessages((prev) => [
-            ...prev.slice(0, -1),
-            {
-              type: 'ai',
-              content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
-              isLoading: false,
-            },
-          ]);
-        },
-      },
-    );
-  };
+  //   sendMessage(
+  //     { question: message, imageFile },
+  //     {
+  //       onSuccess: (data) => {
+  //         // 로딩 메시지 제거 후 실제 응답 추가
+  //         setMessages((prev) => [
+  //           ...prev.slice(0, -1),
+  //           {
+  //             type: 'ai',
+  //             content: data.answer,
+  //             isLoading: false,
+  //           },
+  //         ]);
+  //         // 이미지 프리뷰 초기화
+  //         setPreviewImages([]);
+  //       },
+  //       onError: (error) => {
+  //         console.error('Error sending message:', error);
+  //         alert('메시지 전송 중 오류가 발생했습니다.');
+  //         // 로딩 메시지를 에러 메시지로 교체
+  //         setMessages((prev) => [
+  //           ...prev.slice(0, -1),
+  //           {
+  //             type: 'ai',
+  //             content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
+  //             isLoading: false,
+  //           },
+  //         ]);
+  //       },
+  //     },
+  //   );
+  // };
 
   const handleSuggestionClick = (suggestion: string) => {
     handleSendMessage(suggestion);
@@ -205,8 +285,11 @@ export function ChatDetail() {
               key={index}
               type="ai"
               content={
-                message.isLoading ? (
-                  <LoadingDots color="#8381FF" size={7} />
+                message.isStreaming ? (
+                  <>
+                    {message.content}
+                    <LoadingDots color="#8381FF" size={7} />
+                  </>
                 ) : (
                   message.content
                 )
