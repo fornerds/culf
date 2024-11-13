@@ -157,6 +157,16 @@ function AppRoutes() {
       setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
       setShowBackButton(false);
       setShowMenuButton(false);
+    } else if (matchPath('/terms', pathname)) {
+      setUseHeader(true);
+      setTitle('회원가입');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else if (matchPath('/signup', pathname)) {
+      setUseHeader(true);
+      setTitle('회원가입');
+      setShowBackButton(true);
+      setShowMenuButton(false);
     } else if (matchPath('/mypage/:tab', pathname)) {
       setUseHeader(true);
       setTitle('마이페이지');

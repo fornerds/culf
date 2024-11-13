@@ -12,12 +12,18 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  selectedValues: string[];
+  isMarketingAgreed: boolean;
   setAuth: (
     isAuthenticated: boolean,
     user: User | null,
     accessToken: string | null,
     refreshToken: string | null,
   ) => void;
+  setSelectedValues: (
+    update: string[] | ((prev: string[]) => string[]),
+  ) => void;
+  setIsMarketingAgreed: (isMarketingAgreed: boolean) => void;
   logout: () => void;
 }
 
@@ -28,6 +34,8 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       refreshToken: null,
+      selectedValues: [],
+      isMarketingAgreed: false,
       setAuth: (isAuthenticated, user, accessToken, refreshToken) =>
         set({
           isAuthenticated,
@@ -35,6 +43,15 @@ export const useAuthStore = create<AuthState>()(
           accessToken,
           refreshToken,
         }),
+      setSelectedValues: (update) =>
+        set((state) => ({
+          selectedValues:
+            typeof update === 'function'
+              ? update(state.selectedValues)
+              : update,
+        })),
+      setIsMarketingAgreed: (isMarketingAgreed: boolean) =>
+        set({ isMarketingAgreed }),
       logout: () =>
         set({
           isAuthenticated: false,

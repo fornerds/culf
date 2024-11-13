@@ -86,7 +86,7 @@ export function Login() {
           <Button onClick={handleLogin}>로그인하기</Button>
         </div>
         <div className={styles.linkWrapper}>
-          <Link to="/signup">
+          <Link to="/terms">
             <span>회원가입</span>
           </Link>
           <div className={styles.linkRight}>

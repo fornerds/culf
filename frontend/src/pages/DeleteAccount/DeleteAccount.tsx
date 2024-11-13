@@ -19,12 +19,13 @@ export function DeleteAccount() {
     { id: '6', label: '기타' },
   ];
 
-  const handleCheckboxChange = (value: string, isChecked: boolean) => {
+  const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { value, checked } = e.target;
     setSelectedValues((prev) =>
-      isChecked ? [...prev, value] : prev.filter((item) => item !== value),
+      checked ? [...prev, value] : prev.filter((item) => item !== value),
     );
 
-    if (value === checkboxList[checkboxList.length - 1].id && !isChecked) {
+    if (value === checkboxList[checkboxList.length - 1].id && !checked) {
       setUserText('');
     }
   };

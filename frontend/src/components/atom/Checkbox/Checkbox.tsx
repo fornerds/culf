@@ -1,9 +1,10 @@
+import { ChangeEvent } from 'react';
 import styles from './Checkbox.module.css';
 
 export interface CheckboxProps {
   id: string;
   label: string;
-  onChange: (value: string, checked: boolean) => void;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   checked: boolean;
 }
 
@@ -23,7 +24,7 @@ export function Checkbox({
         id={id}
         value={id}
         checked={checked}
-        onChange={(e) => onChange(e.target.value, e.target.checked)}
+        onChange={onChange}
         {...rest}
       />
       <label htmlFor={id} className={styles.checkboxLabel}>
