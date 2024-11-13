@@ -1,7 +1,7 @@
 // frontend/src/api/index.ts
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
+export const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -11,10 +11,15 @@ const api: AxiosInstance = axios.create({
   withCredentials: true,
 });
 
+export const getAccessToken = () => sessionStorage.getItem('accessToken');
+export const setAccessToken = (token: string) =>
+  sessionStorage.setItem('accessToken', token);
+export const removeAccessToken = () => sessionStorage.removeItem('accessToken');
+
 // Request interceptor for API calls
 api.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem('accessToken');
+    const token = getAccessToken();
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -39,12 +44,12 @@ api.interceptors.response.use(
           { withCredentials: true },
         );
         if (res.status === 200) {
-          sessionStorage.setItem('accessToken', res.data.access_token);
+          setAccessToken(res.data.access_token);
           return api(originalRequest);
         }
       } catch (refreshError) {
         // Refresh token is invalid, logout the user
-        sessionStorage.removeItem('accessToken');
+        removeAccessToken();
         // Redirect to login page or dispatch a logout action
       }
     }

@@ -5,8 +5,8 @@ import { Button, Link } from '@/components/atom';
 import NaverIcon from '@/assets/icons/naver.svg?react';
 import KakaoIcon from '@/assets/icons/kakao.svg?react';
 import { schemas } from '@/utils/validation';
-import { useLogin } from '@/state/server/authQueries';
 import { useNavigate } from 'react-router-dom';
+import { auth, setAccessToken } from '@/api';
 
 export function Login() {
   const [form, setForm] = useState({
@@ -18,7 +18,6 @@ export function Login() {
     password: '',
   });
   const navigate = useNavigate();
-  const { mutate: login } = useLogin();
 
   const handleFormChange = async (id: string, value: string) => {
     setForm({
@@ -45,18 +44,14 @@ export function Login() {
   const handleLogin = async () => {
     handleBlur('email');
     handleBlur('password');
-    await login(
-      { ...form },
-      {
-        onSuccess: (data) => {
-          sessionStorage.setItem('accessToken', data.access_token);
-          navigate('/');
-        },
-        onError: (error) => {
-          alert('로그인에 실패했습니다.');
-        },
-      },
-    );
+    try {
+      const { email, password } = form;
+      const res = await auth.login(email, password);
+      setAccessToken(res.data.access_token);
+      navigate('/');
+    } catch (e) {
+      alert('로그인에 실패했습니다.');
+    }
   };
 
   return (
