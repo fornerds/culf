@@ -7,6 +7,7 @@ import {
   matchPath,
   Navigate,
   BrowserRouter,
+  Outlet,
 } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -52,6 +53,8 @@ import { DeleteAccount } from './pages/DeleteAccount';
 import { Notification } from './pages/Notification';
 import { CustomerInquiry } from './pages/CustomerInquiry';
 import logoimage from './assets/images/culf.png';
+import axios from 'axios';
+import { API_BASE_URL, getAccessToken, setAccessToken } from './api';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +69,53 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// 로그인한 사용자일 경우 홈으로 리다이렉트
+const PublicRoute = ({ children }: { children: JSX.Element }) => {
+  const accessToken = getAccessToken();
+  return accessToken ? <Navigate to="/" replace /> : children;
+};
+
+const refreshAccessToken = async () => {
+  try {
+    const res = await axios.post(
+      `${API_BASE_URL}/refresh`,
+      {},
+      { withCredentials: true },
+    );
+    setAccessToken(res.data.access_token);
+    return true;
+  } catch (error) {
+    console.error('Failed to refresh token:', error);
+    return false;
+  }
+};
+
+// 인증 보호 기능을 추가한 PrivateRoute 구성
+const PrivateOutlet = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const authenticate = async () => {
+      let token = getAccessToken();
+      if (!token) {
+        const refreshed = await refreshAccessToken();
+        token = getAccessToken();
+        setIsAuthenticated(refreshed && !!token); // 토큰이 있으면 인증된 상태
+      } else {
+        setIsAuthenticated(true); // 기존 토큰이 유효한 경우
+      }
+    };
+
+    authenticate();
+  }, []);
+
+  // 로딩 중에는 로딩 메시지 표시, 인증 실패 시 로그인 페이지로 리디렉션
+  if (isAuthenticated === null) return <div>Loading...</div>;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  return <Outlet />; // 인증된 경우 자식 컴포넌트 렌더링
+};
 
 function AppRoutes() {
   const {
@@ -101,7 +151,7 @@ function AppRoutes() {
       setUseHeader(true);
       setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
       setShowBackButton(false);
-      setShowMenuButton(true);
+      setShowMenuButton(!!getAccessToken());
     } else if (matchPath('/login', pathname)) {
       setUseHeader(true);
       setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
@@ -165,24 +215,33 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Homepage />} />
         <Route
-          path="/mypage"
-          element={<Navigate to="/mypage/account" replace />}
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
         />
-        <Route path="/mypage/:tab" element={<Mypage />} />
-        <Route path="/login" element={<Login />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/complete-signup" element={<CompleteSignup />} />
         <Route path="/find-email" element={<FindEmail />} />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/chat" element={<Chat />} />
-        <Route path="/chat/:chat_id" element={<ChatDetail />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/payment" element={<Payment />} />
-        <Route path="/cancel-payment" element={<CancelPayment />} />
-        <Route path="/delete-account" element={<DeleteAccount />} />
-        <Route path="/inquiry" element={<CustomerInquiry />} />
-        <Route path="/notification" element={<Notification />} />
+        <Route element={<PrivateOutlet />}>
+          <Route
+            path="/mypage"
+            element={<Navigate to="/mypage/account" replace />}
+          />
+          <Route path="/mypage/:tab" element={<Mypage />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:chat_id" element={<ChatDetail />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/payment" element={<Payment />} />
+          <Route path="/cancel-payment" element={<CancelPayment />} />
+          <Route path="/delete-account" element={<DeleteAccount />} />
+          <Route path="/inquiry" element={<CustomerInquiry />} />
+          <Route path="/notification" element={<Notification />} />
+        </Route>
         {/* AI가 만든 페이지목록 */}
         <Route path="/ai/" element={<_Home />} />
         <Route

@@ -5,6 +5,8 @@ import { Button, Link } from '@/components/atom';
 import NaverIcon from '@/assets/icons/naver.svg?react';
 import KakaoIcon from '@/assets/icons/kakao.svg?react';
 import { schemas } from '@/utils/validation';
+import { useNavigate } from 'react-router-dom';
+import { auth, setAccessToken } from '@/api';
 
 export function Login() {
   const [form, setForm] = useState({
@@ -15,6 +17,7 @@ export function Login() {
     email: '',
     password: '',
   });
+  const navigate = useNavigate();
 
   const handleFormChange = async (id: string, value: string) => {
     setForm({
@@ -34,7 +37,20 @@ export function Login() {
         await schema.validate(form[id]);
       }
     } catch (validationError: any) {
-      setFormMessage({ ...formMessage, [id]: validationError.message });
+      setFormMessage((prev) => ({ ...prev, [id]: validationError.message }));
+    }
+  };
+
+  const handleLogin = async () => {
+    handleBlur('email');
+    handleBlur('password');
+    try {
+      const { email, password } = form;
+      const res = await auth.login(email, password);
+      setAccessToken(res.data.access_token);
+      navigate('/');
+    } catch (e) {
+      alert('로그인에 실패했습니다.');
     }
   };
 
@@ -67,7 +83,7 @@ export function Login() {
           />
         </div>
         <div className={styles.buttonArea}>
-          <Button>로그인하기</Button>
+          <Button onClick={handleLogin}>로그인하기</Button>
         </div>
         <div className={styles.linkWrapper}>
           <Link to="/signup">
