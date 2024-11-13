@@ -1,7 +1,8 @@
 import random
-from fastapi import APIRouter, Body, Cookie, Depends, Form, HTTPException, status, Request
+import os
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 from app.domains.auth import schemas as auth_schemas
 from app.domains.auth import services as auth_services
@@ -12,14 +13,83 @@ from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.core.config import settings
 from app.utils.sms import AligoService
-from datetime import timedelta, datetime
 from starlette.responses import RedirectResponse
 from starlette.requests import Request
-import httpx
-import json
 
 router = APIRouter()
 
+@router.post("/auth/register", response_model=user_schemas.UserCreationResponse)
+def create_user(request:Request, user: user_schemas.UserCreate, db: Session = Depends(get_db)):
+
+    verified_phone_number = request.cookies.get("verified_phone_number")
+    if not verified_phone_number or auth_services.encrypt(user.phone_number)!=verified_phone_number:
+        raise HTTPException(status_code=400, detail={
+            "error": "phone_number_verification_failed",
+            "message": "전화번호 인증이 필요합니다."
+        })
+
+    db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
+    if db_user:
+        raise HTTPException(status_code=400, detail={
+            "error": "validation_error",
+            "message": "입력 정보가 올바르지 않습니다.",
+            "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
+        })
+    
+    db_user = user_services.get_user_by_nickname(db, nickname=user.nickname)
+    if db_user:
+        raise HTTPException(status_code=400, detail={
+            "error": "validation_error",
+            "message": "입력 정보가 올바르지 않습니다.",
+            "details": [{"field": "nickname", "message": "이미 등록된 닉네임입니다."}]
+        })
+    
+    if user.password != user.password_confirmation:
+        raise HTTPException(status_code=400, detail={
+            "error": "validation_error",
+            "message": "입력 정보가 올바르지 않습니다.",
+            "details": [{"field": "password_confirmation", "message": "비밀번호와 비밀번호 확인이 일치하지 않습니다."}]
+        })
+    
+    provider_info = request.cookies.get("provider_info")
+    if provider_info:
+        # Skip email duplication check and password validation
+        try:
+            email_from_jwt = auth_services.decode_jwt_get_email(provider_info)
+            if email_from_jwt != user.email:
+                raise HTTPException(status_code=400, detail={
+                    "error": "validation_error",
+                    "message": "입력 정보가 올바르지 않습니다.",
+                            "details": [{"field": "email", "message": "SNS 계정 이메일과 일치하지 않습니다."}]
+                })
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid provider info: {str(e)}"
+            )
+    else:
+        # Perform the regular email duplication check
+        db_user = user_services.get_user_by_email(db, email=user.email)
+        if db_user:
+            detail_message = "사용할 수 없는 이메일입니다." if db_user.status == 'WITHDRAWN' else "이미 등록된 이메일 주소입니다."
+            raise HTTPException(status_code=400, detail={
+                "error": "validation_error",
+                "message": "입력 정보가 올바르지 않습니다.",
+                "details": [{"field": "email", "message": detail_message}]
+            })
+    
+    new_user = user_services.create_user(db=db, user=user)
+    if provider_info:
+        provider = provider_info["provider"]
+        provider_id = provider_info["id"]
+        user_services.insert_user_provider_info(db, new_user.user_id, provider, provider_id)
+    
+    access_token, refresh_token = auth_services.create_tokens(str(new_user.user_id))
+    response = auth_services.get_json_response(access_token,refresh_token)
+    response["message"]= "회원가입이 완료되었습니다."
+    response.set_cookie(key="provider_info", value="", max_age=0)
+
+    return response
 
 @router.post("/form/login")
 def login(
@@ -37,7 +107,7 @@ def login(
 
     return auth_services.get_json_response(access_token,refresh_token)
 
-@router.post("/login")
+@router.post("/auth/login")
 def login(
     login_data: auth_schemas.EmailPasswordLogin,
     db: Session = Depends(get_db)
@@ -59,14 +129,7 @@ def login(
 
     return auth_services.get_json_response(access_token,refresh_token)
 
-@router.post("/register", response_model=user_schemas.User)
-def register(user: user_schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = user_services.get_user_by_email(db, email=user.email)
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    return user_services.create_user(db=db, user=user)
-
-@router.post("/refresh")
+@router.post("/auth/refresh")
 def refresh_token(request:Request, db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -89,18 +152,6 @@ async def logout():
     response = JSONResponse(content={"detail": "Successfully logged out"})
     response.delete_cookie("refresh_token")
     return response
-
-@router.get("/auth/me", response_model=user_schemas.User)
-def read_users_me(current_user: user_schemas.User = Depends(get_current_user)):
-    return current_user
-
-@router.put("/auth/me", response_model=user_schemas.User)
-def update_user_me(
-    user_in: user_schemas.UserUpdate,
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_user)
-):
-    return user_services.update_user(db, current_user, user_in)
 
 @router.post("/password-reset", response_model=auth_schemas.Msg)
 def reset_password(email: str, db: Session = Depends(get_db)):
@@ -184,7 +235,7 @@ def verify_verification_code(
     })
     response.set_cookie(key="verified_phone_number",value=auth_services.encrypt(phone_number),httponly=True,expires=1200)
     return response
-@router.get("/login/{provider}")
+@router.get("/auth/login/{provider}")
 def login_with_provider(provider: str, request: Request):
     if provider not in ["google", "kakao"]:  # Add any other supported providers
         raise HTTPException(
@@ -216,217 +267,10 @@ def login_with_provider(provider: str, request: Request):
         )
         return RedirectResponse(url=login_url, status_code=status.HTTP_302_FOUND)
 
-async def fetch_token_and_user_info(
-    provider: str, code: str, token_url: str, redirect_uri: str, client_id: str, client_secret: str
-):
-    token_data = {
-        "grant_type": "authorization_code",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-        "code": code,
-    }
-    
-    async with httpx.AsyncClient() as client:
-        # Request access token
-        token_response = await client.post(token_url, data=token_data)
-        token_response_data = token_response.json()
-        
-        if "access_token" not in token_response_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to retrieve access token from {provider}"
-            )
-        
-        access_token = token_response_data["access_token"]
-        
-        # Determine user info URL and headers based on provider
-        if provider == "google":
-            user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
-        elif provider == "kakao":
-            user_info_url = "https://kapi.kakao.com/v2/user/me"
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unsupported provider"
-            )
-
-        headers = {"Authorization": f"Bearer {access_token}"}
-        user_info_response = await client.get(user_info_url, headers=headers)
-        user_info = user_info_response.json()
-
-        if user_info_response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to retrieve user info from {provider}"
-            )
-
-    return user_info
-
-async def process_oauth_callback(
-    provider: str,
-    code: str,
-    db: Session,
-    request: Request,
-    token_url: str,
-    redirect_uri: str,
-    client_id: str,
-    client_secret: str,
-    get_email: callable
-):
-    user_info = await fetch_token_and_user_info(
-        provider=provider,
-        code=code,
-        token_url=token_url,
-        redirect_uri=redirect_uri,
-        client_id=client_id,
-        client_secret=client_secret
-    )
-    
-    email = get_email(user_info)
-    provider_id = user_info["id"]
-    
-    if email:
-        db_user = user_services.get_user_by_email(db, email=email)
-
-        if db_user:
-            if user_services.is_oauth_account_linked(db_user, provider=provider):
-                access_token, refresh_token = auth_services.create_tokens(str(db_user.user_id))
-                return auth_services.get_json_response(access_token, refresh_token)
-            else:
-                return JSONResponse(content={"detail": "Account exists. Please link your accounts."}, status_code=400)
-        else:
-            # ... within the process_oauth_callback function:
-            response = RedirectResponse(url="/v1/register/more-info", status_code=status.HTTP_302_FOUND)
-            # Assuming user_info is a dictionary that can be serialized to a JSON string
-            response.set_cookie(key="oauth_user_info", value=json.dumps(user_info), httponly=True)
-            return response
-    else:
-        db_user = user_services.get_user_by_provider_id(db, provider=provider, provider_id=provider_id)
-        
-        if db_user:
-            access_token, refresh_token = auth_services.create_tokens(str(db_user.user_id))
-            return auth_services.get_json_response(access_token, refresh_token)
-        else:
-            # ... within the process_oauth_callback function:
-            response = RedirectResponse(url="/v1/register/more-info", status_code=status.HTTP_302_FOUND)
-            # Assuming user_info is a dictionary that can be serialized to a JSON string
-            response.set_cookie(key="oauth_user_info", value=json.dumps(user_info), httponly=True)
-        return response
-
-@router.get("/register/more-info", response_class=HTMLResponse)
-async def more_info_form(request: Request):
-    oauth_user_info = request.cookies.get("oauth_user_info")
-    if not oauth_user_info:
-        raise HTTPException(status_code=400, detail="Missing OAuth user info")
-
-    user_info = json.loads(oauth_user_info)
-    email = user_info.get("email", "")
-    
-    script_txt = """
-                <script>
-                async function submitForm(event) {
-                    event.preventDefault();
-                    const email = document.getElementById('email').value
-                    const nickname = document.getElementById('nickname').value;
-                    const phoneNumber = document.getElementById('phone_number').value;
-                    const birthdate = document.getElementById('birthdate').value;
-                    const gender = document.getElementById('gender').value;
-                    const marketingAgreed = document.getElementById('marketing_agreed').checked;
-                    
-                    const data = {
-                        email: email,
-                        nickname: nickname,
-                        phone_number: phoneNumber,
-                        birthdate: birthdate,
-                        gender: gender,
-                        marketing_agreed: marketingAgreed
-                    };
-                    
-                    const response = await fetch('/v1/register/more-info', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(data)
-                    });
-                    
-                    const result = await response.json();
-                    console.log(result);
-                }
-            </script>
-        """
-    # Render a simple form
-    form_html = f"""
-    <html>
-        <body>
-            {script_txt}
-            <form onsubmit="submitForm(event)">
-                <label>Email:</label><br>
-                <input type="email" id="email" name="email" value="{email}" {'' if email else 'required'} {'' if not email else 'disabled'} /><br>
-                <label>Nickname:</label><br>
-                <input type="text" id="nickname" name="nickname" required/><br>
-                <label>Phone Number:</label><br>
-                <input type="tel" id="phone_number" name="phone_number"/><br>
-                <label>Birthdate:</label><br>
-                <input type="date" id="birthdate" name="birthdate"/><br>
-                <label>Gender:</label><br>
-                <select id="gender" name="gender" required>
-                    <option value="" disabled selected>Select your gender</option>
-                    <option value="M">Male</option>
-                    <option value="F">Female</option>
-                    <option value="N">Other</option>
-                </select><br>
-                <label>Marketing Agreed:</label><br>
-                <input type="checkbox" id="marketing_agreed" name="marketing_agreed" value="true"/><br>
-                <input type="submit" value="Submit"/>
-            </form>
-        </body>
-    </html>
-    """
-    
-    return HTMLResponse(content=form_html)
-
-@router.post("/register/more-info")
-async def register_more_info(
-    request: Request,
-    user: user_schemas.OAuthUserCreate,
-    db: Session = Depends(get_db)
-):
-    # SNS 로그인 유저 비밀번호/비밀번호 확인 값 받지 않는 것으로 처리 별도 Schema
-    # SNS 가입 유저는 email-password 로그인 불가?
-
-    oauth_user_info = request.cookies.get("oauth_user_info")
-    if not oauth_user_info:
-        raise HTTPException(status_code=400, detail="Missing OAuth user info")
-
-    user_info = json.loads(oauth_user_info)
-    email = user_info.get("email") or user.email
-    provider = user_info.get("provider")
-    provider_id = user_info.get("id")
-
-    # Ensure the username does not already exist
-    existing_user = user_services.get_user_by_nickname(db, user.nickname)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already taken")
-
-    # Complete the registration of the new user
-    new_user = user_services.create_oauth_user(
-        db=db,
-        user=user,
-        provider=provider,
-        provider_id=provider_id,
-        email=email
-    )
-    access_token, refresh_token = auth_services.create_tokens(str(new_user.user_id))
-    response = auth_services.get_json_response(access_token, refresh_token)
-    response.delete_cookie("oauth_user_info")
-    return response
-
 @router.get("/auth/callback/google")
 async def google_auth_callback(code: str, request: Request, db: Session = Depends(get_db)):
-    return await process_oauth_callback(
-        provider="google",
+    return await auth_services.process_oauth_callback(
+        provider="GOOGLE",
         code=code,
         db=db,
         request=request,
@@ -434,13 +278,12 @@ async def google_auth_callback(code: str, request: Request, db: Session = Depend
         redirect_uri=settings.GOOGLE_REDIRECT_URI,
         client_id=settings.GOOGLE_CLIENT_ID,
         client_secret=settings.GOOGLE_CLIENT_SECRET,
-        get_email=lambda user_info: user_info.get("email")
-            )
+    )
 
 @router.get("/auth/callback/kakao")
 async def kakao_auth_callback(code: str, request: Request, db: Session = Depends(get_db)):
-    return await process_oauth_callback(
-        provider="kakao",
+    return await auth_services.process_oauth_callback(
+        provider="KAKAO",
         code=code,
         db=db,
         request=request,
@@ -448,5 +291,39 @@ async def kakao_auth_callback(code: str, request: Request, db: Session = Depends
         redirect_uri=settings.KAKAO_REDIRECT_URI,
         client_id=settings.KAKAO_CLIENT_ID,
         client_secret=settings.KAKAO_CLIENT_SECRET,
-        get_email=lambda user_info: user_info.get("kakao_account", {}).get("email")
     )
+
+@router.get("/auth/provider_email")
+def get_provider_email(request: Request):
+    provider_info = request.cookies.get("provider_info")
+    if not provider_info:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provider info cookie is missing",
+        )
+    
+    try:
+        email = auth_services.decode_jwt_get_email(provider_info)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid provider info: {str(e)}",
+        )
+    
+    return JSONResponse(content={"email": email})
+
+@router.get("/auth/handle_sns_login")
+def handle_sns_login(request: Request):
+    # Define the path to your HTML file relative to the current file
+    current_directory = os.path.dirname(__file__)
+    file_path = os.path.join(current_directory, "handle_sns_login_example.html")
+    # Return the FileResponse which serves the HTML file
+    return FileResponse(path=file_path, media_type='text/html')
+
+@router.get("/auth/sns_login")
+def do_sns_login(request: Request):
+    # Define the path to your HTML file relative to the current file
+    current_directory = os.path.dirname(__file__)
+    file_path = os.path.join(current_directory, "sns_login.html")
+    # Return the FileResponse which serves the HTML file
+    return FileResponse(path=file_path, media_type='text/html')

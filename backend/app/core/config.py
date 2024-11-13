@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     ALIGO_TESTMODE_YN: str
 
     PHONE_NUMBER_VERIFICATION_SECONDS: int
+
+    SNS_LOGIN_REDIRECT_URL: str
     class Config:
         env_file = ".env"
 
