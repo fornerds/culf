@@ -26,7 +26,7 @@ def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[Type[User]]:
 def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     db_user = models.User(
         email=user.email,
-        password=get_password_hash(user.password),
+        password=get_password_hash(user.password) if user.password is not None else None,
         nickname=user.nickname,
         phone_number=user.phone_number,
         birthdate=user.birthdate,
@@ -98,3 +98,77 @@ def is_active(user: schemas.User) -> bool:
 
 def is_superuser(user: schemas.User) -> bool:
     return user.role == 'ADMIN'
+
+
+def get_user_by_provider_id(db: Session, provider: str, provider_id: str) -> Optional[models.User]:
+    return (db.query(models.User)
+            .select_from(models.UserProvider)
+            .join(models.User, models.UserProvider.user_id == models.User.user_id)
+            .filter(
+                models.UserProvider.provider == provider.upper(),
+                models.UserProvider.provider_id== str(provider_id)
+            )
+            .first())
+#insert user_provider info
+def insert_user_provider_info(db: Session, user_id: UUID, provider: str, provider_id: str) -> None:
+    user_provider = models.UserProvider(
+        user_id=user_id,
+        provider=provider,
+        provider_id=provider_id
+    )
+    db.add(user_provider)
+    db.commit()
+
+def create_oauth_user(db: Session, user: schemas.OAuthUserCreate, provider: str, provider_id: str, email: str) -> models.User:
+    # Create a new user entry
+    new_db_user = models.User(
+        email=email,
+        nickname=user.nickname,
+        phone_number=user.phone_number,
+        birthdate=user.birthdate,
+        gender=user.gender,
+        marketing_agreed=user.marketing_agreed
+    )
+
+    # Insert user into the database
+    db.add(new_db_user)
+    db.commit()
+    db.refresh(new_db_user)
+
+    # Insert UserProvider info
+    insert_user_provider_info(
+        user_id=new_db_user.user_id,
+        provider=provider,
+        provider_id=provider_id
+    )
+
+    # Return the newly created user
+    return new_db_user
+
+def is_oauth_account_linked(user_id: UUID, provider: str, db: Session) -> bool:
+    # Query the database to check if a provider entry exists for this user
+    return db.query(models.UserProvider).filter(
+        models.UserProvider.user_id == user_id,  # Correctly use user_id directly
+        models.UserProvider.provider == provider.upper()  # Ensure the provider is uppercase
+    ).first() is not None
+
+# Example usage in the link_oauth_account function
+def link_oauth_account(db: Session, user: models.User, provider: str, provider_id: str) -> models.User:
+    # Use the newly created method to check if the account is already linked
+    # Extract user_id: UUID from the user model
+    user_id = UUID(str(user.user_id))
+
+    # Check if the OAuth account is already linked with this provider
+    if is_oauth_account_linked(user_id, provider, db):
+        raise HTTPException(status_code=400, detail="Account is already linked with this provider.")
+
+    # Link the provider information with the user
+    insert_user_provider_info(db, user_id, provider, provider_id)
+
+    # Refresh the user to reflect any updates
+    db.refresh(user)
+
+    # Here you would typically generate and return JWT tokens or additional
+    # information if needed, adjust the return type and logic accordingly if required.
+    
+    return user

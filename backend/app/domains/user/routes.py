@@ -10,46 +10,7 @@ from uuid import UUID
 
 router = APIRouter()
 
-@router.post("/users", response_model=user_schemas.UserCreationResponse)
-def create_user(request:Request, user: user_schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = user_services.get_user_by_email(db, email=user.email)
-    if db_user:
-        detail_message = "사용할 수 없는 이메일입니다." if db_user.status == 'WITHDRAWN' else "이미 등록된 이메일 주소입니다."
-        raise HTTPException(status_code=400, detail={
-            "error": "validation_error",
-            "message": "입력 정보가 올바르지 않습니다.",
-            "details": [{"field": "email", "message": detail_message}]
-        })
-    db_user = user_services.get_user_by_nickname(db, nickname=user.nickname)
-    if db_user:
-        raise HTTPException(status_code=400, detail={
-            "error": "validation_error",
-            "message": "입력 정보가 올바르지 않습니다.",
-            "details": [{"field": "nickname", "message": "이미 등록된 닉네임입니다."}]
-        })
-    db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
-    if db_user:
-        raise HTTPException(status_code=400, detail={
-            "error": "validation_error",
-            "message": "입력 정보가 올바르지 않습니다.",
-            "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
-        })
-    verified_phone_number = request.cookies.get("verified_phone_number")
-    if not verified_phone_number or auth_services.encrypt(user.phone_number)!=verified_phone_number:
-        raise HTTPException(status_code=400, detail={
-            "error": "phone_number_verification_failed",
-            "message": "전화번호 확인이 필요합니다."
-        })
-    
-    if user.password != user.password_confirmation:
-        raise HTTPException(status_code=400, detail={
-            "error": "validation_error",
-            "message": "입력 정보가 올바르지 않습니다.",
-            "details": [{"field": "password_confirmation", "message": "비밀번호와 비밀번호 확인이 일치하지 않습니다."}]
-        })
-    new_user = user_services.create_user(db=db, user=user)
-    return {"user_id": new_user.user_id, "message": "회원가입이 완료되었습니다."}
-@router.get("/me", response_model=user_schemas.UserInfo)
+@router.post("/users/me", response_model=user_schemas.UserInfo)
 def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
     user = user_services.get_user(db, user_id=current_user.user_id)
     
@@ -73,7 +34,7 @@ def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db
         "subscription": subscription
     }
 
-@router.put("/me", response_model=user_schemas.UserUpdateResponse)
+@router.put("/users/me", response_model=user_schemas.UserUpdateResponse)
 def update_user_me(
     user_update: user_schemas.UserUpdate,
     current_user: user_schemas.User = Depends(get_current_user),
@@ -94,7 +55,7 @@ def update_user_me(
     updated_user = user_services.update_user(db, current_user.user_id, user_update)
     return {"message": "회원정보가 수정되었습니다."}
 
-@router.delete("/me", response_model=user_schemas.UserDeleteResponse)
+@router.delete("/users/me", response_model=user_schemas.UserDeleteResponse)
 def delete_user_me(
     delete_info: user_schemas.UserDelete,
     current_user: user_schemas.User = Depends(get_current_user),
@@ -115,7 +76,7 @@ def delete_user_me(
     user_services.delete_user(db, current_user.user_id, delete_info)
     return {"message": "회원 탈퇴가 완료되었습니다."}
 
-@router.post("/me/password", response_model=user_schemas.PasswordChangeResponse)
+@router.post("/users/me/password", response_model=user_schemas.PasswordChangeResponse)
 def change_password(
     password_check: user_schemas.PasswordCheck,
     current_user: user_schemas.User = Depends(get_current_user),
@@ -125,7 +86,7 @@ def change_password(
         raise HTTPException(status_code=400, detail="incorrect_password")
     return {"message": "비밀번호가 확인됐습니다."}
 
-@router.put("/me/password", response_model=user_schemas.PasswordChangeResponse)
+@router.put("/users/me/password", response_model=user_schemas.PasswordChangeResponse)
 def change_password(
     password_change: user_schemas.PasswordChange,
     current_user: user_schemas.User = Depends(get_current_user),
