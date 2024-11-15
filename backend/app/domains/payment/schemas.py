@@ -1,7 +1,39 @@
-from pydantic import BaseModel
+from decimal import Decimal
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from uuid import UUID
 
+# 상품 조회
+class SubscriptionPlanSchema(BaseModel):
+    plan_id: int
+    plan_name: str
+    price: Decimal
+    discounted_price: Decimal
+    tokens_included: int
+    description: Optional[str]
+    is_promotion: bool
+    promotion_details: Optional[dict]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class TokenPlanSchema(BaseModel):
+    token_plan_id: int
+    tokens: int
+    price: Decimal
+    discounted_price: Decimal
+    discount_rate: Decimal
+    is_promotion: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# 결제 
 class PaymentBase(BaseModel):
     user_id: int
     amount: float
@@ -14,68 +46,89 @@ class PaymentCreate(PaymentBase):
     tokens_purchased: Optional[int] = None
 
 class PaymentResponse(PaymentBase):
-    payment_id: int
+    payment_id: UUID
+    user_id: UUID
+    subscription_id: Optional[int]
+    token_plan_id: Optional[int]
     payment_number: str
+    transaction_number: Optional[str]
+    tokens_purchased: Optional[int]
+    amount: float
+    payment_method: str
     payment_date: datetime
     status: str
+    manual_payment_reason: Optional[str]
 
     class Config:
         orm_mode = True
 
-class RefundBase(BaseModel):
+class PaycancelBase(BaseModel):
     payment_id: int
     user_id: int
     amount: float
-    reason: Optional[str]
+    reason: Optional[str] = None
     status: Optional[str] = 'PENDING'
 
-class RefundResponse(RefundBase):
-    refund_id: int
-    processed_at: Optional[datetime]
-    processed_by: Optional[int]
-    created_at: datetime
-    updated_at: datetime
+class PaycancelRequest(BaseModel):
+    reason: str
+    email: str
+    contact: str
+    details: str
 
-    class Config:
-        orm_mode = True
+class PaycancelResponse(BaseModel):
+    cancellation_id: int
+    payment_number: str
+    status: str
+    message: str
 
-class CouponBase(BaseModel):
-    coupon_code: str
-    discount_type: str
+# 쿠폰
+class CouponCreate(BaseModel):
+    coupon_code: str = Field(..., max_length=20)
+    discount_type: str  # 'RATE' or 'AMOUNT'
     discount_value: float
     valid_from: datetime
     valid_to: datetime
+    max_usage: Optional[int] = None
+
+class CouponUpdate(BaseModel):
+    discount_type: Optional[str]
+    discount_value: Optional[float]
+    valid_from: Optional[datetime]
+    valid_to: Optional[datetime]
+    max_usage: Optional[int] = None
+
+class CouponResponse(BaseModel):
+    coupon_id: int
+    coupon_code: str
+    discount_type: str
+    discount_value: float
+    valid_from: Optional[datetime]
+    valid_to: Optional[datetime]
     max_usage: Optional[int]
-    used_count: Optional[int] = 0
-
-class CouponResponse(CouponBase):
-    coupon_id: int
+    used_count: Optional[int]
 
     class Config:
         orm_mode = True
 
-class UserCouponBase(BaseModel):
-    user_id: str
-    coupon_id: int
-    used_at: Optional[datetime]
+class CouponValidationRequest(BaseModel):
+    coupon_code: str
 
-class UserCouponResponse(UserCouponBase):
-    class Config:
-        orm_mode = True
-
+class CouponValidationResponse(BaseModel):
+    is_valid: bool
+    reason: Optional[str] = None
 
 # 카카오페이
 class KakaoPaySubscriptionRequest(BaseModel):
-    partner_user_id: str
-    quantity: int
     plan_id: int  
-    coupon_id: Optional[int] = None
+    quantity: int
+    environment: str
+    coupon_code: Optional[str] = None
 
 class KakaoPayRequest(BaseModel):
-    partner_user_id: str
-    quantity: int
     plan_id: int
-    coupon_id: Optional[int] = None
+    quantity: int
+    environment: str
+    coupon_code: Optional[str] = None
 
 class Amount(BaseModel):
     total: int
@@ -119,3 +172,49 @@ class KakaoPayApproval(BaseModel):
     sequential_payment_methods: Optional[List[SequentialPaymentMethod]] = None  # 정기 결제 시 순차결제일 경우
     created_at: datetime
     approved_at: datetime
+
+# admin 
+class PaymentListResponse(BaseModel):
+    payment_id: UUID
+    user_id: UUID
+    subscription_id: Optional[int]
+    token_plan_id: Optional[int]
+    payment_number: str
+    transaction_number: Optional[str]
+    tokens_purchased: Optional[int]
+    amount: float
+    payment_method: str
+    payment_date: datetime
+    status: str
+    manual_payment_reason: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+class PaymentDetailResponse(PaymentListResponse):
+    used_coupon_id: Optional[int]
+
+class AdminPaymentCreate(BaseModel):
+    user_id: UUID
+    amount: float
+    payment_method: str
+    manual_payment_reason: Optional[str]
+
+class RefundRequest(BaseModel):
+    amount: float
+    reason: Optional[str]
+
+class AdminRefundResponse(BaseModel):
+    refund_id: int
+    payment_id: UUID
+    user_id: UUID
+    amount: float
+    reason: Optional[str]
+    status: str
+    processed_at: Optional[datetime]
+    processed_by: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True

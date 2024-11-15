@@ -52,7 +52,7 @@ async def get_current_user(
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Access token has expired")
     except JWTError:
-        raise credentials_exception
+        raise credentials_exception # type: ignore
     user = services.get_user(db, user_id=user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")

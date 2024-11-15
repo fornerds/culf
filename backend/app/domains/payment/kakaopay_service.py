@@ -1,13 +1,15 @@
+from decimal import Decimal
 import requests
 import os
 from datetime import datetime, timedelta
-from app.domains.payment.models import Payment, Refund, Coupon
+from app.domains.payment.models import Coupon, Payment, Refund, UserCoupon
 from app.domains.token.models import TokenPlan
 from app.domains.user.models import User
 from app.domains.subscription.models import SubscriptionPlan, UserSubscription
 from app.domains.payment.schemas import KakaoPayRequest, KakaoPayApproval, KakaoPaySubscriptionRequest
+from app.domains.payment.services import PaymentService
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from sqlalchemy.exc import IntegrityError
@@ -19,55 +21,68 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+global_cache = None
 
 class KakaoPayService:
     def __init__(self):
-        # Base URL for KakaoPay API
         self.base_url = "https://open-api.kakaopay.com/online/v1/payment"
-        # Secret key for authentication, loaded from environment variables
         self.secret_key = os.getenv("SECRET_KEY")
-        # CID for one-time payments
         self.cid_one = os.getenv("CID_ONE")
-        # CID for subscription payments
         self.cid_sub = os.getenv("CID_SUB")
-        # CID for sequential payments
         self.cid_seq = os.getenv("CID_SEQ")
-        # Development mode flag to bypass authentication in non-production environments
         self.dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
-
-        # 간단한 캐시 저장소 초기화
         self.cache_store = None
 
     def set_cache(self, value):
-        self.cache_store = value
+        global global_cache
+        global_cache = value
+        logger.info(f"Global cache set: {global_cache}")
 
     def get_cache(self):
-        return self.cache_store
+        global global_cache
+        logger.info(f"Global cache retrieved: {global_cache}")
+        return global_cache
 
-    @staticmethod
-    def get_token_plan(db: Session, plan_id: int):
+    def get_token_plan(self, db: Session, plan_id: int):
         token_plan = db.query(TokenPlan).filter(TokenPlan.token_plan_id == plan_id).first()
         if not token_plan:
             raise HTTPException(status_code=404, detail="Token plan not found")
         return token_plan
 
-    def initiate_payment(self, payment_request: KakaoPayRequest, token_plan: TokenPlan, db: Session):
+    def initiate_payment(self, payment_request: KakaoPayRequest, token_plan: TokenPlan, db: Session, current_user: User):
         headers = {
             "Authorization": f"SECRET_KEY {self.secret_key}",
             "Content-Type": "application/json",
         }
 
-        # `partner_order_id`를 미리 생성
-        partner_order_id = f"{uuid.uuid4()}"  # UUID를 사용해 고유한 partner_order_id 생성
+        # 쿠폰 처리
+        discount_amount = Decimal(0)
+        coupon = None
 
-        # 결제 요청 데이터 생성
-        total_amount = token_plan.price * payment_request.quantity
-        item_name = f"{token_plan.tokens} tokens"
+        if payment_request.coupon_code:
+            coupon = PaymentService.get_coupon_by_code(db, payment_request.coupon_code)
+            if not coupon:
+                raise HTTPException(status_code=400, detail="유효하지 않은 쿠폰 코드입니다.")
+            
+            if coupon.discount_type == 'AMOUNT':
+                discount_amount = Decimal(coupon.discount_value)
+            elif coupon.discount_type == 'RATE':
+                discount_amount = Decimal(token_plan.price) * Decimal(coupon.discount_value / 100)
+
+            # 기타 사용 한도와 기간 체크
+            if coupon.used_count >= (coupon.max_usage or 0):
+                raise HTTPException(status_code=400, detail="사용 한도가 초과된 쿠폰입니다.")
+            if not (coupon.valid_from <= datetime.now().date() <= coupon.valid_to):
+                raise HTTPException(status_code=400, detail="쿠폰 사용 기간이 아닙니다.")
+
+        # 총 결제 금액 계산
+        total_amount = max(Decimal(token_plan.price) - discount_amount, Decimal(0)) * payment_request.quantity
+        partner_order_id = str(uuid.uuid4())
         data = {
             "cid": self.cid_one,
-            "partner_order_id": partner_order_id,  # 생성한 `partner_order_id` 사용
-            "partner_user_id": payment_request.partner_user_id,
-            "item_name": item_name,
+            "partner_order_id": partner_order_id,
+            "partner_user_id": str(current_user.user_id),
+            "item_name": f"{token_plan.tokens} tokens",
             "quantity": payment_request.quantity,
             "total_amount": float(total_amount),
             "vat_amount": 0,
@@ -80,58 +95,64 @@ class KakaoPayService:
         try:
             response = requests.post(f"{self.base_url}/ready", headers=headers, json=data)
             response_data = response.json()
-
+            
+            # 추가 디버깅 로그
+            logger.info(f"API response status: {response.status_code}, response data: {response_data}")
+            logger.info(f"Sent data for payment: {data}")
+            
             if response.status_code == 200:
-                # 결제 트랜잭션 커밋
                 tid = response_data.get("tid")
-
+                
+                # 결제 데이터 INSERT
                 payment = Payment(
                     payment_id=partner_order_id,
-                    user_id=payment_request.partner_user_id,
+                    user_id=current_user.user_id,
                     token_plan_id=token_plan.token_plan_id,
                     payment_number=tid,
                     amount=float(total_amount),
                     payment_method="KakaoPay_OneTime",
                     payment_date=datetime.now(),
-                    used_coupon_id=getattr(payment_request, 'coupon_id', None),  
-                    status="FAILED"
+                    used_coupon_id=coupon.coupon_id if coupon else None,
+                    status="CANCELLED"
                 )
-                logger.info(f"Payment 객체: {payment}")
-                try:
-                    db.add(payment)
-                    db.commit()
-                except IntegrityError as e:
-                    logger.error(f"결제 정보 삽입 중 IntegrityError 발생: {e}")
-                    db.rollback()
-                    raise HTTPException(status_code=500, detail="결제 정보를 저장하는 중 문제가 발생했습니다.")
-                except Exception as e:
-                    logger.error(f"결제 정보 삽입 중 예외 발생: {e}")
-                    db.rollback()
-                    raise HTTPException(status_code=400, detail="결제 정보를 저장하는 중 문제가 발생했습니다.")
-
-                # 결제 관련 정보 캐시에 저장
+                db.add(payment)
+                db.commit()
+                
+                # 캐시에 결제 정보 저장
                 self.set_cache({
                     "cid": self.cid_one,
                     "tid": tid,
                     "partner_order_id": partner_order_id,
-                    "partner_user_id": payment_request.partner_user_id
+                    "partner_user_id": str(current_user.user_id)
                 })
+                # 캐시 설정 후 즉시 확인
+                cached_data = self.get_cache()
+                logger.info(f"Immediately retrieved cache after setting: {cached_data}")
+                
+                # 환경에 따른 Redirect URL 반환
+                if payment_request.environment == "pc":
+                    redirect_url = response_data.get("next_redirect_pc_url")
+                elif payment_request.environment == "mobile":
+                    redirect_url = response_data.get("next_redirect_mobile_url")
+                elif payment_request.environment == "app":
+                    redirect_url = response_data.get("next_redirect_app_url")
+                else:
+                    raise HTTPException(status_code=400, detail="Invalid environment specified")
 
-                return {
-                    "redirect_url": response_data.get("next_redirect_pc_url"),
-                }
+                return {"redirect_url": redirect_url}
             else:
-                logger.error(f"Payment initiation failed: {response_data}")
+                logger.error(f"Payment initiation failed: {response_data.get('msg')}")
                 raise HTTPException(status_code=400, detail=response_data.get("msg"))
 
-        except IntegrityError:
+        except IntegrityError as e:
             db.rollback()
+            logger.error(f"Database IntegrityError: {str(e)}")
             raise HTTPException(status_code=500, detail="Transaction failed. Please try again later.")
         except Exception as e:
             db.rollback()
+            logger.error(f"Unexpected error during payment initiation: {str(e)}")
             raise HTTPException(status_code=400, detail=str(e))
-
-    # 정기 결제 승인 이후 `UserSubscription` 업데이트
+        
     def approve_payment(self, pg_token: str, db: Session):
         headers = {
             "Authorization": f"SECRET_KEY {self.secret_key}",
@@ -139,10 +160,12 @@ class KakaoPayService:
         }
 
         payment_info = self.get_cache()
-
         if not payment_info:
             logger.error("Failed to retrieve payment information from cache.")
-            raise HTTPException(status_code=404, detail="Payment information not found in cache")
+            raise HTTPException(status_code=400, detail="Failed to retrieve payment information.")
+
+        # 추가 로그
+        logger.info(f"Retrieved payment information from cache: {payment_info}")
 
         try:
             logger.info(f"Retrieved payment information from cache: {payment_info}")
@@ -157,9 +180,6 @@ class KakaoPayService:
 
             response = requests.post(f"{self.base_url}/approve", headers=headers, json=data)
             response_data = response.json()
-
-            # response_data 출력
-            logger.info(f"Response data from payment approval: {response_data}")
 
             if response.status_code == 200:
                 payment = db.query(Payment).filter(Payment.payment_number == payment_info["tid"]).first()
@@ -197,51 +217,51 @@ class KakaoPayService:
         except Exception as e:
             logger.error(f"Exception occurred during payment approval process: {str(e)}")
             raise HTTPException(status_code=400, detail="An error occurred while processing the payment approval.")
-        
-    def initiate_subscription(self, subscription_request: KakaoPaySubscriptionRequest, db: Session = Depends(get_db)):
+
+    def initiate_subscription(self, subscription_request: KakaoPaySubscriptionRequest, db: Session, current_user: User):
         headers = {
             "Authorization": f"SECRET_KEY {self.secret_key}",
             "Content-Type": "application/json",
         }
 
-        # 기존 활성 구독이 있는지 확인
-        existing_subscription = db.query(UserSubscription).filter(
-            UserSubscription.user_id == subscription_request.partner_user_id,
-            UserSubscription.status == 'ACTIVE'
+        # 구독 플랜 조회
+        subscription_plan = db.query(SubscriptionPlan).filter(
+            SubscriptionPlan.plan_id == subscription_request.plan_id
         ).first()
-        
-        if existing_subscription:
-            raise HTTPException(status_code=400, detail="User already has an active subscription.")
 
-        # 구독 플랜 확인
-        subscription_plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.plan_id == subscription_request.plan_id).first()
         if not subscription_plan:
             raise HTTPException(status_code=404, detail="Invalid subscription plan")
 
-        # 새 partner_order_id 생성
-        partner_order_id = f"{uuid.uuid4()}"
+        # 쿠폰 처리
+        discount_amount = Decimal(0)
+        coupon = None
 
-        # `UserSubscription` 레코드 생성 (start_date, next_billing_date, status는 NULL로)
-        new_subscription = UserSubscription(
-            user_id=subscription_request.partner_user_id,
-            plan_id=subscription_plan.plan_id,
-            start_date=datetime.now().date(),  # 기본값: 현재 날짜
-            next_billing_date=(datetime.now() + timedelta(days=30)).date(),  # 기본값: 30일 뒤
-            status='CANCELLED',
-            subscription_number=None  # 실제 결제 완료 후 이 값을 업데이트할 수 있습니다.
-        )
-        db.add(new_subscription)
-        db.commit()
-        db.refresh(new_subscription)
+        if subscription_request.coupon_code:
+            coupon = PaymentService.get_coupon_by_code(db, subscription_request.coupon_code)
+            if not coupon:
+                raise HTTPException(status_code=400, detail="유효하지 않은 쿠폰 코드입니다.")
 
-        # 결제 준비 데이터
+            if coupon.discount_type == 'AMOUNT':
+                discount_amount = Decimal(coupon.discount_value)
+            elif coupon.discount_type == 'RATE':
+                discount_amount = Decimal(subscription_plan.discounted_price) * Decimal(coupon.discount_value / 100)
+
+            # 기타 사용 한도와 기간 체크
+            if coupon.used_count >= (coupon.max_usage or 0):
+                raise HTTPException(status_code=400, detail="사용 한도가 초과된 쿠폰입니다.")
+            if not (coupon.valid_from <= datetime.now().date() <= coupon.valid_to):
+                raise HTTPException(status_code=400, detail="쿠폰 사용 기간이 아닙니다.")
+
+        # 총 결제 금액 계산
+        total_amount = max(Decimal(subscription_plan.discounted_price) - discount_amount, Decimal(0)) * subscription_request.quantity
+        partner_order_id = str(uuid.uuid4())
         data = {
             "cid": self.cid_sub,
             "partner_order_id": partner_order_id,
-            "partner_user_id": subscription_request.partner_user_id,
+            "partner_user_id": str(current_user.user_id),
             "item_name": subscription_plan.plan_name,
             "quantity": 1,
-            "total_amount": float(subscription_plan.price),
+            "total_amount": float(total_amount),
             "vat_amount": 0,
             "tax_free_amount": 0,
             "approval_url": "http://localhost:8000/v1/pay/success",
@@ -249,50 +269,78 @@ class KakaoPayService:
             "fail_url": "http://localhost:8000/v1/pay/fail",
         }
 
-        response = requests.post(f"{self.base_url}/ready", headers=headers, json=data)
-        response_data = response.json()
-
-        if response.status_code == 200:
-            tid = response_data.get("tid")
+        try:
+            response = requests.post(f"{self.base_url}/ready", headers=headers, json=data)
+            response_data = response.json()
             
-            # `Payment` 테이블에 결제 정보 저장 (생성한 `subscription_id`와 함께)
-            payment = Payment(
-                payment_id=partner_order_id,
-                user_id=subscription_request.partner_user_id,
-                subscription_id=new_subscription.subscription_id,  # 새로 생성한 subscription_id 저장
-                payment_number=tid,
-                amount=float(subscription_plan.price),
-                payment_method="KakaoPay_subscription",
-                payment_date=datetime.now(),
-                used_coupon_id=getattr(subscription_request, 'coupon_id', None),
-                status="FAILED"
-            )
-            logger.info(f"payment 객체: {payment}")
-            try:
+            logger.info(f"API response status: {response.status_code}, response data: {response_data}")
+            logger.info(f"Sent data for subscription payment: {data}")
+
+            if response.status_code == 200:
+                tid = response_data.get("tid")
+
+                # 결제 데이터 INSERT
+                subscription = UserSubscription(
+                    user_id=current_user.user_id,
+                    plan_id=subscription_plan.plan_id,
+                    start_date=datetime.now().date(),
+                    next_billing_date=(datetime.now() + timedelta(days=30)).date(),
+                    status="CANCELLED",
+                    subscriptions_method="KakaoPay_Subscription"  # 적절한 결제 방법 설정
+                )
+                db.add(subscription)
+                db.commit()
+                db.refresh(subscription)
+
+                # 결제 기록 저장
+                payment = Payment(
+                    payment_id=partner_order_id,
+                    user_id=current_user.user_id,
+                    subscription_id=subscription.subscription_id,
+                    payment_number=tid,
+                    amount=float(total_amount),
+                    payment_method="KakaoPay_Subscription",
+                    payment_date=datetime.now(),
+                    used_coupon_id=coupon.coupon_id if coupon else None,
+                    status="CANCELLED"
+                )
                 db.add(payment)
                 db.commit()
-            except IntegrityError as e:
-                logger.error(f"결제 정보 삽입 중 IntegrityError 발생: {e}")
-                db.rollback()
-                raise HTTPException(status_code=500, detail="결제 정보를 저장하는 중 문제가 발생했습니다.")
-            except Exception as e:
-                logger.error(f"결제 정보 삽입 중 예외 발생: {e}")
-                db.rollback()
-                raise HTTPException(status_code=400, detail="결제 정보를 저장하는 중 문제가 발생했습니다.")
 
-            # 결제 관련 정보 캐시에 저장
-            self.set_cache({
-                "cid": self.cid_sub,
-                "tid": tid,
-                "partner_order_id": partner_order_id,
-                "partner_user_id": subscription_request.partner_user_id
-            })
+                # 캐시 설정 후 즉시 데이터 확인
+                self.set_cache({
+                    "cid": self.cid_sub,
+                    "tid": tid,
+                    "partner_order_id": partner_order_id,
+                    "partner_user_id": str(current_user.user_id),
+                    "subscription_id": subscription.subscription_id
+                })
+                cached_data = self.get_cache()
+                logger.info(f"Immediately retrieved cache after setting: {cached_data}")
 
-            return {
-                "redirect_url": response_data.get("next_redirect_pc_url"),
-            }
-        else:
-            raise HTTPException(status_code=400, detail=response_data.get("msg"))
+                # 환경에 따른 Redirect URL 반환
+                if subscription_request.environment == "pc":
+                    redirect_url = response_data.get("next_redirect_pc_url")
+                elif subscription_request.environment == "mobile":
+                    redirect_url = response_data.get("next_redirect_mobile_url")
+                elif subscription_request.environment == "app":
+                    redirect_url = response_data.get("next_redirect_app_url")
+                else:
+                    raise HTTPException(status_code=400, detail="Invalid environment specified")
+
+                return {"redirect_url": redirect_url}
+            else:
+                logger.error(f"Subscription initiation failed: {response_data.get('msg')}")
+                raise HTTPException(status_code=400, detail=response_data.get("msg"))
+
+        except IntegrityError as e:
+            db.rollback()
+            logger.error(f"Database IntegrityError: {str(e)}")
+            raise HTTPException(status_code=500, detail="Transaction failed. Please try again later.")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Unexpected error during subscription initiation: {str(e)}")
+            raise HTTPException(status_code=400, detail=str(e))
 
     def pay_subscription(self, db: Session = Depends(get_db)):
         headers = {
@@ -423,7 +471,7 @@ class KakaoPayService:
             return response_data
         else:
             raise HTTPException(status_code=400, detail=response_data.get("msg"))
-        
+
     def process_refund(self, tid: str, db: Session = Depends(get_db)):
         # Fetch payment details from the database
         payment = db.query(Payment).filter(Payment.payment_number == tid).first()

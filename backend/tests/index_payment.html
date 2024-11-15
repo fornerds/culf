@@ -7,121 +7,210 @@
 </head>
 <body>
     <h1>카카오페이 테스트 결제</h1>
-    
+
+    <!-- 페이지 이동 버튼 -->
+    <button onclick="navigateToUserPage()">사용자 페이지로 이동</button>
+    <button onclick="navigateToAdminPage()">어드민 페이지로 이동</button>
+
+    <!-- Login Section -->
+    <h2>로그인</h2>
+    <label for="email">이메일:</label>
+    <input type="email" id="email" value="user1@example.com">
+    <br>
+    <label for="password">비밀번호:</label>
+    <input type="password" id="password" value="hashedpassword1">
+    <br><br>
+    <button id="loginButton">로그인</button>
+    <p id="loginStatus"></p>
+
     <!-- Single Payment Section -->
     <h2>단건 결제</h2>
     <label for="singlePlanSelect">단건 결제 플랜 선택:</label>
     <select id="singlePlanSelect">
         <option value="1">플랜 1 - 50 토큰, 5000원</option>
         <option value="2">플랜 2 - 100 토큰, 10000원</option>
-        <option value="3">플랜 3 - 200 토큰, 20000원</option>
     </select>
+    <br>
+    <label for="couponCode">쿠폰 코드:</label>
+    <input type="text" id="couponCode">
     <br><br>
+    <button id="validateCouponButton">쿠폰 유효성 확인</button>
     <button id="singlePayButton">단건 결제하기</button>
-    
+    <p id="couponStatus"></p>
+
     <!-- Subscription Payment Section -->
     <h2>정기 결제</h2>
     <label for="subscriptionPlanSelect">구독 플랜 선택:</label>
     <select id="subscriptionPlanSelect">
-        <option value="1">플랜 1 - 정기 구독 플랜, 15000</option>
+        <option value="1">플랜 1 - 정기 구독 플랜, 15000원</option>
     </select>
+    <br>
+    <label for="couponCodeSubscription">쿠폰 코드:</label>
+    <input type="text" id="couponCodeSubscription">
     <br><br>
+    <button id="validateCouponSubscriptionButton">쿠폰 유효성 확인</button>
     <button id="subscriptionPayButton">정기 결제하기</button>
-
-    <!-- Pay Subscription Button -->
-    <h2>정기 결제 실행</h2>
-    <button id="paySubscriptionButton">정기 결제 실행</button>
+    <p id="couponStatusSubscription"></p>
 
     <script>
-        document.getElementById("singlePayButton").onclick = async function() {
+        let accessToken = null;
+        let isCouponValid = false;
+        let isCouponValidSubscription = false;
+
+        // 로그인 버튼 클릭 이벤트
+        document.getElementById("loginButton").onclick = async function() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            try {
+                const response = await fetch('http://localhost:8000/v1/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ "email": email, "password": password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    accessToken = data.access_token;
+                    document.getElementById("loginStatus").innerText = "로그인 성공";
+                } else {
+                    const errorData = await response.json();
+                    document.getElementById("loginStatus").innerText = "로그인 실패: " + errorData.detail;
+                }
+            } catch (error) {
+                console.error('로그인 요청 중 오류 발생:', error);
+                alert('로그인 요청 중 오류가 발생했습니다.');
+            }
+        };
+
+        // 쿠폰 유효성 확인 함수
+        async function validateCoupon(couponCode, statusElement, setValidFlag) {
+            if (!accessToken) alert("먼저 로그인 해주세요.");
+            if (couponCode === "") {
+                alert("쿠폰 코드를 입력해주세요.");
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:8000/v1/payments/coupons/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + accessToken
+                    },
+                    body: JSON.stringify({ "coupon_code": couponCode })
+                });
+
+                const data = await response.json();
+                if (data.is_valid) {
+                    setValidFlag(true);
+                    statusElement.innerText = "유효한 쿠폰입니다.";
+                } else {
+                    setValidFlag(false);
+                    statusElement.innerText = "유효하지 않은 쿠폰: " + data.reason;
+                }
+            } catch (error) {
+                console.error('쿠폰 유효성 확인 중 오류 발생:', error);
+                alert('쿠폰 유효성 확인 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 단건 결제 쿠폰 유효성 확인 버튼
+        document.getElementById("validateCouponButton").onclick = function() {
+            const couponCode = document.getElementById("couponCode").value.trim();
+            validateCoupon(couponCode, document.getElementById("couponStatus"), valid => isCouponValid = valid);
+        };
+
+        // 정기 결제 쿠폰 유효성 확인 버튼
+        document.getElementById("validateCouponSubscriptionButton").onclick = function() {
+            const couponCodeSubscription = document.getElementById("couponCodeSubscription").value.trim();
+            validateCoupon(couponCodeSubscription, document.getElementById("couponStatusSubscription"), valid => isCouponValidSubscription = valid);
+        };
+
+        // 환경 인식 함수
+        function detectEnvironment() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            if (/mobile/i.test(userAgent)) {
+                return "mobile";
+            } else if (/android|iphone|ipad/i.test(userAgent)) {
+                return "app";
+            } else {
+                return "pc";
+            }
+        }
+
+        // 결제 요청 함수
+        async function initiatePayment(endpoint, planId, couponCode, isCouponValid) {
+            if (!accessToken) {
+                alert("먼저 로그인 해주세요.");
+                return;
+            }
+            if (couponCode && !isCouponValid) {
+                alert("쿠폰 유효성 검증이 필요합니다.");
+                return;
+            }
+
+            const environment = detectEnvironment();
+
+            const requestData = {
+                "quantity": 1,
+                "plan_id": planId,
+                "coupon_code": couponCode || null,
+                "environment": environment
+            };
+            
+            console.log("Request Data:", requestData);  // 데이터 확인용
+            try {
+                const response = await fetch(`http://localhost:8000/v1${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + accessToken
+                    },
+                    body: JSON.stringify({
+                        "quantity": 1,
+                        "plan_id": planId,
+                        "coupon_code": couponCode || null,
+                        "environment": environment
+                    })
+                });
+
+                const data = await response.json();
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert('리디렉션 URL이 없습니다.');
+                }
+            } catch (error) {
+                console.error('결제 요청 중 오류 발생:', error);
+                alert('결제 요청 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 단건 결제 버튼 클릭 이벤트
+        document.getElementById("singlePayButton").onclick = function() {
             const planId = document.getElementById("singlePlanSelect").value;
-            try {
-                // 단건 결제 준비 API 호출
-                const response = await fetch('http://localhost:8000/v1/pay', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        "partner_user_id": "91eb38da-b130-408c-a6de-20e0c6733b9d",
-                        "quantity": 1,
-                        "plan_id": planId
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.redirect_url) {
-                        window.location.href = data.redirect_url;
-                    } else {
-                        alert('리디렉션 URL이 없습니다.');
-                    }
-                } else {
-                    const errorData = await response.json();
-                    alert('단건 결제 준비에 실패했습니다: ' + errorData.detail);
-                }
-            } catch (error) {
-                console.error('단건 결제 요청 중 오류 발생:', error);
-                alert('단건 결제 요청 중 오류가 발생했습니다.');
-            }
+            const couponCode = document.getElementById("couponCode").value.trim();
+            initiatePayment("/pay", planId, couponCode, isCouponValid);
         };
 
-        document.getElementById("subscriptionPayButton").onclick = async function() {
+        // 정기 결제 버튼 클릭 이벤트
+        document.getElementById("subscriptionPayButton").onclick = function() {
             const planId = document.getElementById("subscriptionPlanSelect").value;
-            try {
-                // 정기 결제 준비 API 호출
-                const response = await fetch('http://localhost:8000/v1/subscription', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        "partner_user_id": "91eb38da-b130-408c-a6de-20e0c6733b9d",
-                        "quantity": 1,
-                        "plan_id": planId
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.redirect_url) {
-                        window.location.href = data.redirect_url;
-                    } else {
-                        alert('리디렉션 URL이 없습니다.');
-                    }
-                } else {
-                    const errorData = await response.json();
-                    alert('정기 결제 준비에 실패했습니다: ' + errorData.detail);
-                }
-            } catch (error) {
-                console.error('정기 결제 요청 중 오류 발생:', error);
-                alert('정기 결제 요청 중 오류가 발생했습니다.');
-            }
+            const couponCodeSubscription = document.getElementById("couponCodeSubscription").value.trim();
+            initiatePayment("/subscription", planId, couponCodeSubscription, isCouponValidSubscription);
         };
 
-        document.getElementById("paySubscriptionButton").onclick = async function() {
-            try {
-                // 정기 결제 실행 API 호출
-                const response = await fetch('http://localhost:8000/v1/subscription/pay', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+        // 사용자 페이지로 이동
+        function navigateToUserPage() {
+            window.location.href = "user_payment.html";
+        }
 
-                if (response.ok) {
-                    const data = await response.json();
-                    alert('정기 결제 실행 성공: ' + JSON.stringify(data));
-                } else {
-                    const errorData = await response.json();
-                    alert('정기 결제 실행에 실패했습니다: ' + errorData.detail);
-                }
-            } catch (error) {
-                console.error('정기 결제 실행 중 오류 발생:', error);
-                alert('정기 결제 실행 중 오류가 발생했습니다.');
-            }
-        };
+        // 어드민 페이지로 이동
+        function navigateToAdminPage() {
+            window.location.href = "admin_payment.html";
+        }
     </script>
-    
 </body>
 </html>

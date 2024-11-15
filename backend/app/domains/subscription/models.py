@@ -29,4 +29,5 @@ class UserSubscription(Base):
     start_date = Column(Date, nullable=False)
     next_billing_date = Column(Date, nullable=False)
     status = Column(Enum('ACTIVE', 'CANCELLED', name='subscription_status_enum'), nullable=False, default='ACTIVE')
-    subscription_number = Column(String(20), unique=True, nullable=True)  # 새로운 칼럼 추가
+    subscription_number = Column(String(20), unique=True, nullable=True)
+    subscriptions_method = Column(String(50), nullable=False)

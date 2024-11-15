@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Enum, TIMESTAMP, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -41,8 +42,8 @@ class Refund(Base):
     status = Column(Enum('PENDING', 'APPROVED', 'REJECTED'), nullable=False, default='PENDING')
     processed_at = Column(TIMESTAMP, nullable=True)
     processed_by = Column(Integer, ForeignKey('users.user_id'), nullable=True)
-    created_at = Column(TIMESTAMP, nullable=False)
-    updated_at = Column(TIMESTAMP, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
+    updated_at = Column(TIMESTAMP, nullable=False, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self):
         return f"<Refund(refund_id={self.refund_id}, amount={self.amount}, status={self.status})>"
@@ -66,7 +67,7 @@ class UserCoupon(Base):
     __tablename__ = 'user_coupons'
 
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
-    coupon_id = Column(Integer, primary_key=True)
+    coupon_id = Column(Integer, ForeignKey('coupons.coupon_id', ondelete="CASCADE"), primary_key=True)
     used_at = Column(TIMESTAMP, nullable=True)
 
     def __repr__(self):
