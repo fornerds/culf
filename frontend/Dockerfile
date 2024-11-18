@@ -14,7 +14,7 @@ RUN rm -rf package-lock.json node_modules
 RUN npm install --legacy-peer-deps
 
 # Expose the app port
-EXPOSE 3000
+EXPOSE 5173
 
 # Run React app
-CMD ["npm", "start"]
+CMD ["npm", "start", "build"]

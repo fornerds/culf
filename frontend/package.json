@@ -50,7 +50,7 @@
     "vite-plugin-svgr": "^4.2.0"
   },
   "scripts": {
-    "start": "vite --host --mode development",
+    "start": "vite --mode development",
     "build": "tsc && vite build --mode production",
     "build:dev": "tsc && vite build --mode development",
     "preview": "vite preview",
