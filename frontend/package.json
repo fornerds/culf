@@ -50,9 +50,9 @@
     "vite-plugin-svgr": "^4.2.0"
   },
   "scripts": {
-    "start": "vite --host",
-    "build": "tsc && vite build",
-    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "start": "vite --host --mode development",
+    "build": "tsc && vite build --mode production",
+    "build:dev": "tsc && vite build --mode development",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
