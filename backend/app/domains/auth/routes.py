@@ -1,5 +1,6 @@
 import random
 import os
+from datetime import timedelta
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse, FileResponse
@@ -85,8 +86,24 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
         user_services.insert_user_provider_info(db, new_user.user_id, provider, provider_id)
     
     access_token, refresh_token = auth_services.create_tokens(str(new_user.user_id))
-    response = auth_services.get_json_response(access_token,refresh_token)
-    response["message"]= "회원가입이 완료되었습니다."
+    response = JSONResponse(
+        content={
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        "message": "회원가입이 완료되었습니다."
+    })
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        # 쿠키에 Refresh Token을 설정 (httpOnly, secure 옵션 추가 가능)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,  # 자바스크립트에서 접근 불가
+        max_age=refresh_token_expires.total_seconds(),  # 쿠키 만료 시간 설정
+        expires=refresh_token_expires.total_seconds(),
+        secure=False,  # HTTPS에서만 전송 (개발 중에는 False로 설정 가능)
+        samesite="lax",  # 쿠키의 SameSite 속성
+    )
     response.set_cookie(key="provider_info", value="", max_age=0)
 
     return response
