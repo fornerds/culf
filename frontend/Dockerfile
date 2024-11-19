@@ -17,4 +17,4 @@ RUN npm install --legacy-peer-deps
 EXPOSE 5173
 
 # Run React app
-CMD ["npm", "start", "build"]
+CMD ["npm", "run", "dev"]
