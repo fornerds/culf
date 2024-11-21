@@ -39,7 +39,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       try {
         const res = await axios.post(
-          `${API_BASE_URL}/refresh`,
+          `${API_BASE_URL}/auth/refresh`,
           {},
           { withCredentials: true },
         );
@@ -60,7 +60,7 @@ api.interceptors.response.use(
 // Auth API
 export const auth = {
   login: (email: string, password: string) =>
-    api.post('/login', { email, password }),
+    api.post('/auth/login', { email, password }),
   register: (userData: any) => api.post('/users', userData),
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),
