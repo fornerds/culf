@@ -5,3 +5,4 @@ export { ChatListItem } from './ChatListItem';
 export { Footer } from './Footer';
 export { QuestionBox } from './QuestionBox';
 export { SideMenu } from './SideMenu';
+export { MarkdownChat } from './MarkdownChat';

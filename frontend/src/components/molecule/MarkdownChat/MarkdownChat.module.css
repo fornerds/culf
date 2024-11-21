@@ -1,0 +1,98 @@
+.messageContainer {
+  display: flex;
+  align-items: end;
+  margin-top: 20px;
+}
+
+.aiContainer {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.aiImage {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+  display: flex;
+  align-self: flex-start;
+}
+
+.aiMessage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+  padding: 8px 10px;
+  align-items: start;
+  gap: 0;
+  border-radius: 9px 9px 9px 0px;
+  border: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-light, #f7f7f7);
+}
+
+.markdown {
+  flex: 1;
+  word-break: break-word;
+  color: var(--text-default, #222);
+  font-family: 'PretendardVariable';
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 150%;
+}
+
+.markdown :global(h3) {
+  font-weight: 700;
+  font-size: 16px;
+  margin: 24px 2px 16px;
+}
+
+.markdown :global(p) {
+  margin: 0 0 20px;
+}
+
+.markdown :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown :global(strong) {
+  font-weight: 800;
+}
+
+.markdown :global(ul) {
+  margin: 20px 0;
+  padding-left: 12px;
+  list-style: circle;
+}
+
+.markdown :global(ol) {
+  margin: 20px 0;
+  padding-left: 20px;
+  list-style: auto;
+}
+
+.markdown :global(li) {
+  margin: 12px 0;
+}
+
+.markdown :global(code) {
+  background: #e8e8e8;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.markdown :global(pre) {
+  background: #f3f3f3;
+  padding: 1em;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.markdown :global(blockquote) {
+  border-left: 3px solid #c9c9c9;
+  margin: 0;
+  padding-left: 1em;
+  color: #666;
+}
