@@ -1,4 +1,4 @@
-// frontend/src/api/index.ts
+// api/index.ts
 import axios, { AxiosInstance } from 'axios';
 
 export const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
@@ -85,6 +85,30 @@ export const auth = {
     }),
   refreshToken: (refreshToken: string) =>
     api.post('/auth/refresh', { refresh_token: refreshToken }),
+  processCallback: (provider: string, code: string) =>
+    api.get(`/auth/callback/${provider}`, {
+      params: { code },
+    }),
+  getProviderEmail: () =>
+    api.get('/auth/provider_email', {
+      headers: {
+        'provider-info':
+          document.cookie
+            .split('; ')
+            .find((row) => row.startsWith('provider_info='))
+            ?.split('=')[1] || '',
+      },
+    }),
+  registerWithProvider: (userData: any) =>
+    api.post('/auth/register', userData, {
+      headers: {
+        'provider-info':
+          document.cookie
+            .split('; ')
+            .find((row) => row.startsWith('provider_info='))
+            ?.split('=')[1] || '',
+      },
+    }),
 };
 
 // User API

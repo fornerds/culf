@@ -62,7 +62,7 @@
 
 .markdown :global(ul) {
   margin: 20px 0;
-  padding-left: 12px;
+  padding-left: 20px;
   list-style: circle;
 }
 

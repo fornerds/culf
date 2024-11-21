@@ -19,6 +19,10 @@ interface AuthState {
     refreshToken: string | null,
   ) => void;
   logout: () => void;
+  snsProvider: string | null;
+  snsProviderId: string | null;
+  setSnsAuth: (provider: string, providerId: string) => void;
+  resetSnsAuth: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -42,6 +46,11 @@ export const useAuthStore = create<AuthState>()(
           accessToken: null,
           refreshToken: null,
         }),
+      snsProvider: null,
+      snsProviderId: null,
+      setSnsAuth: (provider, providerId) =>
+        set({ snsProvider: provider, snsProviderId: providerId }),
+      resetSnsAuth: () => set({ snsProvider: null, snsProviderId: null }),
     }),
     {
       name: 'auth-storage',

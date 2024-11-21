@@ -1,6 +1,19 @@
 import { useMutation, UseMutationResult } from '@tanstack/react-query';
 import { auth } from '../../api';
 import { AxiosError } from 'axios';
+import { OAUTH } from '@/constants/oauth';
+
+interface ProcessCallbackResponse {
+  type: 'success' | 'continue';
+  access_token?: string;
+  refresh_token?: string;
+  email?: string;
+  user?: {
+    id: string;
+    email: string;
+    nickname: string;
+  };
+}
 
 interface LoginCredentials {
   email: string;
@@ -168,3 +181,51 @@ export const useRefreshToken = (): UseMutationResult<
     mutationFn: (refreshToken: string) =>
       auth.refreshToken(refreshToken).then((response) => response.data),
   });
+
+export const useProcessCallback = (): UseMutationResult<
+  ProcessCallbackResponse,
+  AxiosError,
+  { provider: string; code: string }
+> =>
+  useMutation({
+    mutationFn: async ({ provider, code }) => {
+      await auth.processCallback(provider, code);
+
+      const loginStatus = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
+        ?.split('=')[1];
+
+      if (loginStatus === 'success') {
+        const refreshToken = document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('refresh_token='))
+          ?.split('=')[1];
+
+        const response = await auth.refreshToken(refreshToken!);
+        return {
+          type: 'success',
+          ...response.data,
+          user: response.data.user,
+        };
+      }
+
+      if (loginStatus === 'continue') {
+        const {
+          data: { email },
+        } = await auth.getProviderEmail();
+        return { type: 'continue', email };
+      }
+
+      throw new Error('Invalid OAuth login status');
+    },
+  });
+
+export const getKakaoAuthUrl = () => {
+  const params = new URLSearchParams({
+    client_id: OAUTH.KAKAO.REST_API_KEY,
+    redirect_uri: OAUTH.KAKAO.REDIRECT_URI,
+    response_type: 'code',
+  });
+  return `${OAUTH.KAKAO.AUTH_URL}?${params.toString()}`;
+};

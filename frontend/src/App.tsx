@@ -55,6 +55,7 @@ import { CustomerInquiry } from './pages/CustomerInquiry';
 import logoimage from './assets/images/culf.png';
 import axios from 'axios';
 import { API_BASE_URL, getAccessToken, setAccessToken } from './api';
+import { OAuthCallback } from './pages/OAuthCallback';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -227,21 +228,22 @@ function AppRoutes() {
         <Route path="/complete-signup" element={<CompleteSignup />} />
         <Route path="/find-email" element={<FindEmail />} />
         <Route path="/change-password" element={<ChangePassword />} />
-        {/* <Route element={<PrivateOutlet />}> */}
-        <Route
-          path="/mypage"
-          element={<Navigate to="/mypage/account" replace />}
-        />
-        <Route path="/mypage/:tab" element={<Mypage />} />
-        <Route path="/chat" element={<Chat />} />
-        <Route path="/chat/:chat_id" element={<ChatDetail />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/payment" element={<Payment />} />
-        <Route path="/cancel-payment" element={<CancelPayment />} />
-        <Route path="/delete-account" element={<DeleteAccount />} />
-        <Route path="/inquiry" element={<CustomerInquiry />} />
-        <Route path="/notification" element={<Notification />} />
-        {/* </Route> */}
+        <Route path="/v1/auth/callback/:provider" element={<OAuthCallback />} />
+        <Route element={<PrivateOutlet />}>
+          <Route
+            path="/mypage"
+            element={<Navigate to="/mypage/account" replace />}
+          />
+          <Route path="/mypage/:tab" element={<Mypage />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:chat_id" element={<ChatDetail />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/payment" element={<Payment />} />
+          <Route path="/cancel-payment" element={<CancelPayment />} />
+          <Route path="/delete-account" element={<DeleteAccount />} />
+          <Route path="/inquiry" element={<CustomerInquiry />} />
+          <Route path="/notification" element={<Notification />} />
+        </Route>
         {/* AI가 만든 페이지목록 */}
         <Route path="/ai/" element={<_Home />} />
         <Route
