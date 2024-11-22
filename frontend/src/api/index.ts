@@ -1,5 +1,7 @@
 // api/index.ts
 import axios, { AxiosInstance } from 'axios';
+import { tokenService } from '@/utils/tokenService';
+import { useAuthStore } from '../state/client/authStore';
 
 export const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
 
@@ -11,15 +13,10 @@ const api: AxiosInstance = axios.create({
   withCredentials: true,
 });
 
-export const getAccessToken = () => sessionStorage.getItem('accessToken');
-export const setAccessToken = (token: string) =>
-  sessionStorage.setItem('accessToken', token);
-export const removeAccessToken = () => sessionStorage.removeItem('accessToken');
-
-// Request interceptor for API calls
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const token = getAccessToken();
+    const token = tokenService.getAccessToken();
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -30,29 +27,39 @@ api.interceptors.request.use(
   },
 );
 
-// Response interceptor for API calls
+// Response interceptor
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response.status === 401 && !originalRequest._retry) {
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+
       try {
         const res = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
-          { withCredentials: true },
+          {
+            withCredentials: true,
+            baseURL: API_BASE_URL,
+          },
         );
+
         if (res.status === 200) {
-          setAccessToken(res.data.access_token);
+          tokenService.setAccessToken(res.data.access_token);
+          originalRequest.headers['Authorization'] =
+            `Bearer ${res.data.access_token}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh token is invalid, logout the user
-        removeAccessToken();
-        // Redirect to login page or dispatch a logout action
+        tokenService.removeAccessToken();
+        const authStore = useAuthStore.getState();
+        authStore.setAuth(false, null);
+        window.location.href = '/login';
       }
     }
+
     return Promise.reject(error);
   },
 );
@@ -62,6 +69,7 @@ export const auth = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
   register: (userData: any) => api.post('/users', userData),
+  refreshToken: () => api.post('/auth/refresh', {}, { withCredentials: true }),
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),
   findEmail: (phoneNumber: string, birthdate: string) =>
@@ -83,8 +91,6 @@ export const auth = {
       new_password: newPassword,
       new_password_confirmation: newPasswordConfirmation,
     }),
-  refreshToken: (refreshToken: string) =>
-    api.post('/auth/refresh', { refresh_token: refreshToken }),
   processCallback: (provider: string, code: string) =>
     api.get(`/auth/callback/${provider}`, {
       params: { code },

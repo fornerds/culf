@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { auth } from '../../api/index';
 import { useAuthStore } from '../../state/client/authStore';
+import { tokenService } from '@/utils/tokenService';
 
 interface User {
   id: string;
   email: string;
   nickname: string;
-  // 기타 필요한 사용자 정보 필드
 }
 
 interface LoginCredentials {
@@ -45,22 +45,21 @@ export const useAuth = () => {
     mutationFn: (credentials: LoginCredentials) =>
       auth.login(credentials.email, credentials.password),
     onSuccess: (response) => {
-      const { access_token, refresh_token, user } = response.data;
-      setAuth(true, user, access_token, refresh_token);
+      const { access_token, user } = response.data;
+      tokenService.setAccessToken(access_token);
+      setAuth(true, user);
     },
   });
 
   const registerMutation = useMutation({
     mutationFn: (data: RegisterData) => auth.register(data),
-    onSuccess: () => {
-      // 여기서 자동 로그인을 수행하거나, 로그인 페이지로 리다이렉트할 수 있습니다.
-    },
   });
 
   const logoutMutation = useMutation({
-    mutationFn: () => Promise.resolve(), // 서버 로그아웃 API가 있다면 여기서 호출
+    mutationFn: () => Promise.resolve(),
     onSuccess: () => {
-      setAuth(false, null, null, null);
+      tokenService.removeAccessToken();
+      setAuth(false, null);
     },
   });
 
@@ -68,15 +67,10 @@ export const useAuth = () => {
     mutationFn: ({ provider, token }: { provider: string; token: string }) =>
       auth.loginSNS(provider, token),
     onSuccess: (response) => {
-      const {
-        access_token,
-        refresh_token,
-        user,
-        isNewUser,
-        need_additional_info,
-      } = response.data;
-      setAuth(true, user, access_token, refresh_token);
-      // isNewUser와 need_additional_info에 따라 추가 처리 필요
+      const { access_token, user, isNewUser, need_additional_info } =
+        response.data;
+      tokenService.setAccessToken(access_token);
+      setAuth(true, user);
     },
   });
 
@@ -115,14 +109,11 @@ export const useAuth = () => {
   });
 
   const refreshTokenMutation = useMutation({
-    mutationFn: () => {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) throw new Error('No refresh token available');
-      return auth.refreshToken(refreshToken);
-    },
+    mutationFn: () => auth.refreshToken(),
     onSuccess: (response) => {
-      const { access_token, refresh_token } = response.data;
-      setAuth(isAuthenticated, user, access_token, refresh_token);
+      const { access_token, user } = response.data;
+      tokenService.setAccessToken(access_token);
+      setAuth(true, user);
     },
   });
 

@@ -1,7 +1,9 @@
+// src/pages/OAuthCallback.tsx
 import { useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useProcessCallback } from '@/state/server/authQueries';
 import { useAuthStore } from '@/state/client/authStore';
+import { tokenService } from '@/utils/tokenService';
 import styles from './OAuthCallback.module.css';
 
 export function OAuthCallback() {
@@ -19,12 +21,9 @@ export function OAuthCallback() {
 
         const result = await processCallback.mutateAsync({ provider, code });
 
-        if (
-          result.type === 'success' &&
-          result.access_token &&
-          result.refresh_token
-        ) {
-          setAuth(true, result.user, result.access_token, result.refresh_token);
+        if (result.type === 'success' && result.access_token && result.user) {
+          tokenService.setAccessToken(result.access_token);
+          setAuth(true, result.user);
           navigate('/');
         } else {
           const providerInfo = document.cookie
@@ -47,7 +46,14 @@ export function OAuthCallback() {
     };
 
     processOAuth();
-  }, []);
+  }, [
+    location.search,
+    provider,
+    navigate,
+    processCallback,
+    setAuth,
+    setSnsAuth,
+  ]);
 
   return (
     <div className={styles.container}>
