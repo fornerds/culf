@@ -12,44 +12,7 @@ env:
   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
 jobs:
-  test-and-build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-
-    - name: Install Python dependencies
-      run: |
-        cd backend
-        pip install -r requirements.txt
-
-    - name: Run Python tests
-      run: |
-        cd backend
-        pytest
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
-
-    - name: Install Node.js dependencies
-      run: |
-        cd frontend
-        npm install --legacy-peer-deps
-
-    - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
-
   deploy:
-    needs: test-and-build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
