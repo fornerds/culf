@@ -55,7 +55,7 @@ export function SideMenu({ isOpen, onClose, remainingTokens }: SideMenuProps) {
           </section>
         </header>
         <nav className={styles.menuItems}>
-          <Link to="/mypage" onClick={onClose} className="font-text-2">
+          <Link to="/mypage/account" onClick={onClose} className="font-text-2">
             <span>
               <UserIcon /> 마이페이지
             </span>

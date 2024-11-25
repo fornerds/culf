@@ -37,6 +37,19 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
+        // refresh_token이 쿠키에 있는지 확인
+        const hasRefreshToken = document.cookie
+          .split('; ')
+          .some((row) => row.startsWith('refresh_token='));
+
+        if (!hasRefreshToken) {
+          // refresh_token이 없으면 로그아웃 처리
+          tokenService.removeAccessToken();
+          useAuthStore.getState().setAuth(false, null);
+          window.location.href = '/login';
+          return Promise.reject(error);
+        }
+
         const res = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
@@ -53,10 +66,16 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshError) {
+        // refresh 실패시 모든 인증 정보 삭제
         tokenService.removeAccessToken();
+        document.cookie =
+          'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie =
+          'provider_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         const authStore = useAuthStore.getState();
         authStore.setAuth(false, null);
         window.location.href = '/login';
+        return Promise.reject(error);
       }
     }
 
@@ -68,6 +87,7 @@ api.interceptors.response.use(
 export const auth = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
+  logout: () => api.post('/auth/logout', {}, { withCredentials: true }),
   register: (userData: any) => api.post('/users', userData),
   refreshToken: () => api.post('/auth/refresh', {}, { withCredentials: true }),
   loginSNS: (provider: string, accessToken: string) =>
