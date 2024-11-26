@@ -5,6 +5,7 @@ import MenuIcon from '@/assets/icons/menu.svg?react';
 import { useNavigate } from 'react-router-dom';
 import { useHeaderStore } from '../../../state/client/useHeaderStore';
 import { useSideMenuStore } from '../../../state/client/useSideMenuStore';
+import { Link } from '@/components/atom';
 
 export function Header() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export function Header() {
         {typeof title === 'string' ? (
           <h1 className={`${styles.title} font-card-title-1`}>{title}</h1>
         ) : (
-          title
+          <Link to="/">{title}</Link>
         )}
       </div>
       <div className={styles.rightSection}>

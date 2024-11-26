@@ -1,17 +1,20 @@
+// src/state/server/authQueries.ts
+import { useState } from 'react';
 import { useMutation, UseMutationResult } from '@tanstack/react-query';
-import { auth } from '../../api';
+import { auth } from '../../api/index';
+import { useAuthStore } from '../client/authStore';
+import { tokenService } from '@/utils/tokenService';
 import { AxiosError } from 'axios';
+
+interface User {
+  id: string;
+  email: string;
+  nickname: string;
+}
 
 interface LoginCredentials {
   email: string;
   password: string;
-}
-
-interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
 }
 
 interface RegisterData {
@@ -25,146 +28,259 @@ interface RegisterData {
   marketing_agreed: boolean;
 }
 
-interface SNSLoginData {
-  provider: string;
-  access_token: string;
-}
-
-interface SNSLoginResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  isNewUser: boolean;
-  need_additional_info: boolean;
-}
-
-interface FindEmailData {
-  phone_number: string;
-  birthdate: string;
-}
-
-interface FindEmailResponse {
-  email: string;
-}
-
 interface PhoneVerificationData {
   phone_number: string;
 }
 
-interface PhoneVerificationResponse {
-  message: string;
-  expiration_time: number;
-}
-
-interface VerifyPhoneData {
-  phone_number: string;
-  verification_code: string;
-}
-
-interface VerifyPhoneResponse {
-  message: string;
-  is_verified: boolean;
-}
-
-interface ResetPasswordData {
+interface PasswordResetData {
   email: string;
   new_password: string;
   new_password_confirmation: string;
 }
 
+interface ProcessCallbackResponse {
+  type: 'success' | 'continue';
+  access_token?: string;
+  refresh_token?: string;
+  email?: string;
+  user?: {
+    id: string;
+    email: string;
+    nickname: string;
+  };
+}
+
 export const useLogin = (): UseMutationResult<
-  LoginResponse,
+  { access_token: string; user: User },
   AxiosError,
   LoginCredentials
 > =>
   useMutation({
     mutationFn: (credentials: LoginCredentials) =>
-      auth
-        .login(credentials.email, credentials.password)
-        .then((response) => response.data),
+      auth.login(credentials.email, credentials.password),
+    onSuccess: (response) => {
+      const { access_token, user } = response.data;
+      tokenService.setAccessToken(access_token);
+      useAuthStore.getState().setAuth(true, user);
+    },
   });
 
-export const useRegister = (): UseMutationResult<
-  any,
-  AxiosError,
-  RegisterData
-> =>
+export const useLogout = () =>
   useMutation({
-    mutationFn: (data: RegisterData) =>
-      auth.register(data).then((response) => response.data),
+    mutationFn: () => auth.logout(),
+    onSuccess: () => {
+      // 세션스토리지의 액세스 토큰 삭제
+      tokenService.removeAccessToken();
+      // 쿠키 삭제
+      document.cookie =
+        'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie =
+        'provider_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      // 상태 초기화
+      useAuthStore.getState().setAuth(false, null);
+      useAuthStore.getState().resetSnsAuth?.();
+    },
+    onError: () => {
+      // 에러가 발생하더라도 클라이언트 측 데이터는 정리
+      tokenService.removeAccessToken();
+      document.cookie =
+        'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie =
+        'provider_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      useAuthStore.getState().setAuth(false, null);
+      useAuthStore.getState().resetSnsAuth?.();
+    },
   });
 
-export const useSNSLogin = (): UseMutationResult<
-  SNSLoginResponse,
-  AxiosError,
-  SNSLoginData
-> =>
+export const useSNSLogin = () =>
   useMutation({
-    mutationFn: (data: SNSLoginData) =>
-      auth
-        .loginSNS(data.provider, data.access_token)
-        .then((response) => response.data),
+    mutationFn: ({ provider, token }: { provider: string; token: string }) =>
+      auth.loginSNS(provider, token),
+    onSuccess: (response) => {
+      const { access_token, user } = response.data;
+      tokenService.setAccessToken(access_token);
+      useAuthStore.getState().setAuth(true, user);
+    },
   });
 
-export const useFindEmail = (): UseMutationResult<
-  FindEmailResponse,
-  AxiosError,
-  FindEmailData
-> =>
+export const useRefreshToken = () =>
   useMutation({
-    mutationFn: (data: FindEmailData) =>
-      auth
-        .findEmail(data.phone_number, data.birthdate)
-        .then((response) => response.data),
+    mutationFn: () => auth.refreshToken(),
+    onSuccess: (response) => {
+      const { access_token, user } = response.data;
+      tokenService.setAccessToken(access_token);
+      useAuthStore.getState().setAuth(true, user);
+    },
   });
 
-export const useRequestPhoneVerification = (): UseMutationResult<
-  PhoneVerificationResponse,
-  AxiosError,
-  PhoneVerificationData
-> =>
+export const useRegister = () =>
+  useMutation({
+    mutationFn: (data: RegisterData) => auth.register(data),
+  });
+
+export const useFindEmail = () =>
+  useMutation({
+    mutationFn: ({
+      phoneNumber,
+      birthdate,
+    }: {
+      phoneNumber: string;
+      birthdate: string;
+    }) => auth.findEmail(phoneNumber, birthdate),
+  });
+
+export const useRequestPhoneVerification = () =>
   useMutation({
     mutationFn: (data: PhoneVerificationData) =>
-      auth
-        .requestPhoneVerification(data.phone_number)
-        .then((response) => response.data),
+      auth.requestPhoneVerification(data.phone_number),
   });
 
-export const useVerifyPhone = (): UseMutationResult<
-  VerifyPhoneResponse,
-  AxiosError,
-  VerifyPhoneData
-> =>
+export const useVerifyPhone = () =>
   useMutation({
-    mutationFn: (data: VerifyPhoneData) =>
-      auth
-        .verifyPhone(data.phone_number, data.verification_code)
-        .then((response) => response.data),
+    mutationFn: ({
+      phoneNumber,
+      verificationCode,
+    }: {
+      phoneNumber: string;
+      verificationCode: string;
+    }) => auth.verifyPhone(phoneNumber, verificationCode),
   });
 
-export const useResetPassword = (): UseMutationResult<
-  void,
-  AxiosError,
-  ResetPasswordData
-> =>
+export const useResetPassword = () =>
   useMutation({
-    mutationFn: (data: ResetPasswordData) =>
-      auth
-        .resetPassword(
-          data.email,
-          data.new_password,
-          data.new_password_confirmation,
-        )
-        .then((response) => response.data),
+    mutationFn: (data: PasswordResetData) =>
+      auth.resetPassword(
+        data.email,
+        data.new_password,
+        data.new_password_confirmation,
+      ),
   });
 
-export const useRefreshToken = (): UseMutationResult<
-  LoginResponse,
+export const useProcessCallback = (): UseMutationResult<
+  ProcessCallbackResponse,
   AxiosError,
-  string
+  { provider: string; code: string }
 > =>
   useMutation({
-    mutationFn: (refreshToken: string) =>
-      auth.refreshToken(refreshToken).then((response) => response.data),
+    mutationFn: async ({ provider, code }) => {
+      const response = await auth.processCallback(provider, code);
+
+      const loginStatus = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
+        ?.split('=')[1];
+
+      if (loginStatus === 'success') {
+        const refreshResponse = await auth.refreshToken();
+        // refresh_token은 쿠키에 이미 설정되어 있음
+        return {
+          type: 'success',
+          access_token: refreshResponse.data.access_token,
+          user: refreshResponse.data.user,
+        };
+      }
+
+      if (loginStatus === 'continue') {
+        const emailResponse = await auth.getProviderEmail();
+        return {
+          type: 'continue',
+          email: emailResponse.data.email,
+        };
+      }
+
+      throw new Error('Invalid OAuth login status');
+    },
   });
+
+export const useAuth = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { isAuthenticated, user } = useAuthStore();
+
+  const loginMutation = useLogin();
+  const logoutMutation = useLogout();
+  const snsLoginMutation = useSNSLogin();
+  const registerMutation = useRegister();
+  const findEmailMutation = useFindEmail();
+  const requestPhoneVerificationMutation = useRequestPhoneVerification();
+  const verifyPhoneMutation = useVerifyPhone();
+  const resetPasswordMutation = useResetPassword();
+  const refreshTokenMutation = useRefreshToken();
+  const processCallbackMutation = useProcessCallback();
+
+  const login = async (credentials: LoginCredentials) => {
+    setIsLoading(true);
+    try {
+      await loginMutation.mutateAsync(credentials);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (data: RegisterData) => {
+    setIsLoading(true);
+    try {
+      await registerMutation.mutateAsync(data);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await logoutMutation.mutateAsync();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const snsLogin = async (provider: string, token: string) => {
+    setIsLoading(true);
+    try {
+      await snsLoginMutation.mutateAsync({ provider, token });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const findEmail = (phoneNumber: string, birthdate: string) =>
+    findEmailMutation.mutate({ phoneNumber, birthdate });
+
+  const requestPhoneVerification = (phoneNumber: string) =>
+    requestPhoneVerificationMutation.mutate({ phone_number: phoneNumber });
+
+  const verifyPhone = (phoneNumber: string, verificationCode: string) =>
+    verifyPhoneMutation.mutate({ phoneNumber, verificationCode });
+
+  const resetPassword = (
+    email: string,
+    newPassword: string,
+    newPasswordConfirmation: string,
+  ) =>
+    resetPasswordMutation.mutate({
+      email,
+      new_password: newPassword,
+      new_password_confirmation: newPasswordConfirmation,
+    });
+
+  const refreshToken = () => refreshTokenMutation.mutate();
+
+  const processOAuthCallback = (provider: string, code: string) =>
+    processCallbackMutation.mutate({ provider, code });
+
+  return {
+    isAuthenticated,
+    user,
+    isLoading,
+    login,
+    register,
+    logout,
+    snsLogin,
+    findEmail,
+    requestPhoneVerification,
+    verifyPhone,
+    resetPassword,
+    refreshToken,
+    processOAuthCallback,
+  };
+};

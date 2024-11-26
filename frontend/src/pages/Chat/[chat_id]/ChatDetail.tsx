@@ -4,6 +4,7 @@ import {
   ChatInput,
   FileUploadButton,
   QuestionBox,
+  MarkdownChat,
 } from '@/components/molecule';
 import CameraIcon from '@/assets/icons/camera.svg?react';
 import CloseIcon from '@/assets/icons/close.svg?react';
@@ -41,10 +42,10 @@ export function ChatDetail() {
   const { mutate: sendMessage, isLoading: isSending } = useSendMessage();
 
   const suggestions = [
-    '9박 10일 유럽여행 일정 짜줘',
+    '2박 3일 유럽여행 일정 짜줘',
     '사람들이 잘 모르는 제주도 여행 명소를 알려줘',
-    '겨울 여행지 추천해줘',
-    '가족여행 갈만한 곳 알려줘',
+    '서울 근교 겨울 여행지 추천해줘',
+    '서울 근교 가족여행 갈만한 곳 알려줘',
   ];
 
   // ChatInputGroup 높이 감지
@@ -281,19 +282,11 @@ export function ChatDetail() {
       <div className={styles.chatContainer} ref={chatContainerRef}>
         {messages.map((message, index) =>
           message.type === 'ai' ? (
-            <QuestionBox
+            <MarkdownChat
               key={index}
-              type="ai"
-              content={
-                message.isStreaming ? (
-                  <>
-                    {message.content}
-                    <LoadingDots color="#8381FF" size={7} />
-                  </>
-                ) : (
-                  message.content
-                )
-              }
+              markdown={message.content}
+              isStreaming={message.isStreaming}
+              isLoading={message.isLoading}
               image={curatorImage}
             />
           ) : (

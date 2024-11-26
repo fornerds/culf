@@ -44,6 +44,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        - NODE_ENV=development
     restart: unless-stopped
     tty: true
     volumes:
@@ -52,7 +54,7 @@ services:
     ports:
       - 5173:5173
     env_file:
-      - ../frontend/.env
+      - ../frontend/.env.development
     networks:
       - culf-network
 

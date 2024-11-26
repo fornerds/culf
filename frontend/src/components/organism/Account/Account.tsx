@@ -4,9 +4,11 @@ import styles from './Account.module.css';
 import { InputBox } from '@/components/molecule/InputBox';
 import { PhoneVerificationForm } from '@/components/molecule/PhoneVerificationForm';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/state/server/authQueries';
 
 export function Account() {
   const navigate = useNavigate();
+  const { logout, isLoading } = useAuth();
   const [form, setForm] = useState({
     email: '',
     nickname: '',
@@ -35,11 +37,20 @@ export function Account() {
     setNewPasswordCheck(value);
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+      alert('로그아웃되었습니다.');
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   return (
     <>
       <main>
         <div className={styles.accountContent}>
-          {/* TODO: 이메일, 닉네임 input 다른 페이지에서도 사용 => 컴포넌트화? */}
           <InputBox
             id="email"
             label="이메일"
@@ -103,8 +114,13 @@ export function Account() {
             >
               계정탈퇴하기
             </Button>
-            <Button size="size3" variant="less-highlight">
-              로그아웃
+            <Button
+              size="size3"
+              variant="less-highlight"
+              onClick={handleLogout}
+              disabled={isLoading}
+            >
+              {isLoading ? '로그아웃 중...' : '로그아웃'}
             </Button>
           </div>
         </div>

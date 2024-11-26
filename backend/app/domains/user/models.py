@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Date, Enum, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, PrimaryKeyConstraint, String, Date, Enum, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -10,7 +10,7 @@ class User(Base):
 
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password = Column(String(255), nullable=False)
+    password = Column(String(255), nullable=True)
     nickname = Column(String(50), unique=True, nullable=False)
     phone_number = Column(String(20), unique=True)
     birthdate = Column(Date, nullable=False)
@@ -24,6 +24,8 @@ class User(Base):
     delete_reason = Column(Text)
     marketing_agreed = Column(Boolean, nullable=False, default=False)
     is_corporate = Column(Boolean, nullable=False, default=False)
+    provider = Column(String(50))
+    provider_id = Column(String(255))
 
     conversations = relationship("Conversation", back_populates="user")
     tokens = relationship("Token", back_populates="user", uselist=False)
@@ -33,6 +35,17 @@ class User(Base):
     notification_settings = relationship("UserNotificationSetting", back_populates="user")
     notice_reads = relationship("UserNoticeRead", back_populates="user")
 
+# class model for UserProvider that refer User
+class UserProvider(Base):
+    __tablename__ = 'user_provider'
+    
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False)
+    provider = Column(Enum('GOOGLE', 'KAKAO', name='provider_enum'), nullable=False)
+    provider_id = Column(String(255), nullable=False)
+    
+    __table_args__ = (
+        PrimaryKeyConstraint(user_id, provider_id),
+    )
 
 class CorporateUser(Base):
     __tablename__ = "corporate_users"
