@@ -1,6 +1,6 @@
 import { InputBox } from '@/components/molecule/InputBox';
 import styles from './Login.module.css';
-import { useState } from 'react';
+import { KeyboardEvent, useState } from 'react';
 import { Button, Link } from '@/components/atom';
 import KakaoIcon from '@/assets/icons/kakao.svg?react';
 import GoogleImage from '@/assets/images/google.png';
@@ -43,6 +43,11 @@ export function Login() {
     }
   };
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleLogin();
+    }
+  };
   const handleSnsLogin = (provider: 'kakao' | 'google') => {
     if (provider === 'kakao') {
       window.location.href = OAUTH.KAKAO.getAuthUrl();
@@ -55,35 +60,37 @@ export function Login() {
   return (
     <main className={styles.main}>
       <div className="font-title-1">반갑습니다!</div>
-      <div className={styles.inputWrapper}>
-        <InputBox
-          id="email"
-          label="이메일"
-          type="email"
-          placeholder="이메일을 입력하세요"
-          value={form.email}
-          validationMessage={formMessage.email}
-          validationMessageType="error"
-          onChangeObj={handleFormChange}
-          onBlur={() => handleBlur('email')}
-        />
-        <InputBox
-          id="password"
-          label="비밀번호"
-          type="password"
-          placeholder="비밀번호를 입력하세요"
-          value={form.password}
-          validationMessage={formMessage.password}
-          validationMessageType="error"
-          onChangeObj={handleFormChange}
-          onBlur={() => handleBlur('password')}
-        />
-      </div>
-      <div className={styles.buttonArea}>
-        <Button onClick={handleLogin}>로그인하기</Button>
+      <div onKeyDown={handleKeyDown}>
+        <div className={styles.inputWrapper}>
+          <InputBox
+            id="email"
+            label="이메일"
+            type="email"
+            placeholder="이메일을 입력하세요"
+            value={form.email}
+            validationMessage={formMessage.email}
+            validationMessageType="error"
+            onChangeObj={handleFormChange}
+            onBlur={() => handleBlur('email')}
+          />
+          <InputBox
+            id="password"
+            label="비밀번호"
+            type="password"
+            placeholder="비밀번호를 입력하세요"
+            value={form.password}
+            validationMessage={formMessage.password}
+            validationMessageType="error"
+            onChangeObj={handleFormChange}
+            onBlur={() => handleBlur('password')}
+          />
+        </div>
+        <div className={styles.buttonArea}>
+          <Button onClick={handleLogin}>로그인하기</Button>
+        </div>
       </div>
       <div className={styles.linkWrapper}>
-        <Link to="/signup">
+        <Link to="/terms">
           <span>회원가입</span>
         </Link>
         <div className={styles.linkRight}>
