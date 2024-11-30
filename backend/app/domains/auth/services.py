@@ -105,7 +105,7 @@ def get_email_from_provider(user_info: dict, provider: str) -> Optional[str]:
     :param provider: The name of the provider (e.g., 'kakao').
     :return: The extracted email if available, None otherwise.
     """
-    if provider == "kakao":
+    if provider.lower() == "kakao":
         return user_info.get("kakao_account", {}).get("email")
     else:
         return user_info.get("email")

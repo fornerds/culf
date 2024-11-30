@@ -21,21 +21,22 @@ export function OAuthCallback() {
 
         const result = await processCallback.mutateAsync({ provider, code });
 
-        if (result.type === 'success' && result.access_token && result.user) {
-          tokenService.setAccessToken(result.access_token);
-          setAuth(true, result.user);
-          navigate('/');
-        } else {
+        if (result.type === 'success') {
+          if (result.access_token && result.user) {
+            tokenService.setAccessToken(result.access_token);
+            // refresh_token은 백엔드가 쿠키로 설정함
+            setAuth(true, result.user);
+            navigate('/');
+          }
+        } else if (result.type === 'continue') {
           const providerInfo = document.cookie
             .split('; ')
             .find((row) => row.startsWith('provider_info='))
             ?.split('=')[1];
 
           if (providerInfo) {
-            const { provider: p, provider_id } = JSON.parse(
-              atob(providerInfo.split('.')[1]),
-            );
-            setSnsAuth(p, provider_id);
+            const decodedInfo = JSON.parse(atob(providerInfo.split('.')[1]));
+            setSnsAuth(decodedInfo.provider, decodedInfo.provider_id);
           }
           navigate('/signup');
         }

@@ -9,6 +9,12 @@ interface User {
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
+  selectedValues: string[];
+  isMarketingAgreed: boolean;
+  setSelectedValues: (
+    update: string[] | ((prev: string[]) => string[]),
+  ) => void;
+  setIsMarketingAgreed: (isMarketingAgreed: boolean) => void;
   setAuth: (isAuthenticated: boolean, user: User | null) => void;
   logout: () => void;
   snsProvider: string | null;
@@ -20,6 +26,15 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set) => ({
   isAuthenticated: false,
   user: null,
+  selectedValues: [],
+  isMarketingAgreed: false,
+  setSelectedValues: (update) =>
+    set((state) => ({
+      selectedValues:
+        typeof update === 'function' ? update(state.selectedValues) : update,
+    })),
+  setIsMarketingAgreed: (isMarketingAgreed: boolean) =>
+    set({ isMarketingAgreed }),
   setAuth: (isAuthenticated, user) =>
     set({
       isAuthenticated,
