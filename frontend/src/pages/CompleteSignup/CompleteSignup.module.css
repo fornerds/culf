@@ -1,0 +1,23 @@
+.main {
+  padding: 95px 22px;
+}
+
+.subTitle {
+  margin-top: 24px;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 30px;
+}
+
+.subTitle .point {
+  font-weight: 700;
+  color: var(--keycolor-2, #6314e4);
+}
+
+.image {
+  margin: 107px auto 170px;
+}
+
+.buttonArea {
+  margin-top: 32px;
+}

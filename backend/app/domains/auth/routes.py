@@ -170,6 +170,36 @@ async def logout():
     response.delete_cookie("refresh_token")
     return response
 
+@router.post("/auth/find-email")
+def find_email(
+    phone_number: str = Body(..., embed=True),
+    birthdate: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    user = user_services.get_user_by_phone_and_birthdate(db, phone_number=phone_number, birthdate=birthdate)
+    
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "not_found",
+                "message": "일치하는 정보가 없습니다."
+            }
+        )
+    
+    email = user.email
+    masked_email = mask_email(email)
+    
+    return JSONResponse(content={"email": masked_email})
+
+def mask_email(email: str) -> str:
+    user, domain = email.split('@')
+    if len(user) > 2:
+        masked_user = user[:2] + '*' * (len(user) - 3)
+    else:
+        masked_user = user
+    return f"{masked_user}@{domain}"
+
 @router.post("/password-reset", response_model=auth_schemas.Msg)
 def reset_password(email: str, db: Session = Depends(get_db)):
     user = user_services.get_user_by_email(db, email=email)
