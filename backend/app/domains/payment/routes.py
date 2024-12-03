@@ -9,10 +9,10 @@ from app.db.session import get_db
 from app.core.deps import get_current_active_user
 from dotenv import load_dotenv
 from app.domains.payment.schemas import (
-    PaymentListResponse,
     PaymentDetailResponse,
     PaymentCreate,
     AdminPaymentCreate,
+    PaymentListResponse,
     RefundRequest,
     PaycancelResponse,
     AdminRefundResponse,
@@ -32,7 +32,7 @@ from app.domains.payment.schemas import (
 )
 from typing import List, Optional, Union
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime
 import logging
 
 
@@ -82,7 +82,7 @@ async def get_me_payments(
     payments = PaymentService.get_me_payments(db, user_id, page, limit, year, month)
     return payments
 
-# 단일 결제 상세 조회 API
+# 결제 상세 조회 API
 @router.get("/users/me/payments/{payment_id}", response_model=PaymentResponse)
 async def get_payment_detail(
     payment_id: int,
@@ -96,16 +96,23 @@ async def get_payment_detail(
     return payment
 
 @router.post("/users/me/payments/{payment_id}/cancel", response_model=PaycancelResponse)
-def inquiry_refund(payment_id: int, refund_request: PaycancelRequest, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
-    # 환불 문의 요청을 위한 서비스 호출
-    refund = PaymentService.inquiry_payment(db, payment_id, current_user.user_id, refund_request)
-    if not refund:
-        raise HTTPException(status_code=404, detail="Payment not found or already refunded.")
+def inquiry_refund(
+    payment_id: UUID,  # UUID로 변경
+    refund_request: PaycancelRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    # 환불 문의 및 환불 데이터 생성
+    result = PaymentService.inquiry_payment(db, payment_id, current_user.user_id, refund_request)
+    if not result:
+        raise HTTPException(status_code=404, detail="Payment not found.")
+    
     return {
-        "cancellation_id": refund.refund_id,
-        "payment_number": refund.payment_id,
+        "inquiry_id": result["inquiry"].inquiry_id,
+        "refund_id": result["refund"].refund_id,
+        "payment_number": str(payment_id),  # UUID를 문자열로 변환
         "status": "CANCELLATION_REQUESTED",
-        "message": "결제 취소 요청이 접수되었습니다. 처리 결과는 이메일로 안내드리겠습니다."
+        "message": "환불 문의와 요청이 성공적으로 접수되었습니다."
     }
 
 # 쿠폰 관련 엔드포인트
@@ -174,14 +181,6 @@ async def approve_payment(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/admin/refund/{refund_id}/{status}")
-async def request_refund(tid: str, db: Session = Depends(get_db)):
-    try:        
-        refund = kakao_service.process_refund(tid, db)
-        return refund
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
 @router.post("/subscription")
 async def initiate_subscription(
     subscription_request: KakaoPaySubscriptionRequest,
@@ -232,25 +231,36 @@ async def subscription_status(
 #admin 관련 엔드 포인트
 # 결제 내역 목록 조회 (GET)
 @router.get("/admin/payments", response_model=List[PaymentListResponse])
-def get_payments(
+def get_admin_payments(
+    query: Optional[str] = Query(None, description="검색어 (결제 ID, 닉네임, 상품명, 결제 수단)"),
+    start_date: Optional[datetime] = Query(None, description="시작 날짜 (YYYY-MM-DD)"),
+    end_date: Optional[datetime] = Query(None, description="종료 날짜 (YYYY-MM-DD)"),
     page: int = Query(1, description="페이지 번호"),
     limit: int = Query(10, description="페이지당 항목 수"),
     sort: str = Query("payment_date:desc", description="정렬 기준 (예: payment_date:desc)"),
-    user_id: Optional[UUID] = Query(None, description="사용자 ID"),
-    start_date: Optional[date] = Query(None, description="시작 날짜 (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="종료 날짜 (YYYY-MM-DD)"),
-    payment_method: Optional[str] = Query(None, description="결제 수단 (card, kakaopay)"),
-    status: Optional[str] = Query(None, description="결제 상태 (SUCCESS, FAILED, CANCELLED, REFUNDED)"),
     db: Session = Depends(get_db)
 ):
-    payments = PaymentService.get_payments(
-        db, page, limit, sort, user_id, start_date, end_date, payment_method, status
+    """
+    검색 및 필터링된 결제 내역 조회 API
+    """
+    payments = PaymentService.get_admin_payments(
+        db=db,
+        query=query,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        limit=limit,
+        sort=sort
     )
     return payments
 
 # 결제 내역 상세 조회 (GET) /admin/payments/{payment_id}
 @router.get("/admin/payments/{payment_id}", response_model=PaymentDetailResponse)
 def get_payment_detail(payment_id: UUID, db: Session = Depends(get_db)):
+    """
+    단일 결제 상세 조회 API
+    - 결제 내역, 환불 내역, 문의 내역을 포함하여 반환
+    """
     payment = PaymentService.get_payment_detail(db, payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
@@ -269,3 +279,11 @@ def process_refund(payment_id: UUID, refund: RefundRequest, db: Session = Depend
     refund_data = refund.dict()
     new_refund = PaymentService.process_refund(db, payment_id, refund_data)
     return new_refund
+
+@router.post("/admin/refund/{refund_id}/{status}")
+async def request_refund(tid: str, db: Session = Depends(get_db)):
+    try:        
+        refund = kakao_service.process_refund(tid, db)
+        return refund
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

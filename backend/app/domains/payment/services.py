@@ -1,11 +1,13 @@
 from fastapi import HTTPException, status
-from sqlalchemy import extract
-from sqlalchemy.orm import Session
+from sqlalchemy import extract, or_
+from sqlalchemy.orm import Session, joinedload
 from app.domains.token.models import TokenPlan
 from app.domains.subscription.models import SubscriptionPlan
 from app.domains.payment.models import Payment, Refund, Coupon, UserCoupon
-from app.domains.payment.schemas import CouponCreate, CouponUpdate, CouponValidationRequest, CouponValidationResponse, PaycancelRequest
-from datetime import datetime, date
+from app.domains.inquiry.models import Inquiry
+from app.domains.user.models import User
+from app.domains.payment.schemas import CouponCreate, CouponUpdate, PaymentListResponse, CouponValidationResponse, PaycancelRequest, RefundResponse
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 import logging
@@ -67,35 +69,43 @@ class PaymentService:
         return db.query(Payment).filter(Payment.payment_id == payment_id).first()
 
     @staticmethod
-    def inquiry_payment(db: Session, payment_id: int, user_id: str, refund_request: PaycancelRequest):
+    def inquiry_payment(db: Session, payment_id: UUID, user_id: str, refund_request: PaycancelRequest):
         # 결제 내역 조회
         payment = db.query(Payment).filter(Payment.payment_id == payment_id, Payment.user_id == user_id).first()
-        
-        # 이미 취소된 결제인지 확인
-        if not payment or payment.status == 'CANCELLED':
+        if not payment:
             return None
 
-        # 환불 문의 생성
-        refund = Refund(
-            payment_id=payment_id,
+        # Inquiry(문의) 생성
+        inquiry = Inquiry(
             user_id=user_id,
-            amount=payment.amount,
-            reason=refund_request.reason,
+            type="payment",
+            title=refund_request.title,
+            email=refund_request.email,
+            contact=refund_request.contact,
+            content=refund_request.content,
+            attachment=refund_request.attachment,
             status="PENDING",
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            created_at=datetime.now()
         )
+        db.add(inquiry)
+        db.commit()
+        db.refresh(inquiry)
 
-        # 환불 테이블에 환불 문의 저장
+        # Refund(환불) 생성
+        refund = Refund(
+            payment_id=payment.payment_id,
+            user_id=user_id,
+            inquiry_id=inquiry.inquiry_id,  # 생성된 문의 ID 연결
+            amount=payment.amount,
+            reason=refund_request.content,
+            status="PENDING",
+            created_at=datetime.now()
+        )
         db.add(refund)
         db.commit()
         db.refresh(refund)
-        
-        # 결제 상태를 "CANCELLATION_REQUESTED"로 업데이트
-        payment.status = "CANCELLATION_REQUESTED"
-        db.commit()
 
-        return refund
+        return {"inquiry": inquiry, "refund": refund}
 
     @staticmethod
     def create_refund(db: Session, refund_data: Refund):
@@ -213,46 +223,62 @@ class PaymentService:
 
 # admin
     @staticmethod
-    def get_payments(
-        db: Session,
-        page: int = 1,
-        limit: int = 10,
-        sort: str = "payment_date:desc",
-        user_id: Optional[UUID] = None,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-        payment_method: Optional[str] = None,
-        status: Optional[str] = None,
-    ) -> List[Payment]:
-        query = db.query(Payment)
-        
-        # 필터 추가
-        if user_id:
-            query = query.filter(Payment.user_id == user_id)
-        if start_date:
-            query = query.filter(Payment.payment_date >= start_date)
-        if end_date:
-            query = query.filter(Payment.payment_date <= end_date)
-        if payment_method:
-            query = query.filter(Payment.payment_method == payment_method)
-        if status:
-            query = query.filter(Payment.status == status)
-        
-        # 정렬 옵션
-        if sort:
-            field, direction = sort.split(":")
-            if direction.lower() == "desc":
-                query = query.order_by(getattr(Payment, field).desc())
-            else:
-                query = query.order_by(getattr(Payment, field).asc())
-        
-        # 페이지네이션 적용
-        offset = (page - 1) * limit
-        return query.offset(offset).limit(limit).all()
+    def get_payment_detail(db: Session, payment_id: UUID):
+        payment = (
+            db.query(Payment)
+            .filter(Payment.payment_id == payment_id)
+            .options(
+                joinedload(Payment.refunds),  # 환불 데이터 로드
+                joinedload(Payment.user),  # 사용자 데이터 로드
+            )
+            .first()
+        )
 
-    @staticmethod
-    def get_payment_detail(db: Session, payment_id: UUID) -> Optional[Payment]:
-        return db.query(Payment).filter(Payment.payment_id == payment_id).first()
+        if not payment:
+            return None
+
+        # 첫 번째 환불 데이터 가져오기 (단일 객체로 변환)
+        refund = None
+        if payment.refunds:
+            refund_obj = payment.refunds[0]  # 첫 번째 환불 데이터
+            refund = {
+                "refund_id": refund_obj.refund_id,
+                "payment_id": refund_obj.payment_id,
+                "amount": refund_obj.amount,
+                "reason": refund_obj.reason,
+                "status": refund_obj.status,
+                "processed_at": refund_obj.processed_at,
+                "created_at": refund_obj.created_at,
+            }
+
+        # 문의 내역
+        inquiries = []
+        if payment.refunds:  # 환불에 연결된 문의 정보
+            for refund in payment.refunds:
+                if refund.inquiry:
+                    inquiry = refund.inquiry
+                    inquiries.append({
+                        "inquiry_id": inquiry.inquiry_id,
+                        "type": inquiry.type,
+                        "title": inquiry.title,
+                        "email": inquiry.email,
+                        "contact": inquiry.contact,
+                        "content": inquiry.content,
+                        "status": inquiry.status,
+                        "created_at": inquiry.created_at,
+                    })
+
+        return {
+            "payment_id": payment.payment_id,
+            "payment_number": payment.payment_number,
+            "amount": payment.amount,
+            "status": payment.status,
+            "payment_date": payment.payment_date,
+            "payment_method": payment.payment_method,
+            "user_nickname": payment.user.nickname if payment.user else None,
+            "refund": refund,  # 단일 환불 데이터 반환
+            "inquiries": inquiries,  # 리스트 반환
+        }
 
     @staticmethod
     def create_manual_payment(db: Session, payment_data: dict) -> Payment:
@@ -271,3 +297,67 @@ class PaymentService:
         db.commit()
         db.refresh(refund)
         return refund
+
+    @staticmethod
+    def get_admin_payments(
+        db: Session,
+        query: Optional[str],
+        start_date: Optional[datetime],
+        end_date: Optional[datetime],
+        page: int,
+        limit: int,
+        sort: str
+    ) -> List[PaymentListResponse]:
+        query_builder = db.query(
+            Payment,
+            User.nickname.label("user_nickname"),
+            Refund
+        ).join(User, Payment.user_id == User.user_id, isouter=True).join(
+            Refund, Payment.payment_id == Refund.payment_id, isouter=True
+        )
+
+        # 검색어 필터 적용
+        if query:
+            query_builder = query_builder.filter(
+                or_(
+                    Payment.payment_id.ilike(f"%{query}%"),
+                    User.nickname.ilike(f"%{query}%"),
+                    Payment.payment_method.ilike(f"%{query}%"),
+                    Payment.manual_payment_reason.ilike(f"%{query}%")  # 결제 상품 관련 추가 정보
+                )
+            )
+
+        # 기간 필터 적용
+        if start_date and end_date:
+            query_builder = query_builder.filter(
+                Payment.payment_date.between(start_date, end_date)
+            )
+
+        # 정렬
+        sort_column, sort_direction = sort.split(":")
+        if sort_direction == "desc":
+            query_builder = query_builder.order_by(getattr(Payment, sort_column).desc())
+        else:
+            query_builder = query_builder.order_by(getattr(Payment, sort_column))
+
+        # 페이징
+        results = query_builder.offset((page - 1) * limit).limit(limit).all()
+
+        # 데이터 변환
+        payments = []
+        for payment, user_nickname, refund in results:
+            payments.append(
+                PaymentListResponse(
+                    payment_id=payment.payment_id,
+                    user_nickname=user_nickname,
+                    product_name=None,  # 필요 시 수정
+                    amount=payment.amount,
+                    payment_method=payment.payment_method,
+                    status=payment.status,
+                    payment_date=payment.payment_date,
+                    refund=RefundResponse.from_orm(refund) if refund else None
+                )
+            )
+
+        return payments
+

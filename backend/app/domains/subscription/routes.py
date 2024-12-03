@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
@@ -13,7 +14,7 @@ from app.domains.user.models import User
 router = APIRouter()
 
 # 구독 정보 조회
-@router.get("/users/me/subscriptions", response_model=UserSubscriptionResponse)
+@router.get("/users/me/subscriptions", response_model=List[UserSubscriptionResponse])
 def read_my_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)

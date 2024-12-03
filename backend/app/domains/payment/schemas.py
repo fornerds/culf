@@ -69,17 +69,19 @@ class PaycancelBase(BaseModel):
     reason: Optional[str] = None
     status: Optional[str] = 'PENDING'
 
-class PaycancelRequest(BaseModel):
-    reason: str
-    email: str
-    contact: str
-    details: str
-
 class PaycancelResponse(BaseModel):
-    cancellation_id: int
+    inquiry_id: int  # inquiry_id 추가
+    refund_id: int  # refund_id 추가
     payment_number: str
     status: str
     message: str
+
+class PaycancelRequest(BaseModel):
+    title: str
+    email: str
+    contact: str
+    content: str
+    attachment: Optional[str] = None  # 첨부 파일은 선택 사항
 
 # 쿠폰
 class CouponCreate(BaseModel):
@@ -174,25 +176,20 @@ class KakaoPayApproval(BaseModel):
     approved_at: datetime
 
 # admin 
-class PaymentListResponse(BaseModel):
+class PaymentAdminResponse(BaseModel):
     payment_id: UUID
-    user_id: UUID
-    subscription_id: Optional[int]
-    token_plan_id: Optional[int]
     payment_number: str
-    transaction_number: Optional[str]
-    tokens_purchased: Optional[int]
     amount: float
-    payment_method: str
-    payment_date: datetime
     status: str
-    manual_payment_reason: Optional[str]
+    payment_date: datetime
+    payment_method: str
+    nickname: Optional[str]
+    has_refund_request: bool
+    refund_status: Optional[str]
 
     class Config:
         orm_mode = True
 
-class PaymentDetailResponse(PaymentListResponse):
-    used_coupon_id: Optional[int]
 
 class AdminPaymentCreate(BaseModel):
     user_id: UUID
@@ -218,3 +215,59 @@ class AdminRefundResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class RefundResponse(BaseModel):
+    refund_id: int
+    payment_id: UUID
+    amount: float
+    reason: Optional[str]
+    status: str
+    processed_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class PaymentListResponse(BaseModel):
+    payment_id: UUID
+    user_nickname: str
+    product_name: Optional[str]  # 상품 정보가 필요하면 추가
+    amount: float
+    payment_method: str
+    status: str
+    payment_date: datetime
+    refund: Optional[RefundResponse]  # 환불 정보 포함
+
+    class Config:
+        orm_mode = True
+
+class InquiryResponse(BaseModel):
+    inquiry_id: int
+    type: str
+    title: str
+    email: str
+    contact: str
+    content: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class PaymentDetailResponse(BaseModel):
+    payment_id: UUID
+    payment_number: str
+    amount: float
+    status: str
+    payment_date: datetime
+    payment_method: str
+    user_nickname: Optional[str]
+    refund: Optional[RefundResponse]  # 환불 정보 포함
+    inquiries: Optional[List[InquiryResponse]]  # 문의 내역 포함
+
+    class Config:
+        orm_mode = True
+

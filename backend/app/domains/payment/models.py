@@ -27,6 +27,7 @@ class Payment(Base):
     token_plan = relationship("TokenPlan", back_populates="payments")
     used_coupon = relationship("Coupon")
     user = relationship("User", back_populates="payments")
+    refunds = relationship("Refund", back_populates="payment")
 
     def __repr__(self):
         return f"<Payment(payment_id={self.payment_id}, amount={self.amount}, status={self.status})>"
@@ -37,6 +38,7 @@ class Refund(Base):
     refund_id = Column(Integer, primary_key=True, autoincrement=True)
     payment_id = Column(UUID(as_uuid=True), ForeignKey('payments.payment_id'), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
+    inquiry_id = Column(Integer, ForeignKey('inquiries.inquiry_id', ondelete="CASCADE"), nullable=False)
     amount = Column(Float, nullable=False, default=0)
     reason = Column(String, nullable=True)
     status = Column(Enum('PENDING', 'APPROVED', 'REJECTED'), nullable=False, default='PENDING')
@@ -44,6 +46,9 @@ class Refund(Base):
     processed_by = Column(Integer, ForeignKey('users.user_id'), nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
     updated_at = Column(TIMESTAMP, nullable=False, default=datetime.now, onupdate=datetime.now)
+
+    inquiry = relationship("Inquiry", back_populates="refunds", lazy="joined")
+    payment = relationship("Payment", back_populates="refunds")
 
     def __repr__(self):
         return f"<Refund(refund_id={self.refund_id}, amount={self.amount}, status={self.status})>"

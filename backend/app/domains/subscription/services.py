@@ -8,12 +8,12 @@ from datetime import date
 
 class SubscriptionService:
     @staticmethod
-    def get_user_subscription(db: Session, user_id: int):
-        logging.info(f"Searching for subscription with user_id: {user_id}")
-        subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).all()
-        if not subscription:
-            logging.info(f"No subscription found for user_id: {user_id}")
-        return subscription
+    def get_user_subscription(db: Session, user_id: UUID):
+        logging.info(f"Searching for subscriptions with user_id: {user_id}")
+        subscriptions = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).all()
+        if not subscriptions:
+            logging.info(f"No subscriptions found for user_id: {user_id}")
+        return subscriptions
 
     @staticmethod
     def update_user_subscription(db: Session, user_id: UUID, plan_id: int) -> UserSubscription:
