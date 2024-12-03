@@ -1,26 +1,97 @@
 import base64
+import json
+from datetime import datetime
+
 from openai import OpenAI
 from uuid import UUID
 import time
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
 from sqlalchemy.orm import Session
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.domains.user.models import User
 from app.domains.token import services as token_services
 from app.core.config import settings
+from app.domains.conversation.chat_prompt import PROMPT
 from . import schemas, services
 from app.utils.s3_client import upload_file_to_s3
 import logging
 import uuid
 from app.utils.cloudfront_utils import invalidate_cloudfront_cache
 from app.utils.s3_client import upload_file_to_s3, get_cloudfront_url
+import logging
+import requests
 
 router = APIRouter()
 
 # OpenAI 클라이언트 초기화
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+# 로그 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+async def get_perplexity_answer(question: str) -> Optional[dict]:
+    """Perplexity API를 사용하여 먼저 정확한 정보를 얻습니다."""
+    try:
+        logger.info(f"🔄 Perplexity API 요청 시작 - 질문: {question}")
+
+        perplexity_api_key = settings.getenv("PERPLEXITY_API_KEY")
+        if not perplexity_api_key:
+            logger.error("🚫 PERPLEXITY_API_KEY not found")
+            return None
+
+        headers = {
+            "Authorization": f"Bearer {perplexity_api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "llama-3.1-sonar-huge-128k-online",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "당신은 예술과 역사에 대한 정보를 정확하게 제공하는 전문가입니다. 답변에는 반드시 신뢰할 수 있는 출처를 포함해주세요."
+                },
+                {
+                    "role": "user",
+                    "content": question
+                }
+            ],
+            "temperature": 0.2,
+            "top_p": 0.9
+        }
+
+        response = requests.post(
+            "https://api.perplexity.ai/chat/completions",
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        result = response.json()
+        logger.info("📥 Perplexity API 응답 수신 성공")
+
+        if 'choices' in result and len(result['choices']) > 0:
+            content = result['choices'][0]['message']['content']
+            citations = result.get('citations', [])
+            logger.info(f"✅ Perplex ity 답변: {content}...")  # 앞부분 100자만 로깅
+            logger.info(f"📚 출처: {citations}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Perplexity API 오류: {str(e)}")
+        return None
+
+def verify_artwork_info(question: str) -> Optional[Dict[str, Any]]:
+    """예술 작품 정보를 Perplexity API로 검증합니다."""
+    try:
+        return get_perplexity_answer(question)
+    except Exception as e:
+        logging.error(f"작품 정보 검증 실패: {e}")
+        return None
 
 @router.post("/chat", response_model=schemas.ConversationResponse)
 async def create_chat(
@@ -29,12 +100,7 @@ async def create_chat(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    채팅 생성 엔드포인트
-
-    이 함수는 사용자의 질문을 받아 OpenAI API를 통해 응답을 생성하고,
-    선택적으로 이미지를 처리합니다.
-    """
+    """채팅 생성 엔드포인트"""
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
 
     # 빈 문자열을 None으로 처리
@@ -54,6 +120,7 @@ async def create_chat(
             )
 
     try:
+        # 이미지 처리 로직
         image_url = None
         if image_file:
             file_extension = image_file.filename.split('.')[-1]
@@ -73,61 +140,92 @@ async def create_chat(
             else:
                 logging.warning("CloudFront 캐시 무효화 요청 실패")
 
-        chat = schemas.ConversationCreate(question=question, question_image=image_url)
+        functions = [{
+            "name": "verify_artwork_info",
+            "description": "예술 작품, 작가, 소장처 등의 정보를 검증합니다",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "검증이 필요한 예술 작품이나 작가 관련 질문"
+                    }
+                },
+                "required": ["question"]
+            }
+        }]
 
-        # OpenAI API를 사용한 대화 처리
-        thread = client.beta.threads.create()
+        # 메시지 구성
+        messages = [
+            {
+                "role": "system",
+                "content": PROMPT
+            },
+            {
+                "role": "user",
+                "content": []
+            }
+        ]
 
-        # 메시지 내용 준비
-        message_content = [{"type": "text", "text": chat.question}]
+        # 텍스트 메시지 추가
+        messages[1]["content"].append({
+            "type": "text",
+            "text": question
+        })
+
+        # 이미지가 있는 경우 추가
         if image_url:
-            message_content.append({
-                "type": "image_url",
-                "image_url": {"url": image_url}
-            })
+            messages[1]["content"].extend([
+                {"type": "text", "text": question},
+                {"type": "image_url", "image_url": {"url": image_url}}
+            ])
+        else:
+            messages[1]["content"].append({"type": "text", "text": question})
 
-        # 스레드에 메시지 생성
-        client.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content=message_content
+        # function_call을 "verify_artwork_info"로 강제 지정
+        initial_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            functions=functions,
+            function_call={"name": "verify_artwork_info"}  # auto 대신 강제 지정
         )
 
-        # 어시스턴트 실행
-        run = client.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=settings.OPENAI_ASSISTANT_ID
+        # 검증 실행
+        verification_result = await verify_artwork_info(question)
+
+        # 검증 결과를 문자열로 변환
+        verification_content = json.dumps({
+            "result": verification_result if verification_result else "검증 실패",
+            "timestamp": str(datetime.now())
+        })
+
+        # 검증 결과 추가
+        messages.append({
+            "role": "function",
+            "name": "verify_artwork_info",
+            "content": verification_content
+        })
+
+        # 최종 응답 생성
+        final_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages
         )
 
-        # 응답 대기 (최대 60초)
-        start_time = time.time()
-        timeout = 60
-        while run.status != "completed":
-            if time.time() - start_time > timeout:
-                raise TimeoutError("Assistant run timed out")
-            time.sleep(1)  # 1초마다 상태 확인
-            run = client.beta.threads.runs.retrieve(
-                thread_id=thread.id,
-                run_id=run.id
-            )
+        answer = final_response.choices[0].message.content
+        tokens_used = initial_response.usage.total_tokens + final_response.usage.total_tokens
 
-        # 어시스턴트의 응답 가져오기
-        messages = client.beta.threads.messages.list(thread_id=thread.id)
-        assistant_message = next(msg for msg in messages if msg.role == "assistant")
-
-        answer = assistant_message.content[0].text.value
-        tokens_used = 5  # 추후 실제 토큰 사용량을 계산하는 로직 추가 필요
-
-        # 대화 내용 저장 및 토큰 사용
+        # 대화 저장 및 응답
+        chat = schemas.ConversationCreate(question=question, question_image=image_url)
         conversation = services.create_conversation(db, chat, current_user.user_id, answer, tokens_used)
         token_services.use_tokens(db, current_user.user_id, tokens_used)
 
-        # 응답 반환
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,
             answer=conversation.answer,
             tokens_used=conversation.tokens_used
         )
+
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except TimeoutError as te:
@@ -142,6 +240,7 @@ async def create_chat(
                 "message": "내부 서버 오류가 발생했습니다. 관리자에게 문의해주세요."
             }
         )
+
 @router.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
     try:
