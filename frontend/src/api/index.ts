@@ -88,7 +88,7 @@ export const auth = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
   logout: () => api.post('/auth/logout', {}, { withCredentials: true }),
-  register: (userData: any) => api.post('/users', userData),
+  register: (userData: any) => api.post('/auth/register', userData),
   refreshToken: () => api.post('/auth/refresh', {}, { withCredentials: true }),
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),

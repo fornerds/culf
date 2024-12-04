@@ -20,6 +20,12 @@ def get_user_by_nickname(db: Session, nickname: str) -> Optional[models.User]:
 def get_user_by_phone_number(db: Session, phone_number: str) -> Optional[models.User]:
     return db.query(models.User).filter(models.User.phone_number == phone_number).first()
 
+def get_user_by_phone_and_birthdate(db: Session, phone_number: str, birthdate: str) -> Optional[models.User]:
+    return db.query(models.User).filter(
+        models.User.phone_number == phone_number,
+        models.User.birthdate == birthdate
+    ).first()
+
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[Type[User]]:
     return db.query(models.User).offset(skip).limit(limit).all()
 

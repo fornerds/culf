@@ -11,7 +11,7 @@ interface InputBoxProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   id?: string;
   inputClassName?: string;
-  disabled?: boolean;
+  inputDisabled?: boolean;
   type?: 'text' | 'password' | 'email' | 'number' | 'tel' | 'url';
   label?: string;
   validationMessage?: string;
@@ -19,6 +19,7 @@ interface InputBoxProps
   buttonSize?: ButtonSize;
   buttonVariant?: ButtonVariant;
   buttonClassName?: string;
+  buttonDisabled?: boolean;
   buttonText?: string;
   onChange?: (value: string) => void;
   onChangeObj?: (id: string, value: string) => void;
@@ -29,7 +30,7 @@ interface InputBoxProps
 export function InputBox({
   id,
   inputClassName,
-  disabled,
+  inputDisabled,
   type = 'text',
   value: propValue,
   label,
@@ -38,6 +39,7 @@ export function InputBox({
   buttonSize,
   buttonVariant,
   buttonClassName,
+  buttonDisabled,
   buttonText,
   onChange,
   onChangeObj,
@@ -52,7 +54,7 @@ export function InputBox({
         <Input
           id={id}
           className={inputClassName}
-          disabled={disabled}
+          disabled={inputDisabled}
           type={type}
           onChange={onChange}
           onChangeObj={onChangeObj}
@@ -64,6 +66,7 @@ export function InputBox({
             size={buttonSize}
             variant={buttonVariant}
             className={`${styles.button} ${buttonClassName}`}
+            disabled={buttonDisabled}
             onClick={onClick}
           >
             {buttonText}

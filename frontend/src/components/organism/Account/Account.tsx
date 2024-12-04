@@ -21,6 +21,7 @@ export function Account() {
   const [passwordMessage, setPasswordMessage] = useState('');
   const [isPasswordValid, setIsPasswordValid] = useState(false);
   const [newPasswordCheck, setNewPasswordCheck] = useState('');
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
 
   const handleFormChange = (id: string, value: string) => {
     setForm({
@@ -70,6 +71,8 @@ export function Account() {
           />
           <PhoneVerificationForm
             phoneNumber={form.phoneNumber}
+            isVerified={isPhoneVerified}
+            onVerificationSuccess={() => setIsPhoneVerified(true)}
             onChangeObj={handleFormChange}
           />
           <section className={styles.passwordSection}>

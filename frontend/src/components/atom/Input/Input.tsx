@@ -42,7 +42,21 @@ export function Input({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value: newValue } = e.target;
-    setInputValue(newValue);
+    if (id === 'birthDate') {
+      const rawValue = newValue.replace(/\D/g, ''); // 숫자 이외의 문자 제거
+      let formattedDate = rawValue;
+
+      if (rawValue.length > 4) {
+        formattedDate = `${rawValue.slice(0, 4)}-${rawValue.slice(4)}`;
+      }
+      if (rawValue.length > 6) {
+        formattedDate = `${rawValue.slice(0, 4)}-${rawValue.slice(4, 6)}-${rawValue.slice(6)}`;
+      }
+      setInputValue(formattedDate);
+    } else {
+      setInputValue(newValue);
+    }
+
     if (onChange) {
       onChange(newValue);
     }
