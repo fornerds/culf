@@ -34,6 +34,7 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str
     OPENAI_ASSISTANT_ID: str
+    PERPLEXITY_API_KEY: str
 
     # 개발 모드 설정 추가
     DEV_MODE: bool = os.getenv("DEV_MODE", "False") == "True"
