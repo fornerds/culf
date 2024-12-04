@@ -1,7 +1,6 @@
 import base64
 import json
 from datetime import datetime
-
 from openai import OpenAI
 from uuid import UUID
 import time
@@ -20,8 +19,10 @@ import logging
 import uuid
 from app.utils.cloudfront_utils import invalidate_cloudfront_cache
 from app.utils.s3_client import upload_file_to_s3, get_cloudfront_url
-import logging
 import requests
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+from urllib.parse import urlparse
 
 router = APIRouter()
 
@@ -31,6 +32,34 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 # 로그 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# MongoDB 연결 설정
+MONGODB_URL = settings.MONGODB_URL
+if not MONGODB_URL:
+    raise ValueError("MONGODB_URL is not set in the environment variables")
+
+# MongoDB 클라이언트 초기화 및 데이터베이스 연결
+mongo_client = AsyncIOMotorClient(MONGODB_URL)
+mongodb = mongo_client.culf  # 데이터베이스 이름을 'culf'로 지정
+
+async def get_recent_chat_history(user_id: str, limit: int = 10) -> list:
+    """사용자의 최근 대화 내용을 가져오는 함수"""
+    try:
+        # 사용자의 가장 최근 대화 찾기
+        chat = await mongodb.chats.find_one(
+            {"user_id": user_id},
+            sort=[("last_updated", -1)]
+        )
+        
+        if chat and "messages" in chat:
+            # 최근 10개 메시지만 반환
+            return chat["messages"][-limit:]
+        return []
+    except Exception as e:
+        logger.error(f"채팅 기록 조회 중 오류 발생: {str(e)}")
+        return []
+
+
 async def get_perplexity_answer(question: str) -> Optional[dict]:
     """Perplexity API를 사용하여 먼저 정확한 정보를 얻습니다."""
     try:
@@ -76,7 +105,7 @@ async def get_perplexity_answer(question: str) -> Optional[dict]:
         if 'choices' in result and len(result['choices']) > 0:
             content = result['choices'][0]['message']['content']
             citations = result.get('citations', [])
-            logger.info(f"✅ Perplex ity 답변: {content}...")  # 앞부분 100자만 로깅
+            logger.info(f"✅ Perplexity 답변: {content[:100]}...")
             logger.info(f"📚 출처: {citations}")
 
         return result
@@ -85,6 +114,7 @@ async def get_perplexity_answer(question: str) -> Optional[dict]:
         logger.error(f"❌ Perplexity API 오류: {str(e)}")
         return None
 
+
 def verify_artwork_info(question: str) -> Optional[Dict[str, Any]]:
     """예술 작품 정보를 Perplexity API로 검증합니다."""
     try:
@@ -92,6 +122,7 @@ def verify_artwork_info(question: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logging.error(f"작품 정보 검증 실패: {e}")
         return None
+
 
 @router.post("/chat", response_model=schemas.ConversationResponse)
 async def create_chat(
@@ -103,11 +134,9 @@ async def create_chat(
     """채팅 생성 엔드포인트"""
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
 
-    # 빈 문자열을 None으로 처리
     if isinstance(image_file, str) and image_file == "":
         image_file = None
 
-    # 개발 모드가 아닌 경우 토큰 검사
     if not settings.DEV_MODE:
         user_tokens = token_services.get_user_tokens(db, current_user.user_id)
         if user_tokens.total_tokens - user_tokens.used_tokens <= 0:
@@ -140,6 +169,7 @@ async def create_chat(
             else:
                 logging.warning("CloudFront 캐시 무효화 요청 실패")
 
+        # OpenAI API 호출하여 응답 생성
         functions = [{
             "name": "verify_artwork_info",
             "description": "예술 작품, 작가, 소장처 등의 정보를 검증합니다",
@@ -155,39 +185,52 @@ async def create_chat(
             }
         }]
 
+        # 최근 대화 내용 가져오기
+        recent_messages = await get_recent_chat_history(str(current_user.user_id), limit=10)
+
         # 메시지 구성
         messages = [
             {
                 "role": "system",
                 "content": PROMPT
-            },
-            {
-                "role": "user",
-                "content": []
             }
         ]
 
-        # 텍스트 메시지 추가
-        messages[1]["content"].append({
+        # 이전 대화 내용이 있다면 추가
+        if recent_messages:
+            context_message = "최근 대화 내용입니다:\n\n"
+            for msg in recent_messages:
+                context_message += f"{msg['role']}: {msg['content']}\n"
+            
+            messages.append({
+                "role": "system",
+                "content": f"{context_message}\n위 대화 내용을 참고하여 답변해주세요."
+            })
+
+        # 현재 질문 추가
+        messages.append({
+            "role": "user",
+            "content": []
+        })
+
+        messages[-1]["content"].append({
             "type": "text",
             "text": question
         })
-
+        
         # 이미지가 있는 경우 추가
         if image_url:
-            messages[1]["content"].extend([
+            messages[-1]["content"].extend([
                 {"type": "text", "text": question},
                 {"type": "image_url", "image_url": {"url": image_url}}
             ])
-        else:
-            messages[1]["content"].append({"type": "text", "text": question})
 
         # function_call을 "verify_artwork_info"로 강제 지정
         initial_response = client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
             functions=functions,
-            function_call={"name": "verify_artwork_info"}  # auto 대신 강제 지정
+            function_call={"name": "verify_artwork_info"}
         )
 
         # 검증 실행
@@ -215,9 +258,42 @@ async def create_chat(
         answer = final_response.choices[0].message.content
         tokens_used = initial_response.usage.total_tokens + final_response.usage.total_tokens
 
-        # 대화 저장 및 응답
+        # SQL DB에 대화 저장
         chat = schemas.ConversationCreate(question=question, question_image=image_url)
         conversation = services.create_conversation(db, chat, current_user.user_id, answer, tokens_used)
+
+        # MongoDB에 채팅 기록 저장
+        chat_data = {
+            "conversation_id": str(conversation.conversation_id),
+            "user_id": str(current_user.user_id),
+            "messages": [{
+                "role": "user",
+                "content": question,
+                "timestamp": datetime.utcnow()
+            }, {
+                "role": "assistant",
+                "content": answer,
+                "timestamp": datetime.utcnow()
+            }]
+        }
+
+        # MongoDB 업데이트
+        await mongodb.chats.update_one(
+            {"user_id": str(current_user.user_id)},
+            {
+                "$push": {"messages": {"$each": chat_data["messages"]}},
+                "$setOnInsert": {
+                    "created_at": datetime.utcnow()
+                },
+                "$set": {
+                    "last_updated": datetime.utcnow(),
+                    "conversation_id": str(conversation.conversation_id)
+                }
+            },
+            upsert=True
+        )
+
+        # 토큰 사용량 업데이트
         token_services.use_tokens(db, current_user.user_id, tokens_used)
 
         return schemas.ConversationResponse(
@@ -241,6 +317,7 @@ async def create_chat(
             }
         )
 
+
 @router.post("/upload-image")
 async def upload_image(file: UploadFile = File(...)):
     try:
@@ -249,6 +326,7 @@ async def upload_image(file: UploadFile = File(...)):
         return {"image_data": base64_image}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process the image: {str(e)}")
+
 
 @router.get("/conversations", response_model=schemas.ConversationList)
 def get_conversations(
@@ -259,15 +337,6 @@ def get_conversations(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    대화 목록을 조회하는 엔드포인트
-
-    Parameters:
-    - page: 페이지 번호 (1부터 시작)
-    - limit: 페이지당 대화 수
-    - sort: 정렬 기준 (필드명:정렬방향)
-    - summary: 요약 보기 여부
-    """
     conversations, total_count = services.get_user_conversations(
         db, current_user.user_id, page, limit, sort, summary
     )
@@ -275,6 +344,7 @@ def get_conversations(
         conversations=conversations,
         total_count=total_count
     )
+
 
 @router.get("/conversations/{conversation_id}", response_model=schemas.ConversationDetail)
 def get_conversation(
@@ -286,6 +356,7 @@ def get_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다")
     return conversation
+
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
 def delete_conversation(
