@@ -1,0 +1,45 @@
+.main {
+  padding: 40px 22px;
+}
+
+.textSub {
+  color: #878787;
+}
+
+.formWrapper {
+  margin-top: 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+
+.textarea {
+  margin-top: -8px;
+  padding: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 128px;
+  border-radius: 0px 12px 12px 12px;
+  border: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-default, #fbfbfb);
+  color: var(--text-sub, #767676);
+}
+
+.textarea.disabled {
+  background: var(--box-disable, rgba(234, 234, 234, 0.6));
+  cursor: not-allowed;
+}
+
+.bottom {
+  margin-top: 58px;
+}
+
+.buttonGroup {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.button {
+  border: 1px solid var(--text-sub, #767676);
+}

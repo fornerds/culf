@@ -125,7 +125,7 @@
 
 /* AI 설정 코드 */
 
-@import url('https://fonts.googleapis.com/css2?family=Pretendard+Variable:wght@400;500;600;700;800;900&display=swap');
+/* @import url('https://fonts.googleapis.com/css2?family=Pretendard+Variable:wght@400;500;600;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=SUIT:wght@600&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
@@ -229,7 +229,7 @@ body {
   --br-7xs: 6px;
   --br-5xs: 8px;
   --br-4xs: 9px;
-}
+} */
 
 /* CSS reset style */
 /* http://meyerweb.com/eric/tools/css/reset/ 
@@ -310,6 +310,7 @@ output,
 ruby,
 section,
 time,
+button,
 video {
   margin: 0;
   padding: 0;
@@ -360,6 +361,10 @@ table {
 img {
   display: block;
   /* width: 100%; */
+}
+
+input {
+  border: none;
 }
 
 .blind {

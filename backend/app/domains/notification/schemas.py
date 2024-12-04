@@ -12,6 +12,7 @@ class NotificationCreate(NotificationBase):
 
 class Notification(NotificationBase):
     notification_id: int
+    user_id: UUID
     is_read: bool
     created_at: datetime
 
@@ -21,6 +22,8 @@ class Notification(NotificationBase):
 class NotificationList(BaseModel):
     notifications: List[Notification]
     total_count: int
+    page: int
+    limit: int
 
 class NotificationSettingUpdate(BaseModel):
     notification_type: str
@@ -28,6 +31,24 @@ class NotificationSettingUpdate(BaseModel):
 
 class NotificationSetting(NotificationSettingUpdate):
     setting_id: int
+    user_id: UUID
+
+    class Config:
+        orm_mode = True
+
+class UserNotificationSettingBase(BaseModel):
+    notification_type: str
+    is_enabled: bool
+
+class UserNotificationSettingCreate(UserNotificationSettingBase):
+    pass
+
+class UserNotificationSettingUpdate(UserNotificationSettingBase):
+    pass
+
+class UserNotificationSetting(UserNotificationSettingBase):
+    setting_id: int
+    user_id: UUID
 
     class Config:
         orm_mode = True

@@ -30,6 +30,11 @@
   white-space: nowrap;
 }
 
+.inputElement:focus {
+  outline: none;
+  border-color: inherit;
+}
+
 .inputElement::placeholder {
   color: var(--text-sub, #767676);
 }

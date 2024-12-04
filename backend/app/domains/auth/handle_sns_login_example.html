@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+        // Simulated function to determine login success from cookies
+        function checkLoginStatus() {
+            // Retrieve cookie information
+            let cookies = document.cookie.split(';').reduce((acc, cookie) => {
+                const [key, value] = cookie.split('=').map(c => c.trim());
+                acc[key] = value;
+                return acc;
+            }, {});
+            console.log("cookies",cookies)
+            // Determine login success from cookies
+            const isLoginSuccessful = cookies['OAUTH_LOGIN_STATUS'] === 'success';
+            
+            if (isLoginSuccessful) {
+                // If login is successful, retrieve tokens
+                const refreshToken = cookies['refresh_token'];
+
+                // POST /v1/users/me then render response to body
+                // Simulate request to obtain access token using refresh token
+                fetch('/v1/auth/refresh', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${refreshToken}`
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Handle response which contains the new access token
+                    console.log('Access Token:', data.access_token);
+                })
+                .then(access_token=>{
+                    fetch('/v1/users/me', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            // Include an Authorization header if needed
+                            'Authorization': `Bearer ${access_token}`
+                        },
+                        body: JSON.stringify({}) // Add necessary data if needed
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Create a new div to hold the user info
+                        console.log("data",data)
+                        const userInfoDiv = document.createElement('div');
+                        userInfoDiv.id = 'user-info';
+                        
+                        // Populate the div with user data
+                        userInfoDiv.innerHTML = `
+                            <h2>User Info</h2>
+                            <p>Name: ${data.nickname}</p>
+                            <p>Email: ${data.email}</p>
+                        `;
+
+                        // Append the div to the body
+                        document.body.appendChild(userInfoDiv);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching user info:', error);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error while refreshing token:', error);
+                });
+            } else {
+                console.log('Login unsuccessful or not attempted');
+            }
+                // Check for the 'provider_info' cookie
+                const providerInfo = cookies['provider_info'];
+                
+                if (providerInfo) {
+                    // If 'provider_info' exists, request provider email
+                    fetch('/v1/auth/provider_email', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                       }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Handle response which contains the provider email
+                        console.log('Provider Email:', data.email);
+                        
+                        // Optionally, display provider email in the HTML
+                        const providerEmailDiv = document.createElement('div');
+                        providerEmailDiv.innerHTML = `
+                            <p>Provider Email: ${data.email}</p>
+                        `;
+                        document.body.appendChild(providerEmailDiv);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching provider email:', error);
+                    });
+                } else {
+                    console.log('Login unsuccessful or not attempted');
+                }
+        }
+        
+        // Call the function
+        checkLoginStatus();
+       
+    </script>
+</body>
+</html>

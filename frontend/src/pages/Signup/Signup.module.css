@@ -1,0 +1,16 @@
+.main {
+  margin: 30px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.buttonArea {
+  margin-top: 32px;
+}

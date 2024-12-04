@@ -1,0 +1,17 @@
+.main {
+  margin: 53px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* TODO: 하단 버튼 영역 스타일 확인 필요 */
+.bottom {
+  margin-top: 60px;
+}
