@@ -18,10 +18,15 @@ export function PhoneVerificationForm({
   validationMessage,
   onChangeObj,
 }: PhoneVerificationFormProps) {
+  const [showError, setShowError] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [isCodeSent, setIsCodeSent] = useState(false);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  const handleBlur = () => {
+    setShowError(true);
+  };
 
   const handleRequestPhoneVerification = async () => {
     try {
@@ -48,12 +53,16 @@ export function PhoneVerificationForm({
   };
 
   const handleVerifyPhone = async () => {
-    const res = await auth.verifyPhone(
-      phoneNumber.replace(/-/g, ''),
-      verificationCode,
-    );
-    if (res.status === 200) {
-      onVerificationSuccess();
+    try {
+      const res = await auth.verifyPhone(
+        phoneNumber.replace(/-/g, ''),
+        verificationCode,
+      );
+      if (res.status === 200) {
+        onVerificationSuccess();
+      }
+    } catch (e) {
+      alert('인증번호가 올바르지 않습니다. 다시 시도해주세요.');
     }
   };
 
@@ -76,7 +85,7 @@ export function PhoneVerificationForm({
         label="휴대폰 번호"
         placeholder="휴대폰 번호를 입력하세요"
         value={phoneNumber}
-        validationMessage={validationMessage}
+        {...(showError && { validationMessage })}
         validationMessageType="error"
         inputDisabled={isVerified}
         buttonSize="size4"
@@ -91,6 +100,7 @@ export function PhoneVerificationForm({
         buttonText="인증번호 발송"
         onChangeObj={onChangeObj}
         onClick={handleRequestPhoneVerification}
+        onBlur={handleBlur}
       />
       <div className={styles.inputGroup}>
         <InputBox
