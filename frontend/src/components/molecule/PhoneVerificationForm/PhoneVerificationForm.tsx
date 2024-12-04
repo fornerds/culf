@@ -95,6 +95,8 @@ export function PhoneVerificationForm({
       <div className={styles.inputGroup}>
         <InputBox
           value={verificationCode}
+          {...(isVerified && { validationMessage: '인증이 완료되었습니다.' })}
+          validationMessageType="success"
           inputDisabled={!isCodeSent || isVerified}
           buttonSize="size4"
           buttonVariant={
