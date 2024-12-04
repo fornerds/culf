@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -38,11 +38,22 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 출처 허용
+    allow_origins=["http://localhost:5173", "http://localhost:3000", " http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 개발 모드에서 인증을 우회하는 미들웨어
+@app.middleware("http")
+async def dev_mode_middleware(request: Request, call_next):
+    if settings.DEV_MODE:
+        # 개발 모드에서는 Authorization 헤더를 추가
+        request.headers.__dict__["_list"].append(
+            (b'authorization', b'Bearer dev_token')
+        )
+    response = await call_next(request)
+    return response
 
 app.include_router(curator_routes.router, prefix=f"{settings.API_V1_STR}", tags=["curators"])
 app.include_router(banner_routes.router, prefix=f"{settings.API_V1_STR}", tags=["banners"])

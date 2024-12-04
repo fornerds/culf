@@ -205,7 +205,6 @@
                 console.error("결제 상세 조회 오류:", error);
             }
         }
-
         async function processRefund() {
             const paymentId = document.getElementById("paymentDetailId").value;
             const refundReason = document.getElementById("refundReason").value;
@@ -223,6 +222,30 @@
 
             if (!refundAmount || refundAmount <= 0) {
                 alert("환불 금액을 올바르게 입력해주세요.");
+                return;
+            }
+
+            // 추가: 환불 가능 금액 확인
+            try {
+                const paymentResponse = await fetch(`http://localhost:8000/v1/admin/payments/${paymentId}`, {
+                    headers: {
+                        "Authorization": `Bearer ${accessToken}`
+                    }
+                });
+
+                if (!paymentResponse.ok) {
+                    alert("결제 상세 정보를 가져올 수 없습니다. 환불 처리가 불가능합니다.");
+                    return;
+                }
+
+                const paymentData = await paymentResponse.json();
+                if (refundAmount > paymentData.amount) {
+                    alert("환불 금액이 결제 금액을 초과할 수 없습니다.");
+                    return;
+                }
+            } catch (error) {
+                console.error("결제 상세 조회 오류:", error);
+                alert("환불 처리를 위한 결제 정보를 확인하는 중 오류가 발생했습니다.");
                 return;
             }
 
@@ -245,7 +268,8 @@
                 refundResult.innerHTML = "";
 
                 if (!response.ok) {
-                    refundResult.innerHTML = `<pre>환불 처리 중 오류가 발생했습니다.</pre>`;
+                    const errorData = await response.json();
+                    refundResult.innerHTML = `<pre>환불 처리 중 오류가 발생했습니다: ${errorData.detail}</pre>`;
                     return;
                 }
 
@@ -257,6 +281,7 @@
                 console.error("환불 처리 오류:", error);
             }
         }
+
     </script>
 </body>
 </html>

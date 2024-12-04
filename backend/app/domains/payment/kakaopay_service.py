@@ -3,7 +3,7 @@ import requests
 import os
 from datetime import datetime, timedelta
 from app.domains.payment.models import Coupon, Payment, Refund, UserCoupon
-from app.domains.token.models import TokenPlan
+from app.domains.token.models import Token, TokenPlan
 from app.domains.user.models import User
 from app.domains.subscription.models import SubscriptionPlan, UserSubscription
 from app.domains.payment.schemas import KakaoPayRequest, KakaoPayApproval, KakaoPaySubscriptionRequest
@@ -109,6 +109,7 @@ class KakaoPayService:
                     user_id=current_user.user_id,
                     token_plan_id=token_plan.token_plan_id,
                     payment_number=tid,
+                    tokens_purchased=token_plan.tokens * payment_request.quantity,
                     amount=float(total_amount),
                     payment_method="KakaoPay_OneTime",
                     payment_date=datetime.now(),
@@ -152,7 +153,7 @@ class KakaoPayService:
             db.rollback()
             logger.error(f"Unexpected error during payment initiation: {str(e)}")
             raise HTTPException(status_code=400, detail=str(e))
-        
+
     def approve_payment(self, pg_token: str, db: Session):
         headers = {
             "Authorization": f"SECRET_KEY {self.secret_key}",
@@ -168,8 +169,6 @@ class KakaoPayService:
         logger.info(f"Retrieved payment information from cache: {payment_info}")
 
         try:
-            logger.info(f"Retrieved payment information from cache: {payment_info}")
-            
             data = {
                 "cid": payment_info["cid"],
                 "tid": payment_info["tid"],
@@ -191,6 +190,7 @@ class KakaoPayService:
 
                     logger.info(f"Payment subscription_id: {payment.subscription_id}")
 
+                    # 정기결제 처리
                     if payment_info["cid"] == "TCSUBSCRIP":
                         user_subscription = db.query(UserSubscription).filter(
                             UserSubscription.subscription_id == payment.subscription_id
@@ -208,7 +208,30 @@ class KakaoPayService:
                             db.commit()
 
                             logger.info(f"User subscription updated successfully for user_id: {payment.user_id}")
-                        
+
+                    # 토큰 테이블 업데이트
+                    token = db.query(Token).filter(Token.user_id == payment.user_id).first()
+
+                    if not token:
+                        # 유저에 대한 토큰 정보가 없을 경우 새로 생성
+                        token = Token(
+                            user_id=payment.user_id,
+                            total_tokens=payment.tokens_purchased,
+                            used_tokens=0,
+                            last_charged_at=payment.payment_date,
+                            expires_at=payment.payment_date + timedelta(days=365),
+                        )
+                        db.add(token)
+                        logger.info(f"New token entry created for user_id: {payment.user_id}")
+                    else:
+                        # 기존 토큰 정보 업데이트
+                        token.total_tokens += payment.tokens_purchased
+                        token.last_charged_at = payment.payment_date
+                        token.expires_at = payment.payment_date + timedelta(days=365)
+                        logger.info(f"Token entry updated for user_id: {payment.user_id}")
+
+                    db.commit()
+
                 return KakaoPayApproval(**response_data)
             else:
                 logger.error(f"Payment approval failed with response: {response_data}")
@@ -286,7 +309,7 @@ class KakaoPayService:
                     start_date=datetime.now().date(),
                     next_billing_date=(datetime.now() + timedelta(days=30)).date(),
                     status="CANCELLED",
-                    subscriptions_method="KakaoPay_Subscription"  # 적절한 결제 방법 설정
+                    subscriptions_method="KakaoPay_Subscription"
                 )
                 db.add(subscription)
                 db.commit()
@@ -298,6 +321,7 @@ class KakaoPayService:
                     user_id=current_user.user_id,
                     subscription_id=subscription.subscription_id,
                     payment_number=tid,
+                    tokens_purchased=subscription_plan.tokens_included * subscription_request.quantity, 
                     amount=float(total_amount),
                     payment_method="KakaoPay_Subscription",
                     payment_date=datetime.now(),
@@ -472,42 +496,64 @@ class KakaoPayService:
         else:
             raise HTTPException(status_code=400, detail=response_data.get("msg"))
 
-    def process_refund(self, tid: str, db: Session = Depends(get_db)):
-        # Fetch payment details from the database
-        payment = db.query(Payment).filter(Payment.payment_number == tid).first()
+    def process_refund(self, payment_id: uuid, refund_data: dict, db: Session):
+        """
+        카카오페이를 통해 환불 처리 및 환불 기록 저장
+        """
+        # 결제 내역 확인
+        payment = db.query(Payment).filter(Payment.payment_id == payment_id).first()
         if not payment:
-            raise HTTPException(status_code=404, detail="Payment not found or unauthorized request")
+            raise HTTPException(status_code=404, detail="Payment not found")
 
+        # 환불 금액 검증
+        cancel_amount = refund_data.get("amount")
+        if not cancel_amount or cancel_amount <= 0 or cancel_amount > payment.amount:
+            raise HTTPException(status_code=400, detail="Invalid refund amount")
+
+        # 카카오페이 API 요청 헤더
         headers = {
             "Authorization": f"SECRET_KEY {self.secret_key}",
             "Content-Type": "application/json",
         }
 
-        # Prepare the data for processing a refund
+        # 카카오페이 환불 요청 데이터
         data = {
             "cid": self.cid_one,
-            "tid": tid,
-            "cancel_amount": payment.amount,
-            "cancel_tax_free_amount": 0,
+            "tid": payment.payment_number,
+            "cancel_amount": cancel_amount,
+            "cancel_tax_free_amount": refund_data.get("cancel_tax_free_amount", 0),
+            "cancel_vat_amount": refund_data.get("cancel_vat_amount"),  # 선택 사항
         }
 
-        response = requests.post(f"{self.base_url}/cancel", headers=headers, json=data)
+        # 카카오페이 API 호출
+        try:
+            response = requests.post(f"{self.base_url}/cancel", headers=headers, json=data)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise HTTPException(status_code=500, detail=f"KakaoPay API request failed: {str(e)}")
+
         response_data = response.json()
 
-        # Handle the response from KakaoPay
-        if response.status_code == 200:
-            refund = Refund(
-                payment_id=payment.payment_id,
-                user_id=payment.user_id,
-                amount=payment.amount,
-                reason="User requested refund",  # You can add more context here if needed
-                status="APPROVED",
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
-            )
-            payment.status = "CANCEL_PAYMENT"
-            db.add(refund)
-            db.commit()
-            return refund
-        else:
-            raise HTTPException(status_code=400, detail=response_data.get("msg"))
+        # 카카오페이 응답 검증
+        if response.status_code != 200 or response_data.get("status") not in ["CANCEL_PAYMENT", "PART_CANCEL_PAYMENT"]:
+            error_message = response_data.get("error_message", "Unknown error occurred")
+            raise HTTPException(status_code=400, detail=f"Refund failed: {error_message}")
+
+        # 환불 정보 저장
+        refund = Refund(
+            payment_id=payment.payment_id,
+            user_id=payment.user_id,
+            amount=cancel_amount,
+            reason=refund_data.get("reason", "No reason provided"),
+            status="APPROVED",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        payment.status = "CANCEL_PAYMENT" if response_data.get("status") == "CANCEL_PAYMENT" else "PART_CANCEL_PAYMENT"
+
+        db.add(refund)
+        db.commit()
+        db.refresh(refund)
+
+        return refund
+

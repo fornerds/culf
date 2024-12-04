@@ -3,7 +3,13 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base_class import Base
+import enum
 
+class InquiryStatus(enum.Enum):
+    RECEIVED = "RECEIVED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    
 class Inquiry(Base):
     __tablename__ = "inquiries"
 
@@ -14,8 +20,8 @@ class Inquiry(Base):
     email = Column(String(255), nullable=False)
     contact = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
-    attachment = Column(String(255))
-    status = Column(Enum('PENDING', 'RESOLVED', name='inquiry_status'), default='RECEIVED')
+    attachments = Column(Text)
+    status = Column(String(20), nullable=False, default=InquiryStatus.RECEIVED.value)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="inquiries")

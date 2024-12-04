@@ -110,7 +110,7 @@ def inquiry_refund(
     return {
         "inquiry_id": result["inquiry"].inquiry_id,
         "refund_id": result["refund"].refund_id,
-        "payment_number": str(payment_id),  # UUID를 문자열로 변환
+        "payment_number": str(payment_id),
         "status": "CANCELLATION_REQUESTED",
         "message": "환불 문의와 요청이 성공적으로 접수되었습니다."
     }
@@ -228,6 +228,7 @@ async def subscription_status(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
+
 #admin 관련 엔드 포인트
 # 결제 내역 목록 조회 (GET)
 @router.get("/admin/payments", response_model=List[PaymentListResponse])
@@ -276,14 +277,17 @@ def create_manual_payment(payment: AdminPaymentCreate, db: Session = Depends(get
 # 환불 처리 (POST) /admin/payments/{payment_id}/refund
 @router.post("/admin/payments/{payment_id}/refund", response_model=AdminRefundResponse)
 def process_refund(payment_id: UUID, refund: RefundRequest, db: Session = Depends(get_db)):
-    refund_data = refund.dict()
-    new_refund = PaymentService.process_refund(db, payment_id, refund_data)
-    return new_refund
-
-@router.post("/admin/refund/{refund_id}/{status}")
-async def request_refund(tid: str, db: Session = Depends(get_db)):
-    try:        
-        refund = kakao_service.process_refund(tid, db)
-        return refund
+    """
+    결제 환불 처리 API
+    - KakaoPay를 통해 결제 취소 요청
+    - 환불 내역을 데이터베이스에 기록
+    """
+    try:
+        # KakaoPay 환불 처리
+        new_refund = kakao_service.process_refund(payment_id=payment_id, refund_data=refund.dict(), db=db)
+        return new_refund
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+

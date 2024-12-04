@@ -48,11 +48,11 @@ async def get_current_user(
         )
         user_id: str = payload.get("sub")
         if user_id is None:
-            raise credentials_exception
+            raise HTTPException(status_code=401, detail="Invalid token")
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Access token has expired")
     except JWTError:
-        raise credentials_exception # type: ignore
+        raise HTTPException(status_code=401, detail="Invalid token")
     user = services.get_user(db, user_id=user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
