@@ -37,50 +37,33 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // refresh_token이 쿠키에 있는지 확인
-        const hasRefreshToken = document.cookie
-          .split('; ')
-          .some((row) => row.startsWith('refresh_token='));
-
-        if (!hasRefreshToken) {
-          // refresh_token이 없으면 로그아웃 처리
-          tokenService.removeAccessToken();
-          useAuthStore.getState().setAuth(false, null);
-          window.location.href = '/login';
-          return Promise.reject(error);
-        }
-
+        // refresh_token은 HttpOnly 쿠키로 자동 전송됨
         const res = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
           {
             withCredentials: true,
-            baseURL: API_BASE_URL,
-          },
+          }
         );
 
         if (res.status === 200) {
+          // 새로운 access_token을 sessionStorage에 저장
           tokenService.setAccessToken(res.data.access_token);
-          originalRequest.headers['Authorization'] =
-            `Bearer ${res.data.access_token}`;
+          originalRequest.headers['Authorization'] = `Bearer ${res.data.access_token}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // refresh 실패시 모든 인증 정보 삭제
+        // 실패 시 모든 인증 정보 삭제
         tokenService.removeAccessToken();
-        document.cookie =
-          'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        document.cookie =
-          'provider_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        const authStore = useAuthStore.getState();
-        authStore.setAuth(false, null);
+        useAuthStore.getState().setAuth(false, null);
+        useAuthStore.getState().resetSnsAuth?.();
         window.location.href = '/login';
         return Promise.reject(error);
       }
     }
 
     return Promise.reject(error);
-  },
+  }
 );
 
 // Auth API
@@ -111,20 +94,29 @@ export const auth = {
       new_password: newPassword,
       new_password_confirmation: newPasswordConfirmation,
     }),
-  processCallback: (provider: string, code: string) =>
-    api.get(`/auth/callback/${provider}`, {
-      params: { code },
-    }),
-  getProviderEmail: () =>
-    api.get('/auth/provider_email', {
-      headers: {
-        'provider-info':
-          document.cookie
-            .split('; ')
-            .find((row) => row.startsWith('provider_info='))
-            ?.split('=')[1] || '',
-      },
-    }),
+    getProviderEmail: async () => {
+      const providerInfo = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('provider_info='))
+        ?.split('=')[1];
+  
+      if (!providerInfo) {
+        throw new Error('Provider info not found in cookies');
+      }
+  
+      return api.get('/auth/provider_email', {
+        headers: {
+          'provider-info': providerInfo
+        },
+        withCredentials: true
+      });
+    },
+  
+    processCallback: (provider: string, code: string) =>
+      api.get(`/auth/callback/${provider}`, {
+        params: { code },
+        withCredentials: true
+      }),
   registerWithProvider: (userData: any) =>
     api.post('/auth/register', userData, {
       headers: {
