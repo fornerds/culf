@@ -235,7 +235,7 @@ function AppRoutes() {
         <Route path="/complete-signup" element={<CompleteSignup />} />
         <Route path="/find-email" element={<FindEmail />} />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/v1/auth/callback/:provider" element={<OAuthCallback />} />
+        <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
         <Route element={<PrivateOutlet />}>
           <Route
             path="/mypage"
