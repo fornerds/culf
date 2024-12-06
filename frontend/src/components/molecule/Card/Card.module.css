@@ -1,31 +1,31 @@
 .cardWrapper {
   position: relative;
-  width: 152px;
-  min-width: 152px;
-  height: 178px;
+  width: 155px;
+  min-width: 155px;
+  height: 181px;
   cursor: pointer;
 }
 
 .cardBackground {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  right: -4px;
-  bottom: -4px;
-  border-radius: 10px 10px 0 10px;
-  border: 1px solid var(--line-stay-the-same, #222);
-  z-index: 1;
+    top: 5px;
+    left: 5px;
+    right: 0px;
+    bottom: 0px;
+    border-radius: 12px 12px 0 12px;
+    border: 1px solid var(--line-stay-the-same, #222);
+    z-index: 1;
 }
 
 .card {
   position: absolute;
   top: 0;
   left: 0;
-  width: 152px;
-  height: 178px;
-  border-radius: 10px 10px 0 10px;
+  width: 150px;
+  height: 176px;
+  border-radius: 12px 12px 0 12px;
   border: 1px solid var(--line-stay-the-same, #222);
-  padding: 16px;
+  padding: 16px 13px 14px;
   box-sizing: border-box;
   z-index: 2;
   transition: transform 0.3s ease;
@@ -39,7 +39,7 @@
 }
 
 .title {
-  width: 76px;
+  width: 87px;
   word-break: keep-all;
 }
 
@@ -63,8 +63,10 @@
 
 .character {
   position: absolute;
-  right: 9px;
-  bottom: 15px;
-  max-width: 80px;
-  max-height: 80px;
+    right: 0px;
+    bottom: 0px;
+    max-width: 148px;
+    max-height: 130px;
+    z-index: -1;
+    border-radius: 0 0 0 10px;
 }

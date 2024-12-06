@@ -50,10 +50,10 @@ export function Login() {
   };
   const handleSnsLogin = (provider: 'kakao' | 'google') => {
     if (provider === 'kakao') {
-      window.location.href = OAUTH.KAKAO.getAuthUrl();
+      window.location.href = OAUTH.KAKAO.REDIRECT_URI
     } else {
       // Google OAuth 로직 추가 필요
-      window.location.href = OAUTH.GOOGLE.getAuthUrl();
+      window.location.href = OAUTH.GOOGLE.REDIRECT_URI
     }
   };
 

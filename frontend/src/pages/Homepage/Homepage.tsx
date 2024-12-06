@@ -15,40 +15,36 @@ export function Homepage() {
     { imageUrl: getImageUrl('herobanner01.png'), link: '/mypage' },
     { imageUrl: getImageUrl('herobanner02.png'), link: '/mypage' },
     { imageUrl: getImageUrl('herobanner03.png'), link: '/mypage' },
+    { imageUrl: getImageUrl('herobanner04.png'), link: '/mypage' },
   ];
 
   const cardsData = [
     {
       frontColor: '#4ae9ff',
       backColor: '#088394',
-      title: '해외여행 큐레이터, 몰리',
+      title: '지구 예술에 푹 빠진 외계인',
+      curator: '네오',
       hashtags: ['유럽', '여행지추천'],
       characterImage: getImageUrl('character01.png'),
-      link: '/chat/2',
+      link: '/chat/1',
     },
     {
       frontColor: '#18ff75',
       backColor: '#1cab55',
-      title: '국내여행 큐레이터, 코리',
-      hashtags: ['국내', '여행지추천'],
-      characterImage: getImageUrl('character01.png'),
-      link: '/chat/3',
+      title: '19세기 출신 파리지앵',
+      curator: '레미',
+      hashtags: ['유럽', '여행지추천'],
+      characterImage: getImageUrl('character02.png'),
+      link: '/chat/2',
     },
     {
       frontColor: '#f1ff55',
       backColor: '#bbc826',
-      title: '문화 큐레이터, 컬리',
+      title: '감성 충만 미술 애호가',
+      curator: '두리',
       hashtags: ['문화', '여행지추천'],
-      characterImage: getImageUrl('character01.png'),
-      link: '/chat/4',
-    },
-    {
-      frontColor: '#ff4a4a',
-      backColor: '#bc2626',
-      title: '미술관 큐레이터, 아티',
-      hashtags: ['박물관', '여행지추천'],
-      characterImage: getImageUrl('character01.png'),
-      link: '/chat/1',
+      characterImage: getImageUrl('character03.png'),
+      link: '/chat/3',
     },
   ];
 
@@ -99,7 +95,7 @@ export function Homepage() {
         <HeroBanner slides={slides} />
         <section className={styles.curatorListSection}>
           <h2 className={`${styles.sectionTitle} font-title-2`}>
-            어떤 큐레이터와 이야기 해볼까요?
+            어떤 <span className={styles.strong}>컬처 프렌드</span>와 이야기 해볼까요?
           </h2>
           <Cards cards={cardsData} />
         </section>
@@ -112,11 +108,7 @@ export function Homepage() {
           <ChatList chats={chatsData} />
         </section>
       </main>
-      <Footer
-        companyName="아트키"
-        address="서울특별시 서대문구 성산로 7길 89-8"
-        registrationNumber="000-00-0000"
-      />
+      <Footer />
     </>
   );
 }
