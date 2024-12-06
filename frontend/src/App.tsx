@@ -259,7 +259,7 @@ function AppRoutes() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename="/beta">
         <AppRoutes />
       </BrowserRouter>
       {import.meta.env.MODE === 'development' && (
