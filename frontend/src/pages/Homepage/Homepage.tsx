@@ -112,11 +112,7 @@ export function Homepage() {
           <ChatList chats={chatsData} />
         </section>
       </main>
-      <Footer
-        companyName="아트키"
-        address="서울특별시 서대문구 성산로 7길 89-8"
-        registrationNumber="000-00-0000"
-      />
+      <Footer />
     </>
   );
 }
