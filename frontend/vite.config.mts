@@ -10,7 +10,7 @@ export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    base: '/beta/', // 배포 경로 설정
+    base: '/beta', // 배포 경로 설정
     plugins: [react(), svgr()],
     resolve: {
       alias: {
