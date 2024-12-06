@@ -259,8 +259,8 @@ function AppRoutes() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename="/beta">
-        <AppRoutes />
+       <BrowserRouter>
+         <AppRoutes />
       </BrowserRouter>
       {import.meta.env.MODE === 'development' && (
         <ReactQueryDevtools initialIsOpen={false} />
