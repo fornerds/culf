@@ -11,8 +11,12 @@
 
 .sectionTitle {
   padding: 0 2px;
-  width: 166px;
+  width: 180px;
   word-wrap: keep-all;
+}
+
+.strong {
+  color: var(--keycolor-2);
 }
 
 .chatListSection {

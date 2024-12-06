@@ -7,6 +7,7 @@ interface CardsProps {
     frontColor: string;
     backColor: string;
     title: string;
+    curator: string;
     hashtags: string[];
     characterImage: string;
     link: string;

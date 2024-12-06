@@ -14,6 +14,7 @@ export function Card({
   frontColor,
   backColor,
   title,
+  curator,
   hashtags,
   characterImage,
   link,
@@ -26,7 +27,7 @@ export function Card({
       ></div>
       <div className={styles.card} style={{ backgroundColor: frontColor }}>
         <div className={styles.cardContentWrap}>
-          <h3 className={`${styles.title} font-card-title-1`}>{title}</h3>
+          <h3 className={`${styles.title} font-card-title-1`}>{title}<div>{curator}</div></h3>
           <div className={styles.hashtags}>
             {hashtags.map((tag, index) => (
               <span key={index} className={`${styles.hashtag} font-tag-2`}>
