@@ -77,7 +77,12 @@ export function Signup() {
       [id]: '',
     });
 
-    if (id === 'email' || id === 'nickname' || id === 'passwordConfirmation') {
+    if (
+      id === 'email' ||
+      id === 'nickname' ||
+      id === 'phoneNumber' ||
+      id === 'passwordConfirmation'
+    ) {
       validationCheck(id, value);
     }
   };
