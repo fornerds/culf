@@ -1,0 +1,14 @@
+.main {
+  padding: 35px 20px;
+}
+
+.inputGroup {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.buttonArea {
+  margin-top: 100px;
+}

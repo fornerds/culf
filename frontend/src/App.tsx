@@ -165,6 +165,11 @@ function AppRoutes() {
       setTitle('회원가입');
       setShowBackButton(true);
       setShowMenuButton(false);
+    } else if (matchPath('/find-email', pathname)) {
+      setUseHeader(true);
+      setTitle('이메일 찾기');
+      setShowBackButton(true);
+      setShowMenuButton(false);
     } else if (matchPath('/mypage/:tab', pathname)) {
       setUseHeader(true);
       setTitle('마이페이지');
@@ -260,7 +265,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename="/beta">
-         <AppRoutes />
+        <AppRoutes />
       </BrowserRouter>
       {import.meta.env.MODE === 'development' && (
         <ReactQueryDevtools initialIsOpen={false} />
