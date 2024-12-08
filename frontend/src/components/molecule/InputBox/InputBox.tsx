@@ -56,6 +56,7 @@ export function InputBox({
           className={inputClassName}
           disabled={inputDisabled}
           type={type}
+          value={propValue}
           onChange={onChange}
           onChangeObj={onChangeObj}
           onBlur={onBlur}
