@@ -29,7 +29,7 @@ export function OAuthCallback() {
         }
       } catch (error) {
         console.error('OAuth callback processing failed:', error);
-        navigate('/login');
+        navigate('/beta/login');
       }
     };
 

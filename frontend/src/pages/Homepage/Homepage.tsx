@@ -27,7 +27,7 @@ export function Homepage() {
       curator: '네오',
       hashtags: ['유럽', '여행지추천'],
       characterImage: getImageUrl('character01.png'),
-      link: '/chat/1',
+      link: '/beta/chat/1',
     },
     {
       frontColor: '#69ADFF',
@@ -37,7 +37,7 @@ export function Homepage() {
       curator: '레미',
       hashtags: ['유럽', '여행지추천'],
       characterImage: getImageUrl('character02.png'),
-      link: '/chat/2',
+      link: '/beta/chat/2',
     },
     {
       frontColor: '#00FFC8',
@@ -47,7 +47,7 @@ export function Homepage() {
       curator: '두리',
       hashtags: ['유럽', '여행지추천'],
       characterImage: getImageUrl('character03.png'),
-      link: '/chat/3',
+      link: '/beta/chat/3',
     },
   ];
 

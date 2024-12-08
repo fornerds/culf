@@ -54,7 +54,7 @@ export function Signup() {
          }));
        } catch (error) {
          console.error('Failed to get provider email:', error);
-         navigate('/login'); // 에러 발생시 로그인 페이지로 리다이렉트
+         navigate('/beta/login'); // 에러 발생시 로그인 페이지로 리다이렉트
        }
      }
    };

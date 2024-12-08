@@ -57,7 +57,7 @@ api.interceptors.response.use(
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
         useAuthStore.getState().resetSnsAuth?.();
-        window.location.href = '/login';
+        window.location.href = '/beta/login';
         return Promise.reject(error);
       }
     }
