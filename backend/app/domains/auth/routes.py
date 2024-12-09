@@ -59,7 +59,6 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
                 "error": "phone_number_verification_failed",
                 "message": "전화번호 인증이 필요합니다."
             })
-
         db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
         if db_user:
             raise HTTPException(status_code=400, detail={
@@ -220,12 +219,17 @@ def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depen
 
 @router.post("/auth/phone-verification/request")
 def send_verification_code(
+    request: Request,
     phone_number: str = Body(..., embed=True), 
     db: Session = Depends(get_db)
 ):
-    user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
-    if user:
-        raise HTTPException(status_code=400, detail="User already exists with this phone number")
+    #todo 핸드폰 번호 중복확인 임시 조건문 추가
+    provider_info = request.cookies.get("provider_info")
+    if not provider_info:
+        user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
+        if user:
+            raise HTTPException(status_code=400, detail="User already exists with this phone number")
+    #todo 핸드폰 번호 중복확인 임시 조건문 추가
 
     # Generate a random 6-digit verification code
     verification_code = ''.join(random.sample('0123456789', 6))

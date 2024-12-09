@@ -20,7 +20,7 @@ CREATE TABLE Users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     nickname VARCHAR(50) UNIQUE NOT NULL,
-    phone_number VARCHAR(20) UNIQUE,
+    phone_number VARCHAR(20), -- todo UNIQUE contraint 임시 제거
     birthdate DATE NOT NULL,
     gender gender_enum DEFAULT 'N',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
