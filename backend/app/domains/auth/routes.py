@@ -21,22 +21,6 @@ router = APIRouter()
 
 @router.post("/auth/register", response_model=user_schemas.UserCreationResponse)
 def create_user(request:Request, user: user_schemas.UserCreate, db: Session = Depends(get_db)):
-
-    verified_phone_number = request.cookies.get("verified_phone_number")
-    if not verified_phone_number or auth_services.encrypt(user.phone_number)!=verified_phone_number:
-        raise HTTPException(status_code=400, detail={
-            "error": "phone_number_verification_failed",
-            "message": "전화번호 인증이 필요합니다."
-        })
-
-    db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
-    if db_user:
-        raise HTTPException(status_code=400, detail={
-            "error": "validation_error",
-            "message": "입력 정보가 올바르지 않습니다.",
-            "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
-        })
-    
     db_user = user_services.get_user_by_nickname(db, nickname=user.nickname)
     if db_user:
         raise HTTPException(status_code=400, detail={
@@ -69,6 +53,20 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
                 detail=f"Invalid provider info: {str(e)}"
             )
     else:
+        verified_phone_number = request.cookies.get("verified_phone_number")
+        if not verified_phone_number or auth_services.encrypt(user.phone_number) != verified_phone_number:
+            raise HTTPException(status_code=400, detail={
+                "error": "phone_number_verification_failed",
+                "message": "전화번호 인증이 필요합니다."
+            })
+
+        db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
+        if db_user:
+            raise HTTPException(status_code=400, detail={
+                "error": "validation_error",
+                "message": "입력 정보가 올바르지 않습니다.",
+                "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
+            })
         # Perform the regular email duplication check
         db_user = user_services.get_user_by_email(db, email=user.email)
         if db_user:
