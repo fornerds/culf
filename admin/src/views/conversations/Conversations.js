@@ -19,7 +19,7 @@ import {
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilCommentSquare, cilTrash } from '@coreui/icons'
-import httpClient from '../../services/httpClient'
+import httpClient from '../../api/httpClient'
 
 const Conversations = () => {
   const [searchQuery, setSearchQuery] = useState('')
