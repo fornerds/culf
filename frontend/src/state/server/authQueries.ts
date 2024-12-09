@@ -69,13 +69,8 @@ export const useLogout = () =>
   useMutation({
     mutationFn: () => auth.logout(),
     onSuccess: () => {
-      // 세션스토리지의 액세스 토큰 삭제
+      // 토큰 제거
       tokenService.removeAccessToken();
-      // 쿠키 삭제
-      document.cookie =
-        'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-      document.cookie =
-        'provider_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       // 상태 초기화
       useAuthStore.getState().setAuth(false, null);
       useAuthStore.getState().resetSnsAuth?.();
@@ -83,10 +78,6 @@ export const useLogout = () =>
     onError: () => {
       // 에러가 발생하더라도 클라이언트 측 데이터는 정리
       tokenService.removeAccessToken();
-      document.cookie =
-        'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-      document.cookie =
-        'provider_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       useAuthStore.getState().setAuth(false, null);
       useAuthStore.getState().resetSnsAuth?.();
     },
