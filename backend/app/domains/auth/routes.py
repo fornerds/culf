@@ -59,15 +59,13 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
                 "error": "phone_number_verification_failed",
                 "message": "전화번호 인증이 필요합니다."
             })
-        ## todo phone nubmer 중복체크 임시해제 
-        # db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
-        # if db_user:
-        #     raise HTTPException(status_code=400, detail={
-        #         "error": "validation_error",
-        #         "message": "입력 정보가 올바르지 않습니다.",
-        #         "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
-        #     })
-        ## todo phone nubmer 중복체크 임시해제 
+        db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
+        if db_user:
+            raise HTTPException(status_code=400, detail={
+                "error": "validation_error",
+                "message": "입력 정보가 올바르지 않습니다.",
+                "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
+            })
         # Perform the regular email duplication check
         db_user = user_services.get_user_by_email(db, email=user.email)
         if db_user:
@@ -221,14 +219,17 @@ def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depen
 
 @router.post("/auth/phone-verification/request")
 def send_verification_code(
+    request: Request,
     phone_number: str = Body(..., embed=True), 
     db: Session = Depends(get_db)
 ):
-    ## todo phone nubmer 중복체크 임시해제 
-    # user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
-    # if user:
-    #     raise HTTPException(status_code=400, detail="User already exists with this phone number")
-    ## todo phone nubmer 중복체크 임시해제 
+    #todo 핸드폰 번호 중복확인 임시 조건문 추가
+    provider_info = request.cookies.get("provider_info")
+    if not provider_info:
+        user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
+        if user:
+            raise HTTPException(status_code=400, detail="User already exists with this phone number")
+    #todo 핸드폰 번호 중복확인 임시 조건문 추가
 
     # Generate a random 6-digit verification code
     verification_code = ''.join(random.sample('0123456789', 6))
