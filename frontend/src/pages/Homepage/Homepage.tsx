@@ -20,31 +20,34 @@ export function Homepage() {
 
   const cardsData = [
     {
-      frontColor: '#4ae9ff',
-      backColor: '#088394',
+      frontColor: '#FFF945',
+      backColor: '#CCB700',
+      outlineColor: '#7D6200', 
       title: '지구 예술에 푹 빠진 외계인',
       curator: '네오',
       hashtags: ['유럽', '여행지추천'],
       characterImage: getImageUrl('character01.png'),
-      link: '/chat/1',
+      link: '/beta/chat/1',
     },
     {
-      frontColor: '#18ff75',
-      backColor: '#1cab55',
+      frontColor: '#69ADFF',
+      backColor: '#3E93FB',
+      outlineColor: '#0038A8', 
       title: '19세기 출신 파리지앵',
       curator: '레미',
       hashtags: ['유럽', '여행지추천'],
       characterImage: getImageUrl('character02.png'),
-      link: '/chat/2',
+      link: '/beta/chat/2',
     },
     {
-      frontColor: '#f1ff55',
-      backColor: '#bbc826',
-      title: '감성 충만 미술 애호가',
+      frontColor: '#00FFC8',
+      backColor: '#00B18C',
+      outlineColor: '#007544', 
+      title: '감성 충만한 미술 애호가',
       curator: '두리',
-      hashtags: ['문화', '여행지추천'],
+      hashtags: ['유럽', '여행지추천'],
       characterImage: getImageUrl('character03.png'),
-      link: '/chat/3',
+      link: '/beta/chat/3',
     },
   ];
 
@@ -95,7 +98,7 @@ export function Homepage() {
         <HeroBanner slides={slides} />
         <section className={styles.curatorListSection}>
           <h2 className={`${styles.sectionTitle} font-title-2`}>
-            어떤 <span className={styles.strong}>컬처 프렌드</span>와 이야기 해볼까요?
+            어떤 컬처 프렌드와 이야기 해볼까요?
           </h2>
           <Cards cards={cardsData} />
         </section>

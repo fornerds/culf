@@ -17,6 +17,20 @@
             }, {});
             console.log("cookies",cookies)
             // Determine login success from cookies
+                                    // Add a POST request to /v1/auth/test/
+            fetch('/v1/auth/test', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(testData => {
+                console.log('Test Data:', testData);
+            })
+            .catch(error => {
+                console.error('Error in POST request to /v1/auth/test/:', error);
+            });
             const isLoginSuccessful = cookies['OAUTH_LOGIN_STATUS'] === 'success';
             
             if (isLoginSuccessful) {
