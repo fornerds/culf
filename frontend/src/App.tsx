@@ -10,7 +10,7 @@ import {
   Outlet,
 } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+// import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useHeaderStore } from './state/client/useHeaderStore';
 import { useSideMenuStore } from './state/client/useSideMenuStore';
 
@@ -172,7 +172,7 @@ function AppRoutes() {
       setShowMenuButton(false);
     } else if (matchPath('/chat/:chat_id', pathname)) {
       setUseHeader(true);
-      setTitle('해외여행 큐레이터');
+      setTitle('컬프 베타');
       setShowBackButton(true);
       setShowMenuButton(true);
     } else if (matchPath('/notification', pathname)) {
@@ -262,9 +262,9 @@ function App() {
       <BrowserRouter basename="/beta">
          <AppRoutes />
       </BrowserRouter>
-      {import.meta.env.MODE === 'development' && (
+      {/* {import.meta.env.MODE === 'development' && (
         <ReactQueryDevtools initialIsOpen={false} />
-      )}
+      )} */}
     </QueryClientProvider>
   );
 }
