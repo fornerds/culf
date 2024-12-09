@@ -28,3 +28,22 @@
   padding-left: 20px;
   margin-bottom: 16px;
 }
+
+.noneChatList {
+  width: 100%;
+  max-width: var(--max-width);
+  box-sizing: border-box;
+  height: 91px;
+  display: flex;
+  padding: 16px 20px 14px 20px;
+  align-items: start; /* 변경: flex-start에서 center로 */
+  gap: 16px;
+  align-self: stretch;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-decoration: none;
+  border-top: 1px solid var(--line-highlight, #7d7d7d);
+  color: var(--text-default, #222);
+  font-size: 16px; /* 추가: 폰트 크기 지정 */
+  font-weight: bold; /* 추가: 굵은 글씨 */
+}

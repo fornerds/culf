@@ -58,6 +58,21 @@ services:
     networks:
       - culf-network
 
+  admin:
+    container_name: culf_admin
+    build:
+      context: ../admin
+      dockerfile: Dockerfile
+    volumes:
+      - ../admin:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    networks:
+      - culf-network
+
 networks:
   culf-network:
     driver: bridge

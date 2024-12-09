@@ -12,9 +12,11 @@ from uuid import UUID
 
 router = APIRouter()
 
+
+
 @router.get("/users")
 async def get_users(
-    db: Session = Depends(get_db)
+        db: Session = Depends(get_db)
 ):
     """
     전체 사용자 목록을 가져옵니다.
@@ -22,23 +24,27 @@ async def get_users(
     """
     query = select(
         User.user_id,
-        User.nickname,
         User.email,
+        User.nickname,
+        User.phone_number,
+        User.gender,
         User.created_at
     ).order_by(User.created_at.desc())
-    
+
     results = db.execute(query).all()
-    
+
     users = [
         {
             "user_id": result.user_id,
-            "nickname": result.nickname,
             "email": result.email,
+            "nickname": result.nickname,
+            "phone": result.phone_number,
+            "gender": result.gender,
             "created_at": result.created_at
         }
         for result in results
     ]
-    
+
     return {
         "users": users,
         "total_count": len(users)

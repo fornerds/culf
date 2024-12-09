@@ -29,6 +29,10 @@ class Settings(BaseSettings):
 
     MONGODB_URL: str
 
+    # CloudFront 설정
+    CLOUDFRONT_DOMAIN: str
+    CLOUDFRONT_DISTRIBUTION_ID: str
+
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
     AWS_REGION: str

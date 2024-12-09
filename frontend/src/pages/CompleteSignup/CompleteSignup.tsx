@@ -19,9 +19,9 @@ export function CompleteSignup() {
       <main className={styles.main}>
         <div className="font-title-1">회원가입 완료</div>
         <div className={styles.subTitle}>
-          AI 큐레이터와{' '}
+        컬처 프렌즈와{' '}
           <span className={styles.point}>
-            무료로 대화해볼 수 있는 토큰이 지급
+          무료로 대화해볼 수 있는 스톤이 지급
           </span>
           되었습니다!
         </div>

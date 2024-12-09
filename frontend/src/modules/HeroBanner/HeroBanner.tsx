@@ -22,23 +22,46 @@ export function HeroBanner({ slides }: HeroBannerProps) {
     return () => clearInterval(timer);
   }, [slides.length]);
 
-  return (
-    <div className={styles.sliderContainer}>
-      {slides.map((slide, index) => (
-        <Link
-          key={index}
-          to={slide.link}
-          className={`${styles.slide} ${index === currentIndex ? styles.active : ''}`}
-        >
+  const renderSlide = (slide: SlideItem, index: number) => {
+    const slideClassName = `${styles.slide} ${index === currentIndex ? styles.active : ''}`;
+    
+    if (slide.link.startsWith('http')) {
+      return (
+        <div key={index} className={slideClassName}>
+          <a 
+            href={slide.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.slideLink}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img src={slide.imageUrl} alt={`Slide ${index + 1}`} />
+          </a>
+        </div>
+      );
+    }
+
+    return (
+      <div key={index} className={slideClassName}>
+        <Link to={slide.link} className={styles.slideLink}>
           <img src={slide.imageUrl} alt={`Slide ${index + 1}`} />
         </Link>
-      ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className={styles.sliderContainer}>
+      <div className={styles.slidesWrapper}>
+        {slides.map((slide, index) => renderSlide(slide, index))}
+      </div>
       <div className={styles.indicators}>
         {slides.map((_, index) => (
-          <span
+          <button
             key={index}
             className={`${styles.indicator} ${index === currentIndex ? styles.active : ''}`}
             onClick={() => setCurrentIndex(index)}
+            aria-label={`Go to slide ${index + 1}`}
           />
         ))}
       </div>
