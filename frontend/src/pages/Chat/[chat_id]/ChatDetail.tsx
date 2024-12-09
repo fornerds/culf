@@ -42,10 +42,10 @@ export function ChatDetail() {
   const { mutate: sendMessage, isLoading: isSending } = useSendMessage();
 
   const suggestions = [
-    '2박 3일 유럽여행 일정 짜줘',
-    '사람들이 잘 모르는 제주도 여행 명소를 알려줘',
-    '서울 근교 겨울 여행지 추천해줘',
-    '서울 근교 가족여행 갈만한 곳 알려줘',
+    '카라바조는 어떤 작가였어?',
+    '바로크 미술에 대해 간단히 설명해줘',
+    '카라바조 대표작은 뭐가 있어?',
+    '카라바조의 영향을 받은 다른 화가는 누구야?',
   ];
 
   // ChatInputGroup 높이 감지

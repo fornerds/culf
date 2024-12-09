@@ -172,7 +172,7 @@ function AppRoutes() {
       setShowMenuButton(false);
     } else if (matchPath('/chat/:chat_id', pathname)) {
       setUseHeader(true);
-      setTitle('해외여행 큐레이터');
+      setTitle('컬프 베타');
       setShowBackButton(true);
       setShowMenuButton(true);
     } else if (matchPath('/notification', pathname)) {
