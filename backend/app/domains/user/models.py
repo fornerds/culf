@@ -12,7 +12,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=True)
     nickname = Column(String(50), unique=True, nullable=False)
-    phone_number = Column(String(20), unique=True)
+    phone_number = Column(String(20)) # todo UNIQUE contraint 임시 제거
     birthdate = Column(Date, nullable=False)
     gender = Column(Enum('M', 'F', 'N', name='gender_enum'), nullable=False, default='N')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

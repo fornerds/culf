@@ -59,14 +59,15 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
                 "error": "phone_number_verification_failed",
                 "message": "전화번호 인증이 필요합니다."
             })
-
-        db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
-        if db_user:
-            raise HTTPException(status_code=400, detail={
-                "error": "validation_error",
-                "message": "입력 정보가 올바르지 않습니다.",
-                "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
-            })
+        ## todo phone nubmer 중복체크 임시해제 
+        # db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
+        # if db_user:
+        #     raise HTTPException(status_code=400, detail={
+        #         "error": "validation_error",
+        #         "message": "입력 정보가 올바르지 않습니다.",
+        #         "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
+        #     })
+        ## todo phone nubmer 중복체크 임시해제 
         # Perform the regular email duplication check
         db_user = user_services.get_user_by_email(db, email=user.email)
         if db_user:
@@ -223,9 +224,11 @@ def send_verification_code(
     phone_number: str = Body(..., embed=True), 
     db: Session = Depends(get_db)
 ):
-    user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
-    if user:
-        raise HTTPException(status_code=400, detail="User already exists with this phone number")
+    ## todo phone nubmer 중복체크 임시해제 
+    # user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
+    # if user:
+    #     raise HTTPException(status_code=400, detail="User already exists with this phone number")
+    ## todo phone nubmer 중복체크 임시해제 
 
     # Generate a random 6-digit verification code
     verification_code = ''.join(random.sample('0123456789', 6))
