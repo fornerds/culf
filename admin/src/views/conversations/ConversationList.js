@@ -22,8 +22,10 @@ import {
     CFormSelect,
     CInputGroup,
     CFormInput,
+    CSpinner,
 } from '@coreui/react'
 import { format } from 'date-fns'
+import httpClient from '../../api/httpClient'
 
 const ConversationList = () => {
     const [conversations, setConversations] = useState([])
@@ -33,49 +35,40 @@ const ConversationList = () => {
     const [visible, setVisible] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [tempSearchQuery, setTempSearchQuery] = useState('')
-    const [users, setUsers] = useState([]) // 사용자 목록
-    const [selectedUser, setSelectedUser] = useState('all') // 선택된 사용자
+    const [users, setUsers] = useState([])
+    const [selectedUser, setSelectedUser] = useState('all')
+    const [loading, setLoading] = useState(true)
     const limit = 10
 
-    // 현재 테마 상태 가져오기
     const isDarkMode = useSelector((state) => state.theme?.darkMode)
 
     useEffect(() => {
-        console.log('Effect triggered with searchQuery:', searchQuery)
         fetchConversations()
     }, [currentPage, searchQuery])
 
     useEffect(() => {
-    fetchUsers() // 컴포넌트 마운트 시 사용자 목록 가져오기
+        fetchUsers()
     }, [])
 
     const fetchUsers = async () => {
-    try {
-        const response = await fetch('http://localhost:8000/v1/users')
-        const data = await response.json()
-        setUsers(data.users)
-    } catch (error) {
-        console.error('Error fetching users:', error)
-    }
+        try {
+            const response = await httpClient.get('/users')
+            setUsers(response.data.users)
+        } catch (error) {
+            console.error('Error fetching users:', error)
+        }
     }
 
     const fetchConversations = async () => {
         try {
-            let url = `http://localhost:8000/v1/conversations?page=${currentPage}&limit=${limit}`
+            setLoading(true)
+            let url = `/conversations?page=${currentPage}&limit=${limit}`
             if (searchQuery) {
                 url += `&search_query=${encodeURIComponent(searchQuery)}`
             }
 
-            console.log('Fetching URL:', url)
-
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            })
-            const data = await response.json()
-            
-            console.log('Search Response:', data)
+            const response = await httpClient.get(url)
+            const data = response.data
             
             if (data && data.conversations) {
                 setConversations(data.conversations)
@@ -85,18 +78,20 @@ const ConversationList = () => {
             }
         } catch (error) {
             console.error('Error fetching conversations:', error)
+        } finally {
+            setLoading(false)
         }
     }
 
     const handleUserChange = (event) => {
         setSelectedUser(event.target.value)
-        setCurrentPage(1) // 사용자 변경 시 첫 페이지로 이동
-      }
+        setCurrentPage(1)
+    }
     
-      const handleResetFilter = () => {
+    const handleResetFilter = () => {
         setSelectedUser('all')
         setCurrentPage(1)
-      }
+    }
 
     const formatDateTime = (dateTimeStr) => {
         return format(new Date(dateTimeStr), 'yyyy-MM-dd HH:mm:ss')
@@ -112,7 +107,6 @@ const ConversationList = () => {
     }
 
     const handleSearch = () => {
-        console.log('Searching for:', tempSearchQuery)
         setSearchQuery(tempSearchQuery)
         setCurrentPage(1)
     }
@@ -121,6 +115,14 @@ const ConversationList = () => {
         if (event.key === 'Enter') {
             handleSearch()
         }
+    }
+
+    if (loading) {
+        return (
+            <div className="text-center">
+                <CSpinner color="primary" />
+            </div>
+        )
     }
 
     return (
@@ -151,13 +153,13 @@ const ConversationList = () => {
                         </div>
                         <CTable hover>
                             <CTableHead>
-                            <CTableRow>
-      <CTableHeaderCell style={{ width: '5%' }}>사용자</CTableHeaderCell>
-      <CTableHeaderCell style={{ width: '12%' }}>질문</CTableHeaderCell>
-      <CTableHeaderCell style={{ width: '50%' }}>답변</CTableHeaderCell>
-      <CTableHeaderCell style={{ width: '8%' }}>질문 시간</CTableHeaderCell>
-      <CTableHeaderCell style={{ width: '7%' }}>토큰 사용량</CTableHeaderCell>
-    </CTableRow>
+                                <CTableRow>
+                                    <CTableHeaderCell style={{ width: '5%' }}>사용자</CTableHeaderCell>
+                                    <CTableHeaderCell style={{ width: '12%' }}>질문</CTableHeaderCell>
+                                    <CTableHeaderCell style={{ width: '50%' }}>답변</CTableHeaderCell>
+                                    <CTableHeaderCell style={{ width: '8%' }}>질문 시간</CTableHeaderCell>
+                                    <CTableHeaderCell style={{ width: '7%' }}>토큰 사용량</CTableHeaderCell>
+                                </CTableRow>
                             </CTableHead>
                             <CTableBody>
                                 {conversations.map((conversation) => (
