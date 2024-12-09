@@ -6,6 +6,7 @@ from uuid import UUID
 import time
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import select, func
 from typing import Optional, Union, Dict, Any
 from app.db.session import get_db
 from app.core.deps import get_current_user
@@ -23,6 +24,8 @@ import requests
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from urllib.parse import urlparse
+from app.domains.conversation.models import Conversation
+from app.domains.user.models import User
 
 router = APIRouter()
 
@@ -328,23 +331,68 @@ async def upload_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Failed to process the image: {str(e)}")
 
 
-@router.get("/conversations", response_model=schemas.ConversationList)
-def get_conversations(
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        sort: str = Query("question_time:desc"),
-        summary: bool = Query(False),
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+@router.get("/conversations")
+async def get_conversations(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1),
+    sort: str = Query("question_time:desc"),
+    summary: bool = Query(False),
+    user_id: Optional[str] = Query(None),
+    search_query: str = Query(None, description="사용자 닉네임 검색"),
+    db: Session = Depends(get_db)
 ):
-    conversations, total_count = services.get_user_conversations(
-        db, current_user.user_id, page, limit, sort, summary
-    )
-    return schemas.ConversationList(
-        conversations=conversations,
-        total_count=total_count
+    # 정렬 조건 파싱
+    sort_field, sort_order = sort.split(":")
+    sort_expr = getattr(getattr(Conversation, sort_field), sort_order)()
+
+    # 기본 쿼리 생성
+    query = (
+        select(
+            Conversation,
+            User.nickname.label("user_nickname")
+        )
+        .join(User, Conversation.user_id == User.user_id)
     )
 
+    # 검색어가 있는 경우 필터 적용
+    if search_query:
+        query = query.filter(User.nickname.ilike(f"%{search_query}%"))
+    
+
+    # 사용자 필터링 적용
+    if user_id:
+        query = query.where(Conversation.user_id == user_id)
+
+    query = query.order_by(sort_expr)
+
+    # 전체 개수 조회를 위한 쿼리
+    count_query = select(func.count()).select_from(Conversation)
+    if user_id:
+        count_query = count_query.where(Conversation.user_id == user_id)
+    
+    total_count = db.scalar(count_query)
+
+    # 페이지네이션 적용
+    offset = (page - 1) * limit
+    results = db.execute(
+        query.offset(offset).limit(limit)
+    ).all()
+
+    # 응답 데이터 구성
+    conversations = []
+    for result in results:
+        conversation = result[0].__dict__
+        conversation["user_nickname"] = result[1]
+        
+        if summary and conversation["answer"]:
+            conversation["answer"] = conversation["answer"][:100] + "..."
+            
+        conversations.append(conversation)
+
+    return {
+        "conversations": conversations,
+        "total_count": total_count
+    }
 
 @router.get("/conversations/{conversation_id}", response_model=schemas.ConversationDetail)
 def get_conversation(

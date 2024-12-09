@@ -132,18 +132,29 @@ async def delete_banner(
 
 @router.post("/curators", response_model=curator_schemas.Curator)
 async def create_curator(
-    curator: curator_schemas.CuratorCreate,
+    profile_image: UploadFile = File(...),
+    name: str = Form(...),
+    introduction: str = Form(...),
+    category: str = Form(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user)
 ):
     """
     큐레이터 생성
 
-    - **curator**: 큐레이터 정보
+    - **name**: 큐레이터 이름 (필수)
+    - **introduction**: 큐레이터 소개 (필수)
+    - **category**: 전문 분야 (필수)
+    - **profile_image**: 프로필 이미지 파일 (필수)
 
     관리자 권한이 필요합니다.
     """
-    return curator_services.create_curator(db, curator)
+    curator_data = curator_schemas.CuratorCreate(
+        name=name,
+        introduction=introduction,
+        category=category
+    )
+    return await curator_services.create_curator(db, curator_data, profile_image)
 
 @router.get("/curators", response_model=List[curator_schemas.Curator])
 async def read_curators(

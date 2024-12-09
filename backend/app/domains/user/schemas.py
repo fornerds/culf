@@ -121,3 +121,15 @@ class CorporateUserInDB(CorporateUserCreate):
 
     class Config:
         orm_mode = True
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+    nickname: Optional[str]
+    phone: Optional[str]
+    gender: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
