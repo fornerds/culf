@@ -27,8 +27,10 @@ export function CompleteSignup() {
         </div>
         <img
           className={styles.image}
-          src={getImageUrl('completesignup.png')}
+          src={getImageUrl('character02.png')}
           alt="completesignup"
+          width="220px"
+          height="220px"
         />
         <div className={styles.buttonArea}>
           <Button onClick={goMainPage}>메인 화면으로</Button>

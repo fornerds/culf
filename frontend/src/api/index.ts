@@ -57,7 +57,7 @@ api.interceptors.response.use(
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
         useAuthStore.getState().resetSnsAuth?.();
-        window.location.href = '/login';
+        window.location.href = '/beta/login';
         return Promise.reject(error);
       }
     }
@@ -71,7 +71,19 @@ export const auth = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
   logout: () => api.post('/auth/logout', {}, { withCredentials: true }),
-  register: (userData: any) => api.post('/auth/register', userData),
+  register: (userData: any) => {
+    const providerInfo = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('provider_info='))
+      ?.split('=')[1];
+
+    return api.post('/auth/register', userData, {
+      headers: providerInfo ? {
+        'provider_info': providerInfo
+      } : undefined,
+      withCredentials: true
+    });
+  },
   refreshToken: () => api.post('/auth/refresh', {}, { withCredentials: true }),
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),
@@ -94,39 +106,30 @@ export const auth = {
       new_password: newPassword,
       new_password_confirmation: newPasswordConfirmation,
     }),
-    getProviderEmail: async () => {
-      const providerInfo = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('provider_info='))
-        ?.split('=')[1];
   
-      if (!providerInfo) {
-        throw new Error('Provider info not found in cookies');
-      }
-  
-      return api.get('/auth/provider_email', {
-        headers: {
-          'provider-info': providerInfo
-        },
-        withCredentials: true
-      });
-    },
+  getProviderEmail: async () => {
+    const providerInfo = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('provider_info='))
+      ?.split('=')[1];
+
+    if (!providerInfo) {
+      throw new Error('Provider info not found in cookies');
+    }
+
+    return api.get('/auth/provider_email', {
+      headers: {
+        'provider_info': providerInfo
+      },
+      withCredentials: true
+    });
+  },
   
     processCallback: (provider: string, code: string) =>
       api.get(`/auth/callback/${provider}`, {
         params: { code },
         withCredentials: true
       }),
-  registerWithProvider: (userData: any) =>
-    api.post('/auth/register', userData, {
-      headers: {
-        'provider-info':
-          document.cookie
-            .split('; ')
-            .find((row) => row.startsWith('provider_info='))
-            ?.split('=')[1] || '',
-      },
-    }),
 };
 
 // User API

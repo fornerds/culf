@@ -130,6 +130,12 @@ def create_jwt_with_provider_info(provider_info: dict) -> str:
     # Encode the payload into a JWT token
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return token
+def decode_jwt(token: str) ->  Optional[dict]:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload
+    except jwt.JWTError:
+        return None
 
 def decode_jwt_get_email(token: str) -> Optional[str]:
     try:

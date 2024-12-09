@@ -81,8 +81,9 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
     
     new_user = user_services.create_user(db=db, user=user)
     if provider_info:
-        provider = provider_info["provider"]
-        provider_id = provider_info["id"]
+        provider_dict = auth_services.decode_jwt(provider_info)
+        provider = provider_dict["provider"]
+        provider_id = provider_dict["provider_id"]
         user_services.insert_user_provider_info(db, new_user.user_id, provider, provider_id)
     
     access_token, refresh_token = auth_services.create_tokens(str(new_user.user_id))
