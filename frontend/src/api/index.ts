@@ -70,7 +70,7 @@ api.interceptors.response.use(
 export const auth = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
-  logout: () => api.post('/auth/logout', {}, { withCredentials: true }),
+  logout: () => api.post('/logout'),
   register: (userData: any) => {
     const providerInfo = document.cookie
       .split('; ')
@@ -126,7 +126,7 @@ export const auth = {
   },
   
     processCallback: (provider: string, code: string) =>
-      api.get(`/auth/callback/${provider}`, {
+      api.get(`/auth/login/${provider}`, {
         params: { code },
         withCredentials: true
       }),
