@@ -27,12 +27,20 @@ type PreviewImage = {
   url: string;
 };
 
+declare module 'react' {
+  interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
+    capture?: 'user' | 'environment' | false;
+  }
+}
+
 export function ChatDetail() {
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [previewImages, setPreviewImages] = useState<PreviewImage[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatInputGroupRef = useRef<HTMLElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [inputGroupHeight, setInputGroupHeight] = useState(0);
   const isMobile = window.innerWidth < 425;
   const [showSuggestions, setShowSuggestions] = useState(true);
@@ -119,7 +127,6 @@ export function ChatDetail() {
         });
       });
 
-      // cleanup이 undefined일 경우 null 할당
       cleanupRef.current = cleanup || null;
       messageCompleteRef.current = true;
 
@@ -163,59 +170,16 @@ export function ChatDetail() {
     }
   }, [messages]);
 
-  // const handleSendMessage = (message: string) => {
-  //   setShowSuggestions(false);
-
-  //   // 사용자 메시지 추가
-  //   setMessages((prev) => [...prev, { type: 'user', content: message }]);
-
-  //   // 로딩 메시지 추가
-  //   setMessages((prev) => [
-  //     ...prev,
-  //     { type: 'ai', content: '', isLoading: true },
-  //   ]);
-
-  //   const imageFile =
-  //     previewImages.length > 0 ? previewImages[0].file : undefined;
-
-  //   sendMessage(
-  //     { question: message, imageFile },
-  //     {
-  //       onSuccess: (data) => {
-  //         // 로딩 메시지 제거 후 실제 응답 추가
-  //         setMessages((prev) => [
-  //           ...prev.slice(0, -1),
-  //           {
-  //             type: 'ai',
-  //             content: data.answer,
-  //             isLoading: false,
-  //           },
-  //         ]);
-  //         // 이미지 프리뷰 초기화
-  //         setPreviewImages([]);
-  //       },
-  //       onError: (error) => {
-  //         console.error('Error sending message:', error);
-  //         alert('메시지 전송 중 오류가 발생했습니다.');
-  //         // 로딩 메시지를 에러 메시지로 교체
-  //         setMessages((prev) => [
-  //           ...prev.slice(0, -1),
-  //           {
-  //             type: 'ai',
-  //             content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
-  //             isLoading: false,
-  //           },
-  //         ]);
-  //       },
-  //     },
-  //   );
-  // };
-
   const handleSuggestionClick = (suggestion: string) => {
     handleSendMessage(suggestion);
   };
 
   const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.');
+      return;
+    }
+
     if (previewImages.length >= 4) {
       alert('최대 4개의 이미지만 업로드할 수 있습니다.');
       return;
@@ -234,18 +198,35 @@ export function ChatDetail() {
     setIsUploadMenuOpen(false);
   };
 
-  const handleRemoveImage = (id: string) => {
-    setPreviewImages((prev) => prev.filter((image) => image.id !== id));
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+    // 같은 파일을 다시 선택할 수 있도록 value 초기화
+    e.target.value = '';
   };
 
   const handleCameraCapture = () => {
-    // 모바일 카메라 캡처 구현
-    setIsUploadMenuOpen(false);
+    if (cameraInputRef.current) {
+      cameraInputRef.current.accept = "image/*";
+      // capture 속성을 string으로 명시적 설정
+      cameraInputRef.current.setAttribute('capture', 'environment');
+      cameraInputRef.current.click();
+    }
   };
 
   const handleAlbumSelect = () => {
-    // 모바일 앨범 선택 구현
-    setIsUploadMenuOpen(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.accept = "image/*";
+      // capture 속성 제거
+      fileInputRef.current.removeAttribute('capture');
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleRemoveImage = (id: string) => {
+    setPreviewImages((prev) => prev.filter((image) => image.id !== id));
   };
 
   return (
@@ -326,10 +307,29 @@ export function ChatDetail() {
               <CameraIcon />
               카메라
             </button>
-            <button onClick={handleAlbumSelect} className={styles.actionButton}>
+            <button 
+              onClick={handleAlbumSelect} 
+              className={styles.actionButton}
+            >
               <AlbumIcon />
               앨범
             </button>
+            {/* 숨겨진 input 요소들 */}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileInputChange}
+              ref={cameraInputRef}
+              style={{ display: 'none' }}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileInputChange}
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+            />
           </>
         ) : (
           <label htmlFor="fileInput" className={styles.fileInputLabel}>
@@ -338,10 +338,7 @@ export function ChatDetail() {
             <input
               type="file"
               accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileSelect(file);
-              }}
+              onChange={handleFileInputChange}
               style={{ display: 'none' }}
               id="fileInput"
             />
