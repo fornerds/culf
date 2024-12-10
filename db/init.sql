@@ -213,7 +213,7 @@ CREATE TABLE Inquiries (
     email VARCHAR(255) NOT NULL,
     contact VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
-    attachment VARCHAR(255),
+    attachments VARCHAR(255),
     status inquiry_status NOT NULL DEFAULT 'PENDING',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
