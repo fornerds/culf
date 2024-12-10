@@ -18,6 +18,10 @@ from starlette.responses import RedirectResponse
 from starlette.requests import Request
 
 router = APIRouter()
+@router.get("/check-cookies")
+def check_cookies(request: Request):
+    cookies = request.cookies
+    return JSONResponse(content={"cookies": cookies})
 
 @router.post("/auth/register", response_model=user_schemas.UserCreationResponse)
 def create_user(request:Request, user: user_schemas.UserCreate, db: Session = Depends(get_db)):
@@ -102,7 +106,9 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
         secure=False,  # HTTPS에서만 전송 (개발 중에는 False로 설정 가능)
         samesite="lax",  # 쿠키의 SameSite 속성
     )
-    response.set_cookie(key="provider_info", value="", max_age=0)
+    response.delete_cookie("provider_info")
+    response.delete_cookie("verification_code")
+    response.delete_cookie("verified_phone_number")
 
     return response
 
@@ -163,9 +169,10 @@ def refresh_token(request:Request, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 async def logout():
-    # 쿠키에서 Refresh Token 삭제
+    # Delete all cookies
     response = JSONResponse(content={"detail": "Successfully logged out"})
-    response.delete_cookie("refresh_token")
+    for cookie in ['refresh_token', 'provider_info', 'verification_code', 'verified_phone_number']:
+        response.delete_cookie(cookie)
     return response
 
 @router.post("/auth/find-email")
@@ -283,6 +290,7 @@ def verify_verification_code(
         "verified_phone_number":phone_number,
         "is_verified": True
     })
+    response.delete_cookie("verification_code")
     response.set_cookie(key="verified_phone_number",value=auth_services.encrypt(phone_number),httponly=True,expires=1200)
     return response
 @router.get("/auth/login/{provider}")
