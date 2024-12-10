@@ -19,7 +19,7 @@ class Inquiry(Base):
     email = Column(String(255), nullable=False)
     contact = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
-    attachments = Column(Text)
+    attachments = Column(JSONB)
     status = Column(String(20), nullable=False, default=InquiryStatus.RECEIVED.value)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

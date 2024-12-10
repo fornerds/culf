@@ -27,6 +27,7 @@ class User(Base):
     provider = Column(String(50))
     provider_id = Column(String(255))
 
+    # Relationships
     conversations = relationship("Conversation", back_populates="user")
     tokens = relationship("Token", back_populates="user", uselist=False)
     corporate_info = relationship("CorporateUser", back_populates="user", uselist=False)
@@ -34,6 +35,7 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user")
     notification_settings = relationship("UserNotificationSetting", back_populates="user")
     notice_reads = relationship("UserNoticeRead", back_populates="user")
+    inquiries = relationship("Inquiry", back_populates="user")
 
 # class model for UserProvider that refer User
 class UserProvider(Base):
