@@ -20,7 +20,7 @@ CREATE TABLE Users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     nickname VARCHAR(50) UNIQUE NOT NULL,
-    phone_number VARCHAR(20) UNIQUE,
+    phone_number VARCHAR(20), -- todo UNIQUE contraint 임시 제거
     birthdate DATE NOT NULL,
     gender gender_enum DEFAULT 'N',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -108,7 +108,9 @@ CREATE TABLE User_Subscriptions (
     plan_id INTEGER REFERENCES Subscription_Plans(plan_id),
     start_date DATE NOT NULL,
     next_billing_date DATE NOT NULL,
-    status subscription_status NOT NULL DEFAULT 'ACTIVE'
+    status subscription_status NOT NULL DEFAULT 'ACTIVE',
+    subscription_number VARCHAR(20) UNIQUE NULL,
+    subscriptions_method VARCHAR(50) NOT NULL
 );
 
 -- Token Plans 테이블
@@ -137,11 +139,12 @@ CREATE TABLE Coupons (
 
 -- Payments 테이블
 CREATE TABLE Payments (
-    payment_id SERIAL PRIMARY KEY,
+    payment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES Users(user_id),
     subscription_id BIGINT REFERENCES User_Subscriptions(subscription_id),
     token_plan_id INTEGER REFERENCES Token_Plans(token_plan_id),
     payment_number VARCHAR(20) UNIQUE NOT NULL,
+    transaction_number VARCHAR(20) UNIQUE NULL,
     tokens_purchased INTEGER,
     amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
     payment_method VARCHAR(50) NOT NULL,
@@ -149,20 +152,6 @@ CREATE TABLE Payments (
     payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status payment_status NOT NULL DEFAULT 'FAILED',
     manual_payment_reason TEXT
-);
-
--- Refunds 테이블
-CREATE TABLE Refunds (
-    refund_id SERIAL PRIMARY KEY,
-    payment_id BIGINT REFERENCES Payments(payment_id),
-    user_id UUID REFERENCES Users(user_id),
-    amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
-    reason TEXT,
-    status refund_status NOT NULL DEFAULT 'PENDING',
-    processed_at TIMESTAMP,
-    processed_by UUID REFERENCES Users(user_id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- User Coupons 테이블
@@ -226,6 +215,21 @@ CREATE TABLE Inquiries (
     content TEXT NOT NULL,
     attachment VARCHAR(255),
     status inquiry_status NOT NULL DEFAULT 'PENDING',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Refunds 테이블
+CREATE TABLE Refunds (
+    refund_id SERIAL PRIMARY KEY,
+    payment_id UUID REFERENCES Payments(payment_id),
+    user_id UUID REFERENCES Users(user_id),
+    inquiry_id SERIAL REFERENCES Inquiries(inquiry_id),
+    amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    reason TEXT,
+    status refund_status NOT NULL DEFAULT 'PENDING',
+    processed_at TIMESTAMP,
+    processed_by UUID REFERENCES Users(user_id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -347,12 +351,6 @@ INSERT INTO Conversations (conversation_id, user_id, question, answer, question_
 -- Subscription_Plans 테이블 mock 데이터
 INSERT INTO Subscription_Plans (plan_id, plan_name, price, discounted_price, tokens_included, description, is_promotion) VALUES
 (1, '정기 구독', 20000, 15000, 0, '정기구독 플랜입니다.', true);
-
-
--- User_Subscriptions 테이블 mock 데이터
-INSERT INTO User_Subscriptions (user_id, plan_id, start_date, next_billing_date, status) VALUES
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 1, '2023-09-01', '2023-10-01', 'ACTIVE'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 1, '2023-08-15', '2023-09-15', 'ACTIVE');
 
 -- Tokens 테이블 mock 데이터
 INSERT INTO Tokens (user_id, total_tokens, used_tokens, last_charged_at, expires_at) VALUES
