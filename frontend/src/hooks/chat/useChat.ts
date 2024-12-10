@@ -1,3 +1,4 @@
+// hooks/chat/useChat.ts
 import { useState } from 'react';
 import {
   useQuery,

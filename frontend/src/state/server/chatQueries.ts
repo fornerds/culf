@@ -1,3 +1,4 @@
+// state/server/chatQueries.ts
 import {
   useQuery,
   useMutation,
@@ -53,17 +54,22 @@ interface ConversationsQueryParams {
 export const useSendMessage = (): UseMutationResult<
   ChatResponse,
   AxiosError,
-  Message
-> =>
-  useMutation({
-    mutationFn: async (message: Message) => {
-      const response = await chat.sendMessage(
-        message.question,
-        message.imageFile,
-      );
-      return response.data;
+  { question: string; imageFile?: File },
+  unknown
+> => {
+  return useMutation({
+    mutationFn: async ({ question, imageFile }) => {
+      const formData = new FormData();
+      formData.append('question', question);
+      if (imageFile) {
+        formData.append('question_image', imageFile);
+      }
+
+      const response = await chat.sendMessage(question, imageFile);
+      return response;
     },
   });
+};
 
 export const useGetConversations = (
   params: ConversationsQueryParams = {},

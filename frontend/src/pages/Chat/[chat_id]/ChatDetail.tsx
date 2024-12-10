@@ -19,6 +19,7 @@ type MessageType = {
   content: string;
   isLoading?: boolean;
   isStreaming?: boolean;
+  imageUrl?: string;
 };
 
 type PreviewImage = {
@@ -91,59 +92,72 @@ export function ChatDetail() {
     try {
       setShowSuggestions(false);
       messageCompleteRef.current = false;
-
-      // 이전 스트리밍 정리
+  
       if (cleanupRef.current) {
         cleanupRef.current();
         cleanupRef.current = null;
       }
-
-      // 사용자 메시지 추가
-      setMessages((prev) => [...prev, { type: 'user', content: message }]);
-
-      // AI 메시지 컨테이너 추가
+  
+      const imageFile = previewImages.length > 0 ? previewImages[0].file : undefined;
+      const imageUrl = previewImages.length > 0 ? previewImages[0].url : undefined;
+  
+      // 사용자 메시지를 먼저 추가
       setMessages((prev) => [
         ...prev,
-        { type: 'ai', content: '', isStreaming: true },
+        {
+          type: 'user',
+          content: message,
+          imageUrl: imageUrl
+        }
       ]);
-
-      const imageFile =
-        previewImages.length > 0 ? previewImages[0].file : undefined;
-
-      const cleanup = await chat.sendMessage(message, imageFile, (chunk) => {
-        setMessages((prev) => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage?.isStreaming) {
-            return [
-              ...prev.slice(0, -1),
-              {
-                ...lastMessage,
-                content: lastMessage.content + chunk,
-              },
-            ];
-          }
-          return prev;
-        });
-      });
-
-      cleanupRef.current = cleanup || null;
+  
+      // AI 응답 로딩 상태 추가
+      setMessages((prev) => [
+        ...prev,
+        { type: 'ai', content: '', isStreaming: true }
+      ]);
+  
+      // 이미지와 메시지를 함께 전송
+      const cleanup = await chat.sendMessage(
+        message || '', // 빈 문자열이라도 전송
+        imageFile,
+        (chunk) => {
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.isStreaming) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...lastMessage,
+                  content: lastMessage.content + chunk,
+                },
+              ];
+            }
+            return prev;
+          });
+        }
+      );
+  
+      cleanupRef.current = cleanup;
       messageCompleteRef.current = true;
-
-      // 스트리밍 완료 후 처리
+  
+      // 스트리밍 상태 제거
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.isStreaming ? { ...msg, isStreaming: false } : msg,
-        ),
+          msg.isStreaming ? { ...msg, isStreaming: false } : msg
+        )
       );
-
+  
+      // 이미지 초기화
       setPreviewImages([]);
+  
     } catch (error) {
-      console.error('Error sending message:', error);
-      alert('메시지 전송 중 오류가 발생했습니다.');
-
+      console.error('Message send error:', error);
+      
+      // 에러 메시지 표시
       setMessages((prev) => [
-        ...prev.slice(0, -1),
+        ...prev.slice(0, -1), // 로딩 메시지 제거
         {
           type: 'ai',
           content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
@@ -260,21 +274,26 @@ export function ChatDetail() {
         </div>
       )}
 
-      <div className={styles.chatContainer} ref={chatContainerRef}>
-        {messages.map((message, index) =>
-          message.type === 'ai' ? (
-            <MarkdownChat
-              key={index}
-              markdown={message.content}
-              isStreaming={message.isStreaming}
-              isLoading={message.isLoading}
-              image={curatorImage}
-            />
-          ) : (
-            <QuestionBox key={index} type="user" content={message.content} />
-          ),
-        )}
-      </div>
+<div className={styles.chatContainer} ref={chatContainerRef}>
+  {messages.map((message, index) =>
+    message.type === 'ai' ? (
+      <MarkdownChat
+        key={index}
+        markdown={message.content}
+        isStreaming={message.isStreaming}
+        isLoading={message.isLoading}
+        image={curatorImage}
+      />
+    ) : (
+      <QuestionBox 
+        key={index} 
+        type="user" 
+        content={message.content}
+        imageUrl={message.imageUrl} // 이미지 URL 전달
+      />
+    ),
+  )}
+</div>
 
       {showSuggestions && (
         <QuestionBox
@@ -292,7 +311,11 @@ export function ChatDetail() {
           isOpen={isUploadMenuOpen}
           onToggle={() => setIsUploadMenuOpen(!isUploadMenuOpen)}
         />
-        <ChatInput onSendMessage={handleSendMessage} />
+        <ChatInput 
+          onSendMessage={handleSendMessage}
+          hasImage={previewImages.length > 0}
+          disabled={isSending}
+        />
       </section>
 
       <div

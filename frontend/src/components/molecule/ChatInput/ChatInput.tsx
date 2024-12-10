@@ -12,9 +12,11 @@ import ButtonDisabledIcon from '@/assets/icons/button-disabled.svg?react';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
+  hasImage?: boolean;
+  disabled?: boolean;
 }
 
-export function ChatInput({ onSendMessage }: ChatInputProps) {
+export function ChatInput({ onSendMessage, hasImage = false, disabled = false }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -33,7 +35,7 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (message.trim() && !isComposing) {
+    if ((message.trim() || hasImage) && !isComposing && !disabled) {
       onSendMessage(message);
       setMessage('');
       adjustTextareaHeight(textareaRef.current);
@@ -54,11 +56,7 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
     }
   };
 
-  const resetTextareaHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = `${initialHeight.current}px`;
-    }
-  };
+  const isButtonActive = (message.trim() || hasImage) && !disabled;
 
   return (
     <form className={styles.chatInput} onSubmit={handleSubmit}>
@@ -72,13 +70,14 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
         placeholder="무엇이 궁금하신가요?"
         className={`${styles.input} font-text-2`}
         rows={1}
+        disabled={disabled}
       />
       <button
         type="submit"
-        className={`${styles.button} ${message.trim() ? styles.active : ''}`}
-        disabled={!message.trim() || isComposing}
+        className={`${styles.button} ${isButtonActive ? styles.active : ''}`}
+        disabled={!isButtonActive || isComposing}
       >
-        {message.trim() ? <ButtonIcon /> : <ButtonDisabledIcon />}
+        {isButtonActive ? <ButtonIcon /> : <ButtonDisabledIcon />}
       </button>
     </form>
   );
