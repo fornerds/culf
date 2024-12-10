@@ -13,6 +13,9 @@ services:
       - "5433:5432"
     env_file:
       - ../db/.env
+    environment:
+      - TZ=Asia/Seoul
+      - POSTGRES_TZ=Asia/Seoul
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     networks:
       - culf-network
