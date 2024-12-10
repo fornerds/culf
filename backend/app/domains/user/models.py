@@ -35,6 +35,7 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user")
     notification_settings = relationship("UserNotificationSetting", back_populates="user")
     notice_reads = relationship("UserNoticeRead", back_populates="user")
+    payments = relationship("Payment", back_populates="user")
     inquiries = relationship("Inquiry", back_populates="user")
 
 # class model for UserProvider that refer User
