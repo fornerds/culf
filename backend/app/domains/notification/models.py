@@ -16,8 +16,8 @@ class Notification(Base):
 
     user = relationship("User", back_populates="notifications")
 
-class NotificationSetting(Base):
-    __tablename__ = "notification_settings"
+class UserNotificationSetting(Base):
+    __tablename__ = "user_notification_settings"
 
     setting_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False)

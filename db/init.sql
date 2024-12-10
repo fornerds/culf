@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Custom ENUM types
 CREATE TYPE gender_enum AS ENUM ('M', 'F', 'N');
-CREATE TYPE status_enum AS ENUM ('ACTIVE', 'INACTIVE', 'BANNED', 'DELETE');
+CREATE TYPE status_enum AS ENUM ('ACTIVE', 'INACTIVE', 'BANNED', 'WITHDRAWN');
 CREATE TYPE role_enum AS ENUM ('USER', 'ADMIN');
 CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'CANCELLED');
 CREATE TYPE payment_status AS ENUM ('SUCCESS', 'FAILED', 'CANCELLED', 'REFUNDED');
@@ -12,6 +12,7 @@ CREATE TYPE discount_type AS ENUM ('RATE', 'AMOUNT');
 CREATE TYPE inquiry_status AS ENUM ('PENDING', 'RESOLVED');
 CREATE TYPE admin_role AS ENUM ('SUPER_ADMIN', 'ADMIN');
 CREATE TYPE feedback_rating AS ENUM ('GOOD', 'BAD');
+CREATE TYPE provider AS ENUM ('GOOGLE', 'KAKAO');
 
 -- Users 테이블
 CREATE TABLE Users (
@@ -19,7 +20,7 @@ CREATE TABLE Users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     nickname VARCHAR(50) UNIQUE NOT NULL,
-    phone_number VARCHAR(20) UNIQUE,
+    phone_number VARCHAR(20), -- todo UNIQUE contraint 임시 제거
     birthdate DATE NOT NULL,
     gender gender_enum DEFAULT 'N',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,7 +31,9 @@ CREATE TABLE Users (
     role role_enum NOT NULL DEFAULT 'USER',
     delete_reason VARCHAR(255),
     is_corporate BOOLEAN NOT NULL DEFAULT FALSE,
-    marketing_agreed BOOLEAN NOT NULL DEFAULT FALSE
+    marketing_agreed BOOLEAN NOT NULL DEFAULT FALSE,
+    provider VARCHAR(50),
+    provider_id VARCHAR(255) UNIQUE
 );
 
 -- Curators 테이블
@@ -66,12 +69,12 @@ CREATE TABLE Conversations (
 );
 
 -- Tokens 테이블
-CREATE TABLE Tokens (
-    token_id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES Users(user_id),
+CREATE TABLE tokens (
+    token_id SERIAL PRIMARY KEY,  -- autoincrement를 위한 SERIAL 추가
+    user_id UUID NOT NULL UNIQUE REFERENCES users(user_id), -- UUID는 unique constraint 적용
     total_tokens INTEGER NOT NULL DEFAULT 0,
     used_tokens INTEGER NOT NULL DEFAULT 0,
-    last_charged_at TIMESTAMP,
+    last_charged_at TIMESTAMPTZ,  -- 시간대를 포함한 TIMESTAMP
     expires_at DATE
 );
 
@@ -160,17 +163,18 @@ CREATE TABLE User_Coupons (
 );
 
 -- Notices 테이블
-CREATE TABLE Notices (
+CREATE TABLE notices (
     notice_id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
-    image_url VARCHAR(255) NOT NULL,
+    image_url VARCHAR(255),
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     view_count INTEGER NOT NULL DEFAULT 0,
-    is_public BOOLEAN NOT NULL DEFAULT TRUE
+    is_public BOOLEAN NOT NULL DEFAULT TRUE,
+    is_important BOOLEAN DEFAULT FALSE
 );
 
 -- User Notice Reads 테이블
@@ -178,6 +182,7 @@ CREATE TABLE User_Notice_Reads (
     user_id UUID REFERENCES Users(user_id),
     notice_id INTEGER REFERENCES Notices(notice_id),
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    read_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, notice_id)
 );
 
@@ -314,11 +319,23 @@ CREATE TABLE Conversation_Feedbacks (
 -- user_id 컬럼 타입 변경
 ALTER TABLE users ALTER COLUMN "user_id" SET DATA TYPE uuid;
 
+-- UserProvider 테이블 정의
+CREATE TABLE User_Provider (
+    user_id UUID NOT NULL REFERENCES Users(user_id), -- 사용자 고유 ID (Users 테이블 참조)
+    provider provider NOT NULL DEFAULT 'GOOGLE', -- Provider 이름(Google, Kakao)
+    provider_id VARCHAR(255), -- Provider가 제공하는 서비스 유저 식별키
+    PRIMARY KEY (user_id, provider_id) -- 복합 기본 키
+);
+
 -- Users 테이블 mock 데이터
 INSERT INTO Users (user_id, email, password, nickname, phone_number, birthdate, gender, status, role) VALUES
 (uuid_generate_v4(), 'user1@example.com', 'hashedpassword1', '사용자1', '01012345678', '1990-01-01', 'M', 'ACTIVE', 'USER'),
 (uuid_generate_v4(), 'user2@example.com', 'hashedpassword2', '사용자2', '01023456789', '1992-02-02', 'F', 'ACTIVE', 'USER'),
 (uuid_generate_v4(), 'admin@example.com', 'hashedpassword3', '관리자', '01034567890', '1988-03-03', 'N', 'ACTIVE', 'ADMIN');
+
+INSERT INTO public.users
+(user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed)
+VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, true);
 
 -- Curators 테이블 mock 데이터
 INSERT INTO Curators (name, profile_image, introduction, category) VALUES
@@ -345,8 +362,33 @@ INSERT INTO Notices (title, content, image_url, start_date, end_date, view_count
 ('서비스 업데이트 안내', '9월 20일부터 새로운 AI 모델이 적용됩니다. 더욱 정확하고 다양한 답변을 경험해보세요!', 'update_notice.jpg', '2023-09-15', '2023-09-30', 150, true),
 ('추석 연휴 고객센터 운영 안내', '추석 연휴 기간 동안 고객센터 운영 시간이 단축됩니다. 자세한 내용은 공지사항을 확인해주세요.', 'holiday_notice.jpg', '2023-09-25', '2023-10-05', 80, true);
 
+-- Notifications 테이블 더미 데이터
+INSERT INTO Notifications (user_id, type, message, is_read, created_at) VALUES
+((SELECT user_id FROM Users WHERE email='dev@example.com'), 'NEW_CONVERSATION', '문화에 대한 새로운 대화가 시작되었습니다. 지금 참여해보세요!', false, NOW() - INTERVAL '2 days'),
+((SELECT user_id FROM Users WHERE email='dev@example.com'), 'TOKEN_UPDATE', '50개의 토큰이 충전되었습니다. 현재 잔액을 확인해보세요.', true, NOW() - INTERVAL '5 days'),
+((SELECT user_id FROM Users WHERE email='user2@example.com'), 'CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', false, NOW() - INTERVAL '1 day'),
+((SELECT user_id FROM Users WHERE email='user2@example.com'), 'PAYMENT_RECEIVED', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '3 days'),
+((SELECT user_id FROM Users WHERE email='user1@example.com'), 'SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', false, NOW() - INTERVAL '12 hours'),
+((SELECT user_id FROM Users WHERE email='user2@example.com'), 'NEW_CONVERSATION', '예술에 대한 새로운 대화가 시작되었습니다. 지금 참여해보세요!', false, NOW() - INTERVAL '6 hours'),
+((SELECT user_id FROM Users WHERE email='user1@example.com'), 'TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', false, NOW() - INTERVAL '1 day'),
+((SELECT user_id FROM Users WHERE email='admin@example.com'), 'CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', true, NOW() - INTERVAL '4 days'),
+((SELECT user_id FROM Users WHERE email='user1@example.com'), 'PAYMENT_RECEIVED', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '2 days'),
+((SELECT user_id FROM Users WHERE email='admin@example.com'), 'SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', false, NOW() - INTERVAL '8 hours');
+
 -- Token plans 테이블 mock 데이터
 INSERT INTO token_plans (tokens, price, discounted_price, discount_rate, is_promotion) VALUES
 (50, 5000, 4000, 20.00, TRUE),
 (100, 10000, 7500, 25.00, TRUE),
 (200, 20000, 12000, 40.00, TRUE);
+
+-- 베타 테스터 추가
+
+INSERT INTO public.users
+(user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed, "provider", provider_id)
+VALUES('9bb162bd-3fce-4ff1-b615-f344be1c5632'::uuid, 'betauser1@culf.com', '$2b$12$EkkVkFKHJ.TWXoAXwPO3Z.naO2eH8dqnI/KivPSOsH46ms/9AU3qW', 'betatester', '01043219876', '2024-11-18', 'M'::public."gender_enum", '2024-11-18 14:19:25.832', '2024-11-18 14:19:25.832', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, false, NULL, NULL);
+INSERT INTO public.users
+(user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed, "provider", provider_id)
+VALUES('88e3d350-0e4c-4ecd-96ad-3fbf27671499'::uuid, 'betauser2@culf.com', '$2b$12$nwaIuA2A6kgoBX7RCqd76OZqMHKJ39H.Th/SsAMcWqrCaF/PzrqUW', 'betatester2', '01054320987', '2024-11-18', 'M'::public."gender_enum", '2024-11-18 14:25:42.513', '2024-11-18 14:25:42.513', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, false, NULL, NULL);
+INSERT INTO public.users
+(user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed, "provider", provider_id)
+VALUES('5c44c876-4b74-4596-a24d-d1c9ab7ca638'::uuid, 'betauser3@culf.com', '$2b$12$OfPZQHO4Ie4thKAJmQfj4uqzwdnPRwLJ0zHh9zh3p0.yGfRxSIUSa', 'betatester3', '01065431098', '2024-11-18', 'M'::public."gender_enum", '2024-11-18 14:36:51.351', '2024-11-18 14:36:51.351', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, false, NULL, NULL);

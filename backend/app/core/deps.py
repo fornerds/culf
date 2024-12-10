@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, date
 import uuid
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
 async def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
@@ -25,13 +25,13 @@ async def get_current_user(
                 email=dev_email,
                 password="devpassword",
                 password_confirmation="devpassword",
-                nickname="DevAdmin",
+                nickname="DevUser",
                 birthdate=date(1990, 1, 1),
                 gender="N",
                 phone_number="1234567890",
                 marketing_agreed=False
             ))
-            dev_user.role = 'ADMIN'
+            dev_user.role = 'ADMIN'  # Set the user as admin in dev mode
             db.commit()
         return dev_user
 
@@ -74,5 +74,16 @@ async def get_current_active_superuser(
     if not user_services.is_superuser(current_user):
         raise HTTPException(
             status_code=400, detail="The user doesn't have enough privileges"
+        )
+    return current_user
+
+def get_current_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """관리자 권한 확인"""
+    if current_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 권한이 필요합니다",
         )
     return current_user

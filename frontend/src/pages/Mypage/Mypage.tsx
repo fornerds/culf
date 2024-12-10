@@ -3,8 +3,13 @@ import styles from './Mypage.module.css';
 import { Tab } from '@/modules';
 import { Account } from '@/components/organism';
 import { Subscription } from '@/components/organism/Subscription';
+import { PaymentHistory } from '@/components/organism/PaymentHistory';
+import { useNavigate, useParams } from 'react-router-dom';
 
 export function Mypage() {
+  const { tab } = useParams();
+  const navigate = useNavigate();
+
   const tabs = [
     {
       id: 'account',
@@ -19,23 +24,12 @@ export function Mypage() {
     {
       id: 'payment',
       label: '결제 내역',
-      content: (
-        <div>
-          <h2>결제 내역</h2>
-          <p>여기에 결제 내역 내용이 들어갑니다.</p>
-        </div>
-      ),
+      content: <PaymentHistory />,
     },
   ];
 
   return (
     <>
-      <Header
-        title="마이페이지"
-        showBackButton={true}
-        onBackClick={() => console.log('뒤로 가기')}
-      />
-
       <div className={styles.userInfo}>
         <div className="font-text-3">
           <span className="font-title-3">컬프랜드</span> 님
@@ -46,7 +40,11 @@ export function Mypage() {
         </div>
       </div>
 
-      <Tab tabs={tabs} defaultActiveTab="account" />
+      <Tab
+        tabs={tabs}
+        defaultActiveTab={tab}
+        onClickTab={(tabId) => navigate(`/mypage/${tabId}`, { replace: true })}
+      />
     </>
   );
 }

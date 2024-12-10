@@ -1,18 +1,22 @@
+// api/index.ts
 import axios, { AxiosInstance } from 'axios';
+import { tokenService } from '@/utils/tokenService';
+import { useAuthStore } from '../state/client/authStore';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL_DEV;
+export const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Request interceptor for API calls
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = tokenService.getAccessToken();
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -23,38 +27,64 @@ api.interceptors.request.use(
   },
 );
 
-// Response interceptor for API calls
+// Response interceptor
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response.status === 401 && !originalRequest._retry) {
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refreshToken');
+
       try {
-        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        // refresh_token은 HttpOnly 쿠키로 자동 전송됨
+        const res = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          {
+            withCredentials: true,
+          }
+        );
+
         if (res.status === 200) {
-          localStorage.setItem('accessToken', res.data.access_token);
+          // 새로운 access_token을 sessionStorage에 저장
+          tokenService.setAccessToken(res.data.access_token);
+          originalRequest.headers['Authorization'] = `Bearer ${res.data.access_token}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh token is invalid, logout the user
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        // Redirect to login page or dispatch a logout action
+        // 실패 시 모든 인증 정보 삭제
+        tokenService.removeAccessToken();
+        useAuthStore.getState().setAuth(false, null);
+        useAuthStore.getState().resetSnsAuth?.();
+        window.location.href = '/beta/login';
+        return Promise.reject(error);
       }
     }
+
     return Promise.reject(error);
-  },
+  }
 );
 
 // Auth API
 export const auth = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
-  register: (userData: any) => api.post('/users', userData),
+  logout: () => api.post('/logout'),
+  register: (userData: any) => {
+    const providerInfo = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('provider_info='))
+      ?.split('=')[1];
+
+    return api.post('/auth/register', userData, {
+      headers: providerInfo ? {
+        'provider_info': providerInfo
+      } : undefined,
+      withCredentials: true
+    });
+  },
+  refreshToken: () => api.post('/auth/refresh', {}, { withCredentials: true }),
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),
   findEmail: (phoneNumber: string, birthdate: string) =>
@@ -76,8 +106,30 @@ export const auth = {
       new_password: newPassword,
       new_password_confirmation: newPasswordConfirmation,
     }),
-  refreshToken: (refreshToken: string) =>
-    api.post('/auth/refresh', { refresh_token: refreshToken }),
+  
+  getProviderEmail: async () => {
+    const providerInfo = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('provider_info='))
+      ?.split('=')[1];
+
+    if (!providerInfo) {
+      throw new Error('Provider info not found in cookies');
+    }
+
+    return api.get('/auth/provider_email', {
+      headers: {
+        'provider_info': providerInfo
+      },
+      withCredentials: true
+    });
+  },
+  
+    processCallback: (provider: string, code: string) =>
+      api.get(`/auth/login/${provider}`, {
+        params: { code },
+        withCredentials: true
+      }),
 };
 
 // User API
@@ -98,20 +150,102 @@ export const user = {
 
 // Chat API
 export const chat = {
-  sendMessage: (question: string, questionImage?: string) =>
-    api.post('/chat', { question, question_image: questionImage }),
+  sendMessage: async (
+    question: string,
+    imageFile?: File,
+    onMessage?: (message: string) => void,
+  ): Promise<(() => void) | null> => {
+    const formData = new FormData();
+    formData.append('question', question);
+    if (imageFile) {
+      formData.append('image_file', imageFile);
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!onMessage || !data.answer) {
+        return null;
+      }
+
+      const text = data.answer;
+      let isCancelled = false;
+      let currentIndex = 0;
+
+      return new Promise<(() => void) | null>((resolve) => {
+        const streamText = () => {
+          if (isCancelled) {
+            resolve(() => {
+              isCancelled = true;
+            });
+            return;
+          }
+
+          if (currentIndex < text.length) {
+            let endIndex = currentIndex + 2;
+
+            while (
+              endIndex < text.length &&
+              !text[endIndex - 1].match(/[\s\n.!?,;:]/)
+            ) {
+              endIndex++;
+            }
+
+            const chunk = text.slice(currentIndex, endIndex);
+            onMessage(chunk);
+            currentIndex = endIndex;
+
+            const lastChar = chunk[chunk.length - 1];
+            const delay = lastChar?.match(/[.!?]/)
+              ? 300
+              : lastChar?.match(/[,;:]/)
+                ? 200
+                : lastChar?.match(/\s/)
+                  ? 100
+                  : 50;
+
+            setTimeout(streamText, delay);
+          } else {
+            resolve(() => {
+              isCancelled = true;
+            });
+          }
+        };
+
+        streamText();
+      });
+    } catch (error) {
+      console.error('Streaming error:', error);
+      throw error;
+    }
+  },
+
+  // 나머지 메서드들은 유지
   getConversations: (
     page: number = 1,
     limit: number = 10,
     sort: string = 'question_time:desc',
     summary: boolean = false,
   ) => api.get('/conversations', { params: { page, limit, sort, summary } }),
+
   getConversationById: (conversationId: string) =>
     api.get(`/conversations/${conversationId}`),
+
   deleteConversation: (conversationId: string) =>
     api.delete(`/conversations/${conversationId}`),
 };
-
 // Token API
 export const token = {
   getMyTokenInfo: () => api.get('/users/me/tokens'),

@@ -1,6 +1,6 @@
 services:
   db:
-    build: 
+    build:
       context: ../db
       dockerfile: Dockerfile
     container_name: culf_db
@@ -44,6 +44,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        - NODE_ENV=development
     restart: unless-stopped
     tty: true
     volumes:
@@ -52,7 +54,22 @@ services:
     ports:
       - 5173:5173
     env_file:
-      - ../frontend/.env
+      - ../frontend/.env.development
+    networks:
+      - culf-network
+
+  admin:
+    container_name: culf_admin
+    build:
+      context: ../admin
+      dockerfile: Dockerfile
+    volumes:
+      - ../admin:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
     networks:
       - culf-network
 

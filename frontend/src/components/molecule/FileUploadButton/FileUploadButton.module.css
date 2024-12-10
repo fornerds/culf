@@ -1,0 +1,14 @@
+.uploadButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  width: 32px;
+  height: 32px;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.uploadButton.open {
+  transform: rotate(-135deg);
+}
