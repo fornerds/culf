@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, Date, ForeignKey, String
+from sqlalchemy import Column, Integer, DateTime, Date, ForeignKey, String, DECIMAL, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -29,3 +29,17 @@ class TokenUsageHistory(Base):
 
     token = relationship("Token", back_populates="usage_history")
     conversation = relationship("Conversation")
+
+class TokenPlan(Base):
+    __tablename__ = "token_plans"
+
+    token_plan_id = Column(Integer, primary_key=True, autoincrement=True)
+    tokens = Column(Integer, nullable=False)
+    price = Column(DECIMAL(10, 2), nullable=False, default=0)
+    discounted_price = Column(DECIMAL(10, 2), nullable=False, default=0)
+    discount_rate = Column(DECIMAL(5, 2), nullable=False, default=0)
+    is_promotion = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    payments = relationship("Payment", back_populates="token_plan")

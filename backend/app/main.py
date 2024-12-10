@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.domains.user import routes as user_routes
 from app.domains.conversation import routes as conversation_routes
@@ -13,6 +13,8 @@ from app.domains.curator import routes as curator_routes
 from app.domains.banner import routes as banner_routes
 from app.domains.auth import routes as auth_routes
 from app.domains.admin import routes as admin_routes
+from app.domains.subscription import routes as subscription_routes
+from app.domains.payment import routes as payment_routes
 import logging
 
 # 로깅 설정
@@ -36,7 +38,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,6 +65,8 @@ app.include_router(conversation_routes.router, prefix=f"{settings.API_V1_STR}", 
 app.include_router(token_routes.router, prefix=f"{settings.API_V1_STR}", tags=["tokens"])
 app.include_router(notification_routes.router, prefix=f"{settings.API_V1_STR}", tags=["notifications"])
 app.include_router(inquiry_routes.router, prefix=f"{settings.API_V1_STR}", tags=["inquiries"])
+app.include_router(payment_routes.router, prefix=f"{settings.API_V1_STR}", tags=["payment"])
+app.include_router(subscription_routes.router, prefix=f"{settings.API_V1_STR}", tags=["subscription"])
 app.include_router(admin_routes.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
 
 @app.get("/")
