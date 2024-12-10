@@ -1,3 +1,5 @@
+import random
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError, ExpiredSignatureError
@@ -18,20 +20,37 @@ async def get_current_user(
 ) -> user_schemas.User:
     if settings.DEV_MODE:
         logging.warning("Using dev mode authentication")
-        dev_email = "dev@example.com"
+        # Check if Authorization header exists and contains user info
+        if token and token != 'dev_token':
+            try:
+                payload = jwt.decode(
+                    token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+                )
+                user_id = payload.get("sub")
+                if user_id:
+                    db_user = services.get_user(db, user_id=user_id)
+                    if db_user:
+                        return db_user
+            except (JWTError, ExpiredSignatureError):
+                pass
+
+        dev_uuid = uuid.uuid4()
+        dev_email = f"dev_{dev_uuid}@example.com"
         dev_user = services.get_user_by_email(db, email=dev_email)
+        random_phone = ''.join([str(random.randint(0, 9)) for _ in range(10)])
+
         if not dev_user:
             dev_user = user_services.create_user(db, user_schemas.UserCreate(
                 email=dev_email,
                 password="devpassword",
                 password_confirmation="devpassword",
-                nickname="DevUser",
+                nickname=f"DevUser_{dev_uuid.hex[:8]}",
                 birthdate=date(1990, 1, 1),
                 gender="N",
-                phone_number="1234567890",
+                phone_number=random_phone,
                 marketing_agreed=False
             ))
-            dev_user.role = 'ADMIN'  # Set the user as admin in dev mode
+            dev_user.role = 'ADMIN'
             db.commit()
         return dev_user
 

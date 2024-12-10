@@ -1,95 +1,119 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from sqlalchemy.orm import Session
+import json
+from . import models, schemas
 from typing import List, Optional
-from app.db.session import get_db
-from app.core.deps import get_current_active_user
-from app.domains.user import schemas as user_schemas
-from app.utils.s3_client import upload_file_to_s3
-from . import schemas, services
-import logging
-import uuid
-from app.core.config import settings
+from uuid import UUID
+from datetime import datetime
+from fastapi.encoders import jsonable_encoder
 
-router = APIRouter()
 
-@router.post("/inquiries", response_model=schemas.InquiryResponse)
-async def create_inquiry(
-        title: str = Form(..., description="문의 제목"),
-        email: str = Form(..., description="연락받을 이메일"),
-        contact: str = Form(..., description="연락처"),
-        content: str = Form(..., description="문의 내용"),
-        attachments: Optional[UploadFile] = File(default=None, description="첨부파일 (선택)"),
-        db: Session = Depends(get_db),
-        current_user: user_schemas.User = Depends(get_current_active_user)
-):
-    """
-    문의사항을 생성합니다.
-    """
+def _process_attachments(attachments):
+    """Helper function to process attachments data"""
+    if attachments is None:
+        return None
+    if isinstance(attachments, str):
+        if attachments.lower() == 'null':
+            return None
+        try:
+            # Try to parse string as JSON if it's a string
+            return json.loads(attachments)
+        except json.JSONDecodeError:
+            return None
+    return attachments
+
+
+def create_inquiry(db: Session, inquiry_data: schemas.InquiryCreate, user_id: UUID):
+    """문의사항 생성"""
+    db_inquiry = models.Inquiry(
+        user_id=user_id,
+        type="GENERAL",
+        title=inquiry_data.title,
+        email=inquiry_data.email,
+        contact=inquiry_data.contact,
+        content=inquiry_data.content,
+        attachments=jsonable_encoder(inquiry_data.attachments) if inquiry_data.attachments else None,
+        status='PENDING'
+    )
+
     try:
-        # Process attachment if any
-        attachment_info = None
-        if attachments:
-            try:
-                file_extension = attachments.filename.split('.')[-1]
-                object_name = f"inquiries/{uuid.uuid4()}.{file_extension}"
-
-                file_url = upload_file_to_s3(attachments.file, settings.S3_BUCKET_NAME, object_name)
-                if not file_url:
-                    raise HTTPException(
-                        status_code=500,
-                        detail={
-                            "error": "file_upload_failed",
-                            "message": "파일 업로드에 실패했습니다."
-                        }
-                    )
-
-                attachment_info = schemas.AttachmentInfo(
-                    file_name=attachments.filename,
-                    file_type=attachments.content_type,
-                    file_url=file_url
-                )
-            except Exception as e:
-                logging.error(f"File upload error: {str(e)}")
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "error": "file_upload_failed",
-                        "message": "파일 업로드에 실패했습니다."
-                    }
-                )
-
-        # Create inquiry object
-        inquiry_data = schemas.InquiryCreate(
-            title=title,
-            email=email,
-            contact=contact,
-            content=content,
-            attachments=[attachment_info] if attachment_info else None
-        )
-
-        # Save inquiry to database
-        db_inquiry = services.create_inquiry(db, inquiry_data, current_user.user_id)
-
-        return {
-            "inquiry_id": str(db_inquiry.inquiry_id),
-            "status": "RECEIVED",
-            "message": "문의가 접수되었습니다. 답변은 입력하신 이메일로 발송됩니다."
-        }
-
-    except ValueError as ve:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "validation_error",
-                "message": str(ve)
-            }
-        )
+        db.add(db_inquiry)
+        db.commit()
+        db.refresh(db_inquiry)
+        return db_inquiry
     except Exception as e:
-        logging.error(f"Inquiry creation error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "inquiry_submission_failed",
-                "message": "문의 접수에 실패했습니다. 잠시 후 다시 시도해주세요."
-            }
-        )
+        db.rollback()
+        raise ValueError(f"Failed to create inquiry: {str(e)}")
+
+
+def get_inquiry(db: Session, inquiry_id: int) -> Optional[models.Inquiry]:
+    """문의사항 조회"""
+    inquiry = db.query(models.Inquiry).filter(models.Inquiry.inquiry_id == inquiry_id).first()
+    if inquiry:
+        inquiry.attachments = _process_attachments(inquiry.attachments)
+    return inquiry
+
+
+def get_user_inquiries(
+        db: Session,
+        user_id: UUID,
+        skip: int = 0,
+        limit: int = 100
+) -> List[models.Inquiry]:
+    """사용자의 문의사항 목록 조회"""
+    inquiries = db.query(models.Inquiry) \
+        .filter(models.Inquiry.user_id == user_id) \
+        .order_by(models.Inquiry.created_at.desc()) \
+        .offset(skip) \
+        .limit(limit) \
+        .all()
+
+    # Process attachments for each inquiry
+    for inquiry in inquiries:
+        inquiry.attachments = _process_attachments(inquiry.attachments)
+
+    return inquiries
+
+
+def get_admin_inquiries(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+) -> List[models.Inquiry]:
+    """관리자용 문의사항 목록 조회"""
+    query = db.query(models.Inquiry)
+
+    if status:
+        query = query.filter(models.Inquiry.status == status)
+
+    if start_date and end_date:
+        query = query.filter(models.Inquiry.created_at.between(start_date, end_date))
+
+    inquiries = query \
+        .order_by(models.Inquiry.created_at.desc()) \
+        .offset(skip) \
+        .limit(limit) \
+        .all()
+
+    # Process attachments for each inquiry
+    for inquiry in inquiries:
+        inquiry.attachments = _process_attachments(inquiry.attachments)
+
+    return inquiries
+
+
+def update_inquiry_status(
+        db: Session,
+        inquiry_id: int,
+        status: str
+) -> Optional[models.Inquiry]:
+    """문의사항 상태 업데이트"""
+    inquiry = get_inquiry(db, inquiry_id)
+    if inquiry:
+        inquiry.status = status
+        db.commit()
+        db.refresh(inquiry)
+        inquiry.attachments = _process_attachments(inquiry.attachments)
+    return inquiry
