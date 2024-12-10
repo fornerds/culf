@@ -36,6 +36,7 @@ export function Signup() {
  
  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
  const [isSnsSignup, setIsSnsSignup] = useState(false);
+ const [isLoading, setIsLoading] = useState(false);
 
  const formatBirthDate = (value: string) => {
    // Remove any non-digit characters
@@ -161,31 +162,36 @@ export function Signup() {
  };
 
  const handleRegister = async () => {
-   try {
-     const res = await auth.register({
-       email: form.email,
-       nickname: form.nickname,
-       phone_number: form.phoneNumber,
-       birthdate: form.birthDate,
-       gender: form.gender,
-       password: form.password,
-       password_confirmation: form.passwordConfirmation,
-       marketing_agreed: isMarketingAgreed,
-     });
-     
-     if (res.status === 200) {
-       await refreshToken.mutateAsync();
-       goCompleteSignupPage();
-     }
-   } catch (error: any) {
-     if (error.response?.data?.detail?.error === "validation_error") {
-       alert(error.response.data.detail.message);
-     } else {
-       alert('회원가입이 실패했습니다.');
-     }
-     console.error(error);
-   }
- };
+  if (isLoading) return;
+  
+  try {
+    setIsLoading(true);
+    const res = await auth.register({
+      email: form.email,
+      nickname: form.nickname,
+      phone_number: form.phoneNumber,
+      birthdate: form.birthDate,
+      gender: form.gender,
+      password: form.password,
+      password_confirmation: form.passwordConfirmation,
+      marketing_agreed: isMarketingAgreed,
+    });
+    
+    if (res.status === 200) {
+      await refreshToken.mutateAsync();
+      goCompleteSignupPage();
+    }
+  } catch (error: any) {
+    if (error.response?.data?.detail?.error === "validation_error") {
+      alert(error.response.data.detail.message);
+    } else {
+      alert('회원가입이 실패했습니다.');
+    }
+    console.error(error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
  useEffect(() => {
    if (form.passwordConfirmation) {
@@ -280,13 +286,13 @@ export function Signup() {
        />
      </div>
      <div className={styles.buttonArea}>
-       <Button
-         variant={!isFormValid() ? 'disable' : 'default'}
-         disabled={!isFormValid()}
-         onClick={handleRegister}
-       >
-         가입하기
-       </Button>
+     <Button
+          variant={!isFormValid() || isLoading ? 'disable' : 'default'}
+          disabled={!isFormValid() || isLoading}
+          onClick={handleRegister}
+        >
+          {isLoading ? '가입중...' : '가입하기'}
+        </Button>
      </div>
    </main>
  );
