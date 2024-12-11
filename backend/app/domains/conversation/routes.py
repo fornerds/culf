@@ -129,10 +129,14 @@ def verify_artwork_info(question: str) -> Optional[Dict[str, Any]]:
 
 @router.post("/chat", response_model=schemas.ConversationResponse)
 async def create_chat(
-        question: str = Form(...),
-        image_file: Union[UploadFile, None, str] = File(default=None),
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+    question: str = Form(...),
+    image_file: Union[UploadFile, None, str] = File(
+        default=None, 
+        description="Image file to upload",
+        max_size=10 * 1024 * 1024  # 10MB
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """채팅 생성 엔드포인트"""
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
