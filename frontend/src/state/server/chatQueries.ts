@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { chat } from '../../api';
 import { AxiosError } from 'axios';
+import { useAuthStore } from '../client/authStore';
 
 interface Message {
   question: string;
@@ -73,8 +74,10 @@ export const useSendMessage = (): UseMutationResult<
 
 export const useGetConversations = (
   params: ConversationsQueryParams = {},
-): UseInfiniteQueryResult<ConversationsResponse, AxiosError> =>
-  useInfiniteQuery({
+): UseInfiniteQueryResult<ConversationsResponse, AxiosError> => {
+  const { isAuthenticated } = useAuthStore();
+
+  return useInfiniteQuery({
     queryKey: ['conversations', params],
     queryFn: ({ pageParam = 1 }) =>
       chat
@@ -87,7 +90,9 @@ export const useGetConversations = (
         : nextPage;
     },
     initialPageParam: 1,
+    enabled: isAuthenticated, // 인증된 상태에서만 쿼리 실행
   });
+};
 
 export const useGetConversationById = (
   conversationId: string,
