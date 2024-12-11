@@ -40,11 +40,27 @@ CREATE TABLE Users (
 CREATE TABLE Curators (
     curator_id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
+    persona VARCHAR(100) NOT NULL,
+    main_image VARCHAR(255),
     profile_image VARCHAR(255),
     introduction TEXT,
     category VARCHAR(50),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- Tags 테이블
+CREATE TABLE Tags (
+    tag_id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL
+);
+
+-- Curator_Tags 중간 테이블
+CREATE TABLE Curator_Tags (
+    curator_id INTEGER REFERENCES Curators(curator_id) ON DELETE CASCADE,
+    tag_id INTEGER REFERENCES Tags(tag_id) ON DELETE CASCADE,
+    PRIMARY KEY (curator_id, tag_id)
 );
 
 -- User Interests 테이블
@@ -338,10 +354,39 @@ INSERT INTO public.users
 VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, true);
 
 -- Curators 테이블 mock 데이터
-INSERT INTO Curators (name, profile_image, introduction, category) VALUES
-('여행 전문가', 'travel_expert.jpg', '세계 각국의 숨은 명소를 소개합니다.', '여행'),
-('문화 큐레이터', 'culture_curator.jpg', '다양한 문화 행사와 전시회 정보를 제공합니다.', '문화'),
-('예술 가이드', 'art_guide.jpg', '현대 미술부터 고전 예술까지 폭넓게 다룹니다.', '예술');
+-- 새로운 태그 데이터 추가
+INSERT INTO Tags (name) VALUES
+('초보'),
+('미술입문'),
+('유럽'),
+('인상주의'),
+('동시대미술'),
+('국내');
+
+-- 새로운 큐레이터 데이터 추가
+INSERT INTO Curators (name, persona, main_image, profile_image, introduction, category) VALUES
+('외계인 네오', '지구 예술에 푹 빠진 외계인 네오', 'alien_curator_main.jpg', 'alien_curator.jpg', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
+('레미', '19세기 출신 파리지앵 레미', 'remy_curator_main.jpg', 'remy_curator.jpg', '인상주의 작품들과 유럽 미술을 소개해드립니다.', '미술'),
+('두리', '감성 충만한 미술 애호가 두리', 'duri_curator_main.jpg', 'duri_curator.jpg', '한국의 현대미술과 동시대 작가들을 만나보세요.', '미술');
+
+-- 큐레이터-태그 연결
+-- 외계인 네오의 태그
+INSERT INTO Curator_Tags (curator_id, tag_id)
+SELECT c.curator_id, t.tag_id
+FROM Curators c, Tags t
+WHERE c.name = '외계인 네오' AND t.name IN ('초보', '미술입문');
+
+-- 레미의 태그
+INSERT INTO Curator_Tags (curator_id, tag_id)
+SELECT c.curator_id, t.tag_id
+FROM Curators c, Tags t
+WHERE c.name = '레미' AND t.name IN ('유럽', '인상주의');
+
+-- 두리의 태그
+INSERT INTO Curator_Tags (curator_id, tag_id)
+SELECT c.curator_id, t.tag_id
+FROM Curators c, Tags t
+WHERE c.name = '두리' AND t.name IN ('국내', '동시대미술');
 
 -- Conversations 테이블 mock 데이터
 INSERT INTO Conversations (conversation_id, user_id, question, answer, question_time, answer_time, tokens_used) VALUES
