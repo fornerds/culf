@@ -165,7 +165,7 @@ export const chat = {
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+          Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
         },
         body: formData,
       });
