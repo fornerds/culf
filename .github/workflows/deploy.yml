@@ -3,6 +3,11 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'admin/**'
+      - 'db/**'
   pull_request:
     branches: [ main ]
 
@@ -12,29 +17,75 @@ env:
   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      admin: ${{ steps.filter.outputs.admin }}
+      db: ${{ steps.filter.outputs.db }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+            admin:
+              - 'admin/**'
+            db:
+              - 'db/**'
+
   deploy:
+    needs: check-changes
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ env.EC2_HOST }}
-        username: ubuntu
-        key: ${{ env.SSH_PRIVATE_KEY }}
-        script: |
-          cd ~/culf
-          git pull origin main
-          sudo docker-compose -f infra/docker-compose.yml down
-          sudo docker system prune -af
-          sudo docker-compose -f infra/docker-compose.yml up -d --build
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ubuntu
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/culf
+            git pull origin main
+            
+            # Frontend changes
+            if [[ "${{ needs.check-changes.outputs.frontend }}" == "true" ]]; then
+              echo "Rebuilding frontend..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build frontend
+            fi
+            
+            # Backend changes
+            if [[ "${{ needs.check-changes.outputs.backend }}" == "true" ]]; then
+              echo "Rebuilding backend..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build backend
+            fi
+            
+            # Admin changes
+            if [[ "${{ needs.check-changes.outputs.admin }}" == "true" ]]; then
+              echo "Rebuilding admin..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build admin
+            fi
+            
+            # DB changes
+            if [[ "${{ needs.check-changes.outputs.db }}" == "true" ]]; then
+              echo "Rebuilding database..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build db
+            fi
+            
+            # Clean up unused images
+            sudo docker image prune -f
