@@ -140,16 +140,16 @@ async def create_chat(
     if isinstance(image_file, str) and image_file == "":
         image_file = None
 
-    if not settings.DEV_MODE:
-        user_tokens = token_services.get_user_tokens(db, current_user.user_id)
-        if user_tokens.total_tokens - user_tokens.used_tokens <= 0:
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "error": "not_enough_tokens",
-                    "message": "토큰이 부족합니다. 토큰을 충전해주세요."
-                }
-            )
+    # if not settings.DEV_MODE:
+    #     user_tokens = token_services.get_user_tokens(db, current_user.user_id)
+    #     if user_tokens.total_tokens - user_tokens.used_tokens <= 0:
+    #         raise HTTPException(
+    #             status_code=402,
+    #             detail={
+    #                 "error": "not_enough_tokens",
+    #                 "message": "토큰이 부족합니다. 토큰을 충전해주세요."
+    #             }
+    #         )
 
     try:
         # 이미지 처리 로직
