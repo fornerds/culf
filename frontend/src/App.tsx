@@ -36,6 +36,7 @@ import { API_BASE_URL, auth, user } from './api';
 import { OAuthCallback } from './pages/OAuthCallback';
 import { tokenService } from './utils/tokenService';
 import { useAuthStore } from './state/client/authStore';
+import { LoadingAnimation } from './components/atom';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -109,7 +110,16 @@ export const PrivateOutlet = () => {
   }, [accessToken, setAuth]);
 
   if (isChecking) {
-    return <div>Loading...</div>;
+    return <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+      <LoadingAnimation
+        imageUrl={logoimage}
+        alt="Description"
+        width={58}
+        height={19}
+        duration={2200} 
+      />
+      <p className='font-tag-1' style={{color: "#a1a1a1"}}>로그인 확인 중</p>
+    </div>;
   }
 
   return accessToken ? <Outlet /> : <Navigate to="/login" replace />;
