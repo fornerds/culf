@@ -20,12 +20,16 @@ type MessageType = {
   isLoading?: boolean;
   isStreaming?: boolean;
   imageUrl?: string;
+  originalSize?: number;
+  resizedSize?: number;
 };
 
 type PreviewImage = {
   id: string;
   file: File;
   url: string;
+  originalSize: number;
+  resizedSize: number;
 };
 
 declare module 'react' {
@@ -34,7 +38,72 @@ declare module 'react' {
   }
 }
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; 
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+// 파일 크기를 사람이 읽기 쉬운 형태로 변환하는 유틸리티 함수
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+// 이미지 리사이징 유틸리티 함수
+const resizeImage = async (file: File, maxWidth = 1920, maxHeight = 1080, quality = 0.8): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width *= ratio;
+        height *= ratio;
+      }
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context not available'));
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Blob creation failed'));
+            return;
+          }
+          
+          const resizedFile = new File([blob], file.name, {
+            type: file.type,
+            lastModified: Date.now(),
+          });
+          
+          resolve(resizedFile);
+        },
+        file.type,
+        quality
+      );
+    };
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error('Image loading failed'));
+    };
+  });
+};
 
 export function ChatDetail() {
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
@@ -59,7 +128,6 @@ export function ChatDetail() {
     '카라바조의 영향을 받은 다른 화가는 누구야?',
   ];
 
-  // ChatInputGroup 높이 감지
   useEffect(() => {
     const updateInputHeight = () => {
       if (chatInputGroupRef.current) {
@@ -101,6 +169,8 @@ export function ChatDetail() {
       }
   
       const imageFile = previewImages.length > 0 ? previewImages[0].file : undefined;
+      const originalSize = previewImages.length > 0 ? previewImages[0].originalSize : undefined;
+      const resizedSize = previewImages.length > 0 ? previewImages[0].resizedSize : undefined;
       
       if (imageFile && imageFile.size > MAX_FILE_SIZE) {
         alert('10메가바이트 이상의 사진을 첨부할 수 없습니다.');
@@ -109,25 +179,24 @@ export function ChatDetail() {
 
       const imageUrl = previewImages.length > 0 ? previewImages[0].url : undefined;
   
-      // 사용자 메시지를 먼저 추가
       setMessages((prev) => [
         ...prev,
         {
           type: 'user',
           content: message,
-          imageUrl: imageUrl
+          imageUrl: imageUrl,
+          originalSize: originalSize,
+          resizedSize: resizedSize
         }
       ]);
   
-      // AI 응답 로딩 상태 추가
       setMessages((prev) => [
         ...prev,
         { type: 'ai', content: '', isStreaming: true }
       ]);
   
-      // 이미지와 메시지를 함께 전송
       const cleanup = await chat.sendMessage(
-        message || '', // 빈 문자열이라도 전송
+        message || '',
         imageFile,
         (chunk) => {
           setMessages((prev) => {
@@ -150,22 +219,19 @@ export function ChatDetail() {
       cleanupRef.current = cleanup;
       messageCompleteRef.current = true;
   
-      // 스트리밍 상태 제거
       setMessages((prev) =>
         prev.map((msg) =>
           msg.isStreaming ? { ...msg, isStreaming: false } : msg
         )
       );
   
-      // 이미지 초기화
       setPreviewImages([]);
   
     } catch (error) {
       console.error('Message send error:', error);
       
-      // 에러 메시지 표시
       setMessages((prev) => [
-        ...prev.slice(0, -1), // 로딩 메시지 제거
+        ...prev.slice(0, -1),
         {
           type: 'ai',
           content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
@@ -175,7 +241,6 @@ export function ChatDetail() {
     }
   };
 
-  // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
       if (cleanupRef.current) {
@@ -184,7 +249,6 @@ export function ChatDetail() {
     };
   }, []);
 
-  // 스크롤 자동 조절
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop =
@@ -196,14 +260,9 @@ export function ChatDetail() {
     handleSendMessage(suggestion);
   };
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('이미지 파일만 업로드할 수 있습니다.');
-      return;
-    }
-  
-    if (file.size > MAX_FILE_SIZE) {
-      alert('10메가바이트 이상의 사진을 첨부할 수 없습니다.');
       return;
     }
   
@@ -211,18 +270,44 @@ export function ChatDetail() {
       alert('최대 4개의 이미지만 업로드할 수 있습니다.');
       return;
     }
-  
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const newImage: PreviewImage = {
-        id: Date.now().toString(),
-        file: file,
-        url: e.target?.result as string,
+
+    try {
+      const originalSize = file.size;
+      const resizedFile = await resizeImage(file);
+      const resizedSize = resizedFile.size;
+
+      // 리사이징 후에도 파일 크기 체크
+      if (resizedSize > MAX_FILE_SIZE) {
+        alert(`이미지 용량이 너무 큽니다.
+원본 크기: ${formatFileSize(originalSize)}
+변환 크기: ${formatFileSize(resizedSize)}
+10MB 이하의 이미지를 선택해주세요.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const newImage: PreviewImage = {
+          id: Date.now().toString(),
+          file: resizedFile,
+          url: e.target?.result as string,
+          originalSize,
+          resizedSize
+        };
+        setPreviewImages((prev) => [...prev, newImage]);
       };
-      setPreviewImages((prev) => [...prev, newImage]);
-    };
-    reader.readAsDataURL(file);
-    setIsUploadMenuOpen(false);
+      reader.readAsDataURL(resizedFile);
+      setIsUploadMenuOpen(false);
+
+      console.log(`Image resized: 
+Original size: ${formatFileSize(originalSize)}
+Resized size: ${formatFileSize(resizedSize)}
+Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
+      
+    } catch (error) {
+      console.error('Image resize error:', error);
+      alert('이미지 처리 중 오류가 발생했습니다.');
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,14 +315,12 @@ export function ChatDetail() {
     if (file) {
       handleFileSelect(file);
     }
-    // 같은 파일을 다시 선택할 수 있도록 value 초기화
     e.target.value = '';
   };
 
   const handleCameraCapture = () => {
     if (cameraInputRef.current) {
       cameraInputRef.current.accept = "image/*";
-      // capture 속성을 string으로 명시적 설정
       cameraInputRef.current.setAttribute('capture', 'environment');
       cameraInputRef.current.click();
     }
@@ -246,7 +329,6 @@ export function ChatDetail() {
   const handleAlbumSelect = () => {
     if (fileInputRef.current) {
       fileInputRef.current.accept = "image/*";
-      // capture 속성 제거
       fileInputRef.current.removeAttribute('capture');
       fileInputRef.current.click();
     }
@@ -276,6 +358,13 @@ export function ChatDetail() {
                 alt="Preview"
                 className={styles.previewImage}
               />
+              <div className={styles.imageSizeInfo}>
+                <span>원본: {formatFileSize(image.originalSize)}</span>
+                <span>변환: {formatFileSize(image.resizedSize)}</span>
+                <span>
+                  ({((image.originalSize - image.resizedSize) / image.originalSize * 100).toFixed(1)}% 감소)
+                </span>
+              </div>
               <button
                 onClick={() => handleRemoveImage(image.id)}
                 className={styles.removeImageButton}
@@ -287,26 +376,34 @@ export function ChatDetail() {
         </div>
       )}
 
-<div className={styles.chatContainer} ref={chatContainerRef}>
-  {messages.map((message, index) =>
-    message.type === 'ai' ? (
-      <MarkdownChat
-        key={index}
-        markdown={message.content}
-        isStreaming={message.isStreaming}
-        isLoading={message.isLoading}
-        image={curatorImage}
-      />
-    ) : (
-      <QuestionBox 
-        key={index} 
-        type="user" 
-        content={message.content}
-        imageUrl={message.imageUrl} // 이미지 URL 전달
-      />
-    ),
-  )}
-</div>
+      <div className={styles.chatContainer} ref={chatContainerRef}>
+        {messages.map((message, index) =>
+          message.type === 'ai' ? (
+            <MarkdownChat
+              key={index}
+              markdown={message.content}
+              isStreaming={message.isStreaming}
+              isLoading={message.isLoading}
+              image={curatorImage}
+            />
+          ) : (
+            <QuestionBox 
+              key={index} 
+              type="user" 
+              content={message.content}
+              imageUrl={message.imageUrl}
+              imageSizeInfo={
+                message.originalSize && message.resizedSize
+                  ? {
+                      original: message.originalSize,
+                      resized: message.resizedSize
+                    }
+                  : undefined
+              }
+            />
+          )
+        )}
+      </div>
 
       {showSuggestions && (
         <QuestionBox
@@ -338,8 +435,7 @@ export function ChatDetail() {
           <>
             <button
               onClick={handleCameraCapture}
-              className={styles.actionButton}
-            >
+              className={styles.actionButton}>
               <CameraIcon />
               카메라
             </button>
@@ -350,7 +446,6 @@ export function ChatDetail() {
               <AlbumIcon />
               앨범
             </button>
-            {/* 숨겨진 input 요소들 */}
             <input
               type="file"
               accept="image/*"
@@ -381,6 +476,22 @@ export function ChatDetail() {
           </label>
         )}
       </div>
+
+      <style jsx>{`
+        .imageSizeInfo {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: rgba(0, 0, 0, 0.7);
+          color: white;
+          padding: 4px;
+          font-size: 12px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+      `}</style>
     </div>
   );
 }
