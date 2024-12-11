@@ -2,6 +2,15 @@ from pydantic import BaseModel
 from datetime import datetime, date
 from uuid import UUID
 from typing import Optional
+from datetime import datetime
+
+class TokenInfo(BaseModel):
+    total_tokens: int
+    used_tokens: int
+    last_charged_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
 
 class TokenPlanBase(BaseModel):
     tokens: int
