@@ -42,6 +42,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    max_file_size=1024*1024*10  # 10MB로 설정
 )
 
 # 개발 모드에서 인증을 우회하는 미들웨어
