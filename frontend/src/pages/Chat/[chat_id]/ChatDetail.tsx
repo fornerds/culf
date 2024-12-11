@@ -34,6 +34,8 @@ declare module 'react' {
   }
 }
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; 
+
 export function ChatDetail() {
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [messages, setMessages] = useState<MessageType[]>([]);
@@ -99,6 +101,12 @@ export function ChatDetail() {
       }
   
       const imageFile = previewImages.length > 0 ? previewImages[0].file : undefined;
+      
+      if (imageFile && imageFile.size > MAX_FILE_SIZE) {
+        alert('10메가바이트 이상의 사진을 첨부할 수 없습니다.');
+        return;
+      }
+
       const imageUrl = previewImages.length > 0 ? previewImages[0].url : undefined;
   
       // 사용자 메시지를 먼저 추가
@@ -193,12 +201,17 @@ export function ChatDetail() {
       alert('이미지 파일만 업로드할 수 있습니다.');
       return;
     }
-
+  
+    if (file.size > MAX_FILE_SIZE) {
+      alert('10메가바이트 이상의 사진을 첨부할 수 없습니다.');
+      return;
+    }
+  
     if (previewImages.length >= 4) {
       alert('최대 4개의 이미지만 업로드할 수 있습니다.');
       return;
     }
-
+  
     const reader = new FileReader();
     reader.onload = (e) => {
       const newImage: PreviewImage = {
