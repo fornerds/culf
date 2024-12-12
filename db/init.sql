@@ -36,6 +36,14 @@ CREATE TABLE Users (
     provider_id VARCHAR(255) UNIQUE
 );
 
+-- UserProvider 테이블 정의
+CREATE TABLE User_Provider (
+    user_id UUID NOT NULL REFERENCES Users(user_id), -- 사용자 고유 ID (Users 테이블 참조)
+    provider provider NOT NULL DEFAULT 'GOOGLE', -- Provider 이름(Google, Kakao)
+    provider_id VARCHAR(255), -- Provider가 제공하는 서비스 유저 식별키
+    PRIMARY KEY (user_id, provider_id) -- 복합 기본 키
+);
+
 -- Curators 테이블
 CREATE TABLE Curators (
     curator_id SERIAL PRIMARY KEY,
@@ -370,14 +378,6 @@ CREATE TABLE Conversation_Feedbacks (
 
 -- user_id 컬럼 타입 변경
 ALTER TABLE users ALTER COLUMN "user_id" SET DATA TYPE uuid;
-
--- UserProvider 테이블 정의
-CREATE TABLE User_Provider (
-    user_id UUID NOT NULL REFERENCES Users(user_id), -- 사용자 고유 ID (Users 테이블 참조)
-    provider provider NOT NULL DEFAULT 'GOOGLE', -- Provider 이름(Google, Kakao)
-    provider_id VARCHAR(255), -- Provider가 제공하는 서비스 유저 식별키
-    PRIMARY KEY (user_id, provider_id) -- 복합 기본 키
-);
 
 -- Users 테이블 mock 데이터
 INSERT INTO Users (user_id, email, password, nickname, phone_number, birthdate, gender, status, role) VALUES
