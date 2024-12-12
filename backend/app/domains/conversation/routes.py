@@ -127,22 +127,158 @@ def verify_artwork_info(question: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+async def get_gemini_response(question: str, image_url: Optional[str] = None) -> Optional[tuple[str, int]]:
+    """Gemini API를 사용하여 GPT와 동일한 형식의 응답을 생성하는 함수"""
+    try:
+        logger.info("🔄 Gemini API 요청 시작")
+
+        # GPT 스타일의 시스템 프롬프트 추가
+        system_prompt = PROMPT  # GPT에서 사용하는 것과 동일한 PROMPT 사용
+
+        # 컨텍스트와 질문을 결합
+        formatted_question = f"""
+        {system_prompt}
+
+        User: {question}
+
+        Assistant: """
+
+        content = {
+            "parts": [{"text": formatted_question}]
+        }
+
+        if image_url:
+            image_response = requests.get(image_url)
+            if image_response.status_code == 200:
+                image_data = base64.b64encode(image_response.content).decode('utf-8')
+                content["parts"].insert(1, {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": image_data
+                    }
+                })
+
+        payload = {
+            "contents": [content],
+            "generationConfig": {
+                "temperature": 0.7,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 2048,
+                "stopSequences": ["User:", "Human:"]  # 응답 종료 지점 설정
+            }
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(
+            f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        result = response.json()
+        if 'candidates' in result and len(result['candidates']) > 0:
+            content = result['candidates'][0]['content']
+            text = content['parts'][0]['text']
+
+            # Assistant: 이후의 텍스트만 추출
+            if "Assistant:" in text:
+                text = text.split("Assistant:", 1)[1].strip()
+
+            # 토큰 수 계산 (근사값)
+            tokens_used = len(text.split())
+            logger.info("✅ Gemini API 응답 성공")
+            return text, tokens_used
+
+        return None, 0
+
+    except Exception as e:
+        logger.error(f"❌ Gemini API 오류: {str(e)}")
+        raise
+
+
+# settings.py에 추가할 설정
+USE_GEMINI = True  # True면 Gemini 사용, False면 GPT 사용
+GEMINI_API_KEY = "AIzaSyBTvYm8E3J2XWDceUwU_Ydfx2Z8ZeNpsCo"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+
+
+async def get_gemini_response(question: str, image_url: Optional[str] = None) -> Optional[tuple[str, int]]:
+    """Gemini API를 사용하여 응답을 생성하는 함수"""
+    try:
+        logger.info("🔄 Gemini API 요청 시작")
+
+        content = {
+            "parts": [{"text": question}]
+        }
+
+        if image_url:
+            image_response = requests.get(image_url)
+            if image_response.status_code == 200:
+                image_data = base64.b64encode(image_response.content).decode('utf-8')
+                content["parts"].append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": image_data
+                    }
+                })
+
+        payload = {
+            "contents": [content],
+            "generationConfig": {
+                "temperature": 0.7,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 2048,
+            }
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(
+            f"{GEMINI_API_URL}?key={GEMINI_API_KEY}",
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        result = response.json()
+        if 'candidates' in result and len(result['candidates']) > 0:
+            content = result['candidates'][0]['content']
+            text = content['parts'][0]['text']
+            # 간단한 토큰 계산 (실제 사용량과 다를 수 있음)
+            tokens_used = len(text.split())
+            logger.info("✅ Gemini API 응답 성공")
+            return text, tokens_used
+
+        return None, 0
+
+    except Exception as e:
+        logger.error(f"❌ Gemini API 오류: {str(e)}")
+        raise
+
+
 @router.post("/chat", response_model=schemas.ConversationResponse)
 async def create_chat(
-    question: str = Form(...),
-    image_file: Union[UploadFile, None, str] = File(
-        default=None, 
-        description="Image file to upload",
-        max_size=10 * 1024 * 1024  # 10MB
-    ),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        question: str = Form(...),
+        image_file: Union[UploadFile, None, str] = File(
+            default=None,
+            description="Image file to upload",
+            max_size=10 * 1024 * 1024
+        ),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     """채팅 생성 엔드포인트"""
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
-
-    if isinstance(image_file, str) and image_file == "":
-        image_file = None
 
     # if not settings.DEV_MODE:
     #     user_tokens = token_services.get_user_tokens(db, current_user.user_id)
@@ -158,118 +294,60 @@ async def create_chat(
     try:
         # 이미지 처리 로직
         image_url = None
-        if image_file:
+        if image_file and not isinstance(image_file, str):
             file_extension = image_file.filename.split('.')[-1]
             object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
             s3_url = upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name)
             if not s3_url:
                 raise HTTPException(status_code=500, detail="이미지 업로드 실패")
-
-            # CloudFront URL 생성
             image_url = get_cloudfront_url(object_name)
-            logging.info(f"업로드된 이미지 CloudFront URL: {image_url}")
 
-            # 캐시 무효화 (선택적)
-            invalidation_id = invalidate_cloudfront_cache(object_name)
-            if invalidation_id:
-                logging.info(f"CloudFront 캐시 무효화 요청 성공. Invalidation ID: {invalidation_id}")
-            else:
-                logging.warning("CloudFront 캐시 무효화 요청 실패")
+        answer = None
+        tokens_used = 0
+        model_used = "gemini" if settings.USE_GEMINI else "gpt"
 
-        # OpenAI API 호출하여 응답 생성
-        functions = [{
-            "name": "verify_artwork_info",
-            "description": "예술 작품, 작가, 소장처 등의 정보를 검증합니다",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "question": {
-                        "type": "string",
-                        "description": "검증이 필요한 예술 작품이나 작가 관련 질문"
-                    }
-                },
-                "required": ["question"]
-            }
-        }]
+        if settings.USE_GEMINI:
+            # Gemini 사용
+            logger.info("Gemini API 사용")
+            answer, tokens_used = await get_gemini_response(question, image_url)
+            if not answer:
+                raise HTTPException(status_code=500, detail="Gemini 응답 생성 실패")
+        else:
+            # GPT 사용
+            logger.info("GPT API 사용")
+            messages = [
+                {"role": "system", "content": PROMPT}
+            ]
 
-        # 최근 대화 내용 가져오기
-        recent_messages = await get_recent_chat_history(str(current_user.user_id), limit=10)
+            recent_messages = await get_recent_chat_history(str(current_user.user_id))
+            if recent_messages:
+                for msg in recent_messages:
+                    messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
 
-        # 메시지 구성
-        messages = [
-            {
-                "role": "system",
-                "content": PROMPT
-            }
-        ]
+            current_message = {"role": "user", "content": question}
+            if image_url:
+                current_message["content"] = [
+                    {"type": "text", "text": question},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]
+            messages.append(current_message)
 
-        # 이전 대화 내용이 있다면 추가
-        if recent_messages:
-            context_message = "최근 대화 내용입니다:\n\n"
-            for msg in recent_messages:
-                context_message += f"{msg['role']}: {msg['content']}\n"
-            
-            messages.append({
-                "role": "system",
-                "content": f"{context_message}\n위 대화 내용을 참고하여 답변해주세요."
-            })
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages
+            )
 
-        # 현재 질문 추가
-        messages.append({
-            "role": "user",
-            "content": []
-        })
+            answer = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens
 
-        messages[-1]["content"].append({
-            "type": "text",
-            "text": question
-        })
-        
-        # 이미지가 있는 경우 추가
-        if image_url:
-            messages[-1]["content"].extend([
-                {"type": "text", "text": question},
-                {"type": "image_url", "image_url": {"url": image_url}}
-            ])
-
-        # function_call을 "verify_artwork_info"로 강제 지정
-        initial_response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            functions=functions,
-            function_call={"name": "verify_artwork_info"}
-        )
-
-        # 검증 실행
-        verification_result = await verify_artwork_info(question)
-
-        # 검증 결과를 문자열로 변환
-        verification_content = json.dumps({
-            "result": verification_result if verification_result else "검증 실패",
-            "timestamp": str(datetime.now())
-        })
-
-        # 검증 결과 추가
-        messages.append({
-            "role": "function",
-            "name": "verify_artwork_info",
-            "content": verification_content
-        })
-
-        # 최종 응답 생성
-        final_response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages
-        )
-
-        answer = final_response.choices[0].message.content
-        tokens_used = initial_response.usage.total_tokens + final_response.usage.total_tokens
-
-        # SQL DB에 대화 저장
+        # 대화 저장
         chat = schemas.ConversationCreate(question=question, question_image=image_url)
         conversation = services.create_conversation(db, chat, current_user.user_id, answer, tokens_used)
 
-        # MongoDB에 채팅 기록 저장
+        # MongoDB 저장
         chat_data = {
             "conversation_id": str(conversation.conversation_id),
             "user_id": str(current_user.user_id),
@@ -281,17 +359,15 @@ async def create_chat(
                 "role": "assistant",
                 "content": answer,
                 "timestamp": datetime.utcnow()
-            }]
+            }],
+            "model_used": model_used
         }
 
-        # MongoDB 업데이트
         await mongodb.chats.update_one(
             {"user_id": str(current_user.user_id)},
             {
                 "$push": {"messages": {"$each": chat_data["messages"]}},
-                "$setOnInsert": {
-                    "created_at": datetime.utcnow()
-                },
+                "$setOnInsert": {"created_at": datetime.utcnow()},
                 "$set": {
                     "last_updated": datetime.utcnow(),
                     "conversation_id": str(conversation.conversation_id)
@@ -309,10 +385,6 @@ async def create_chat(
             tokens_used=conversation.tokens_used
         )
 
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
-    except TimeoutError as te:
-        raise HTTPException(status_code=504, detail=str(te))
     except Exception as e:
         logging.error(f"채팅 생성 중 오류 발생: {str(e)}", exc_info=True)
         db.rollback()

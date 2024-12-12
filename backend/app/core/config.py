@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     PHONE_NUMBER_VERIFICATION_SECONDS: int
 
     SNS_LOGIN_REDIRECT_URL: str
+
+    USE_GEMINI: bool
+    GEMINI_API_KEY: str
+    GEMINI_API_URL: str
+
     class Config:
         env_file = ".env"
 
