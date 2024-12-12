@@ -26,9 +26,14 @@ jobs:
       db: ${{ steps.filter.outputs.db }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 전체 히스토리를 가져오기 위해 필요
+      
       - uses: dorny/paths-filter@v2
         id: filter
         with:
+          base: ${{ github.event.before }}  # 이전 커밋과 비교
+          ref: ${{ github.event.after }}    # 현재 커밋
           filters: |
             frontend:
               - 'frontend/**'
