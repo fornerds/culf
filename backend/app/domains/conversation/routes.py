@@ -7,7 +7,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, Any, List
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.domains.user.models import User
@@ -26,6 +26,7 @@ from bson import ObjectId
 from urllib.parse import urlparse
 from app.domains.conversation.models import Conversation
 from app.domains.user.models import User
+from .services import get_chat_room
 
 router = APIRouter()
 
@@ -269,6 +270,7 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
 @router.post("/chat", response_model=schemas.ConversationResponse)
 async def create_chat(
         question: str = Form(...),
+        room_id: Optional[UUID] = Form(None),
         image_file: Union[UploadFile, None, str] = File(
             default=None,
             description="Image file to upload",
@@ -292,6 +294,13 @@ async def create_chat(
     #         )
 
     try:
+        # room_id가 주어진 경우 채팅방 정보 확인
+        chat_room = None
+        if room_id:
+            chat_room = get_chat_room(db, room_id, current_user.user_id)
+            if not chat_room:
+                raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
+
         # 이미지 처리 로직
         image_url = None
         if image_file and not isinstance(image_file, str):
@@ -313,10 +322,20 @@ async def create_chat(
             if not answer:
                 raise HTTPException(status_code=500, detail="Gemini 응답 생성 실패")
         else:
+            system_prompt = PROMPT
+            if chat_room:
+                curator = chat_room.curator
+                system_prompt = f"""당신은 {curator.name}입니다. 
+                페르소나: {curator.persona}
+                소개: {curator.introduction}
+                전문 분야: {curator.category}
+
+                {PROMPT}"""
+
             # GPT 사용
             logger.info("GPT API 사용")
             messages = [
-                {"role": "system", "content": PROMPT}
+                {"role": "system", "content": system_prompt}
             ]
 
             recent_messages = await get_recent_chat_history(str(current_user.user_id))
@@ -491,3 +510,32 @@ def delete_conversation(
     success = services.delete_conversation(db, conversation_id, current_user.user_id)
     if not success:
         raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다")
+
+@router.post("/chat-rooms", response_model=schemas.ChatRoomResponse)
+async def create_chat_room(
+    chat_room: schemas.ChatRoomCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """새로운 채팅방을 생성합니다."""
+    return services.create_chat_room(db, chat_room, current_user.user_id)
+
+@router.get("/chat-rooms", response_model=List[schemas.ChatRoomDetail])
+async def get_chat_rooms(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """사용자의 채팅방 목록을 가져옵니다."""
+    return services.get_user_chat_rooms(db, current_user.user_id)
+
+@router.get("/chat-rooms/{room_id}", response_model=schemas.ChatRoomDetail)
+async def get_chat_room(
+    room_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """특정 채팅방의 상세 정보를 가져옵니다."""
+    chat_room = services.get_chat_room(db, room_id, current_user.user_id)
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
+    return chat_room

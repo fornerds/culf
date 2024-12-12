@@ -2,17 +2,45 @@ from pydantic import BaseModel, HttpUrl
 from typing import List, Optional, Union
 from datetime import datetime
 from uuid import UUID
+from app.domains.curator.schemas import Curator
+
+class ChatRoomCreate(BaseModel):
+    curator_id: int
+    title: Optional[str] = None
+
+
+class ChatRoomResponse(BaseModel):
+    room_id: UUID
+    curator_id: int
+    curator: Curator  # 큐레이터 정보 포함
+    title: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChatRoomDetail(ChatRoomResponse):
+    updated_at: Optional[datetime]
+    conversation_count: int
+    last_conversation: Optional[dict]
+
+    class Config:
+        from_attributes = True
+
 
 class ConversationCreate(BaseModel):
     question: str
     question_image: Optional[str] = None
+    room_id: Optional[UUID] = None
 
     class Config:
         allow_population_by_field_name = True
         schema_extra = {
             "example": {
                 "question": "What's in this image?",
-                "question_image": "/v1/images/example.png"
+                "question_image": "/v1/images/example.png",
+                "room_id": None
             }
         }
 

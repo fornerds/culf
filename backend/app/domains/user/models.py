@@ -29,6 +29,7 @@ class User(Base):
 
     # Relationships
     conversations = relationship("Conversation", back_populates="user")
+    chat_rooms = relationship("ChatRoom", back_populates="user")
     tokens = relationship("Token", back_populates="user", uselist=False)
     corporate_info = relationship("CorporateUser", back_populates="user", uselist=False)
     inquiries = relationship("Inquiry", back_populates="user")
