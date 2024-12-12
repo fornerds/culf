@@ -49,7 +49,6 @@ CREATE TABLE Curators (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-
 -- Tags 테이블
 CREATE TABLE Tags (
     tag_id SERIAL PRIMARY KEY,
@@ -70,9 +69,23 @@ CREATE TABLE User_Interests (
     PRIMARY KEY (user_id, curator_id)
 );
 
+-- ChatRooms 테이블
+CREATE TABLE Chat_Rooms (
+    room_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES Users(user_id),
+    curator_id INTEGER NOT NULL REFERENCES Curators(curator_id),
+    title VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_curator FOREIGN KEY (curator_id) REFERENCES Curators(curator_id) ON DELETE CASCADE
+);
+
 -- Conversations 테이블
 CREATE TABLE Conversations (
     conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    room_id UUID REFERENCES Chat_Rooms(room_id),
     user_id UUID REFERENCES Users(user_id),
     question TEXT NOT NULL,
     question_summary TEXT,
@@ -82,7 +95,30 @@ CREATE TABLE Conversations (
     question_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     answer_time TIMESTAMP,
     tokens_used INTEGER NOT NULL DEFAULT 0
+    CONSTRAINT fk_chat_room FOREIGN KEY (room_id) REFERENCES Chat_Rooms(room_id) ON DELETE SET NULL,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
+
+-- 인덱스 생성
+CREATE INDEX idx_chat_rooms_user_id ON Chat_Rooms(user_id);
+CREATE INDEX idx_chat_rooms_curator_id ON Chat_Rooms(curator_id);
+CREATE INDEX idx_conversations_room_id ON Conversations(room_id);
+CREATE INDEX idx_conversations_user_id ON Conversations(user_id);
+CREATE INDEX idx_conversations_question_time ON Conversations(question_time);
+
+-- updated_at을 자동으로 업데이트하기 위한 트리거
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_chat_room_updated_at
+    BEFORE UPDATE ON Chat_Rooms
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- Tokens 테이블
 CREATE TABLE tokens (
