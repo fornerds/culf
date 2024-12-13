@@ -80,3 +80,11 @@ class ConversationList(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ChatRoomCuratorResponse(BaseModel):
+    """채팅방의 큐레이터 정보 응답을 위한 스키마"""
+    room_id: UUID
+    curator: Curator
+
+    class Config:
+        from_attributes = True

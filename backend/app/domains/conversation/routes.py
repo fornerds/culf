@@ -701,7 +701,7 @@ async def create_chat_room(
                     "example": [{
                         "room_id": "123e4567-e89b-12d3-a456-426614174000",
                         "title": "일반 상담",
-                        "curator_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "curator_id": "1",
                         "conversation_count": 15,
                         "last_conversation": {
                             "question": "마지막 질문입니다",
@@ -779,3 +779,83 @@ async def get_chat_room(
     if not chat_room:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
     return chat_room
+
+@router.get(
+    "/chat-rooms/{room_id}/curator",
+    response_model=schemas.ChatRoomCuratorResponse,
+    summary="채팅방의 큐레이터 정보 조회",
+    responses={
+        200: {
+            "description": "큐레이터 정보 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "room_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "curator": {
+                            "curator_id": 1,
+                            "name": "예술 큐레이터",
+                            "persona": "현대 미술을 전공한 큐레이터",
+                            "introduction": "안녕하세요, 저는 현대 미술을 전문으로 하는 큐레이터입니다.",
+                            "category": "현대 미술",
+                            "profile_image": "https://example.com/curator.jpg"
+                        }
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "채팅방을 찾을 수 없음",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "채팅방을 찾을 수 없습니다"
+                    }
+                }
+            }
+        }
+    }
+)
+async def get_chat_room_curator(
+    room_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    특정 채팅방의 큐레이터 정보를 조회합니다.
+    
+    Parameters
+    ----------
+    room_id : UUID
+        조회할 채팅방의 ID
+    db : Session
+        데이터베이스 세션
+    current_user : User
+        현재 인증된 사용자
+        
+    Returns
+    -------
+    ChatRoomCuratorResponse
+        채팅방의 큐레이터 정보
+    """
+    # 채팅방 조회
+    chat_room = (
+        db.query(models.ChatRoom)
+        .filter(
+            models.ChatRoom.room_id == room_id,
+            models.ChatRoom.user_id == current_user.user_id,
+            models.ChatRoom.is_active == True
+        )
+        .options(joinedload(models.ChatRoom.curator))
+        .first()
+    )
+    
+    if not chat_room:
+        raise HTTPException(
+            status_code=404,
+            detail="채팅방을 찾을 수 없습니다"
+        )
+    
+    return {
+        "room_id": chat_room.room_id,
+        "curator": chat_room.curator
+    }
