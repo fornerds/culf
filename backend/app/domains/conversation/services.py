@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import List, Optional, Tuple, Union
 from uuid import UUID
 from app.domains.curator import services as curator_services
-from app.domains.conversation.models import ChatRoom
 
 def create_conversation(
     db: Session,
@@ -161,14 +160,41 @@ def get_user_chat_rooms(db: Session, user_id: UUID) -> List[models.ChatRoom]:
     return chat_rooms
 
 
-def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoom]:
+def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[models.ChatRoom]:
     """특정 채팅방의 정보를 가져옵니다."""
-    return (
-        db.query(ChatRoom)
+    room = (
+        db.query(models.ChatRoom)
         .filter(
-            ChatRoom.room_id == room_id,
-            ChatRoom.user_id == user_id,
-            ChatRoom.is_active == True
+            models.ChatRoom.room_id == room_id,
+            models.ChatRoom.user_id == user_id,
+            models.ChatRoom.is_active == True
         )
         .first()
     )
+
+    if room:
+        # 전체 대화 내역 조회 (시간순)
+        conversations = (
+            db.query(models.Conversation)
+            .filter(models.Conversation.room_id == room.room_id)
+            .order_by(models.Conversation.question_time.asc())
+            .all()
+        )
+
+        # conversation_count 추가
+        room.conversation_count = len(conversations)
+
+        # last_conversation 추가
+        if conversations:
+            last_conv = conversations[-1]
+            room.last_conversation = {
+                "question": last_conv.question,
+                "answer": last_conv.answer,
+                "question_time": last_conv.question_time
+            }
+        else:
+            room.last_conversation = None
+
+        room.conversations = conversations
+
+    return room
