@@ -356,10 +356,12 @@ async def create_chat(
     try:
         # room_id가 주어진 경우 채팅방 정보 확인
         chat_room = None
+        curator = None
         if room_id:
-            chat_room = get_chat_room(db, room_id, current_user.user_id)
+            chat_room = services.get_chat_room(db, room_id, current_user.user_id)
             if not chat_room:
                 raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
+            curator = chat_room.curator
 
         # 이미지 처리 로직
         image_url = None
@@ -384,7 +386,6 @@ async def create_chat(
         else:
             system_prompt = PROMPT
             if chat_room:
-                curator = chat_room.curator
                 system_prompt = f"""당신은 {curator.name}입니다. 
                 페르소나: {curator.persona}
                 소개: {curator.introduction}
