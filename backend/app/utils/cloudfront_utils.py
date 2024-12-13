@@ -9,7 +9,7 @@ cloudfront_client = boto3.client('cloudfront',
 
 def get_cloudfront_url(object_name: str) -> str:
     """CloudFront URL 생성"""
-    return f"{settings.CLOUDFRONT_DOMAIN}/{object_name}"
+    return f"https://{settings.CLOUDFRONT_DOMAIN}/{object_name}"
 
 def invalidate_cloudfront_cache(object_path):
     try:

@@ -173,28 +173,13 @@ def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[models.
     )
 
     if room:
-        # 대화 수 계산
-        room.conversation_count = (
+        # 전체 대화 내역 조회 (시간순)
+        conversations = (
             db.query(models.Conversation)
             .filter(models.Conversation.room_id == room.room_id)
-            .count()
+            .order_by(models.Conversation.question_time.asc())
+            .all()
         )
-
-        # 마지막 대화 가져오기
-        last_conversation = (
-            db.query(models.Conversation)
-            .filter(models.Conversation.room_id == room.room_id)
-            .order_by(models.Conversation.question_time.desc())
-            .first()
-        )
-
-        if last_conversation:
-            room.last_conversation = {
-                "question": last_conversation.question,
-                "answer": last_conversation.answer,
-                "question_time": last_conversation.question_time
-            }
-        else:
-            room.last_conversation = None
+        room.conversations = conversations
 
     return room

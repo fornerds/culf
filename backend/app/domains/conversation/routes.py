@@ -267,19 +267,79 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
         raise
 
 
-@router.post("/chat", response_model=schemas.ConversationResponse)
+@router.post(
+    "/chat",
+    response_model=schemas.ConversationResponse,
+    summary="새로운 채팅 생성",
+    responses={
+        200: {
+            "description": "채팅 생성 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "answer": "안녕하세요! 무엇을 도와드릴까요?",
+                        "tokens_used": 150
+                    }
+                }
+            }
+        },
+        402: {
+            "description": "토큰 부족",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": "not_enough_tokens",
+                        "message": "토큰이 부족합니다. 토큰을 충전해주세요."
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "서버 오류",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": "internal_server_error",
+                        "message": "내부 서버 오류가 발생했습니다."
+                    }
+                }
+            }
+        }
+    }
+)
 async def create_chat(
-        question: str = Form(...),
-        room_id: Optional[UUID] = Form(None),
-        image_file: Union[UploadFile, None, str] = File(
-            default=None,
-            description="Image file to upload",
-            max_size=10 * 1024 * 1024
+        question: str = Form(
+            ...,
+            description="질문 내용 (필수)",
+            example="오늘 날씨는 어떤가요?"
+        ),
+        room_id: Optional[UUID] = Form(
+            None,
+            description="채팅방 ID (선택, UUID 형식)"
+        ),
+        image_file: Union[UploadFile, None] = File(
+            None,
+            description="이미지 파일 (선택, 최대 10MB)",
         ),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """채팅 생성 엔드포인트"""
+    """
+    새로운 채팅 대화를 생성합니다.
+
+    Parameters
+    ----------
+    - question: 필수 입력 항목입니다.
+    - room_id: 채팅방 ID (선택)
+    - image_file: 이미지 파일 (선택, 최대 10MB)
+
+    Returns
+    -------
+    - conversation_id: 생성된 대화의 고유 ID
+    - answer: AI의 응답
+    - tokens_used: 사용된 토큰 수
+    """
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
 
     # if not settings.DEV_MODE:
@@ -426,16 +486,52 @@ async def upload_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Failed to process the image: {str(e)}")
 
 
-@router.get("/conversations")
+@router.get(
+    "/conversations",
+    summary="대화 목록 조회",
+    responses={
+        200: {
+            "description": "대화 목록 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "conversations": [
+                            {
+                                "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
+                                "question_summary": "오늘 날씨는 어떤가요?",
+                                "answer_summary": "서울의 현재 날씨는 맑습니다.",
+                                "question_time": "2024-01-01T12:00:00"
+                            }
+                        ],
+                        "total_count": 1
+                    }
+                }
+            }
+        }
+    }
+)
 async def get_conversations(
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1),
-    sort: str = Query("question_time:desc"),
-    summary: bool = Query(False),
-    user_id: Optional[str] = Query(None),
-    search_query: str = Query(None, description="사용자 닉네임 검색"),
+    page: int = Query(1, ge=1, description="페이지 번호 (1부터 시작)"),
+    limit: int = Query(10, ge=1, description="페이지당 항목 수"),
+    sort: str = Query(
+        "question_time:desc",
+        description="정렬 기준 (예: question_time:desc)"
+    ),
+    summary: bool = Query(
+        False,
+        description="요약 보기 여부 (true/false)"
+    ),
+    user_id: Optional[str] = Query(
+        None,
+        description="특정 사용자의 대화만 조회"
+    ),
+    search_query: Optional[str] = Query(
+        None,
+        description="사용자 닉네임으로 검색"
+    ),
     db: Session = Depends(get_db)
 ):
+    """대화 목록을 조회합니다."""
     # 정렬 조건 파싱
     sort_field, sort_order = sort.split(":")
     sort_expr = getattr(getattr(Conversation, sort_field), sort_order)()
@@ -489,6 +585,40 @@ async def get_conversations(
         "total_count": total_count
     }
 
+@router.get(
+    "/conversations/{conversation_id}",
+    response_model=schemas.ConversationDetail,
+    summary="특정 대화 상세 조회",
+    responses={
+        200: {
+            "description": "대화 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "user_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "question": "예술에 대해 설명해주세요",
+                        "question_image": "https://example.com/image.jpg",
+                        "answer": "예술은 인간의 미적감각과 ...",
+                        "question_time": "2024-01-01T12:00:00",
+                        "answer_time": "2024-01-01T12:00:05",
+                        "tokens_used": 150
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "대화를 찾을 수 없음",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "대화를 찾을 수 없습니다"
+                    }
+                }
+            }
+        }
+    }
+)
 @router.get("/conversations/{conversation_id}", response_model=schemas.ConversationDetail)
 def get_conversation(
         conversation_id: UUID,
@@ -501,7 +631,26 @@ def get_conversation(
     return conversation
 
 
-@router.delete("/conversations/{conversation_id}", status_code=204)
+@router.delete(
+    "/conversations/{conversation_id}",
+    status_code=204,
+    summary="대화 삭제",
+    responses={
+        204: {
+            "description": "대화 삭제 성공"
+        },
+        404: {
+            "description": "대화를 찾을 수 없음",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "대화를 찾을 수 없습니다"
+                    }
+                }
+            }
+        }
+    }
+)
 def delete_conversation(
         conversation_id: UUID,
         db: Session = Depends(get_db),
@@ -511,6 +660,25 @@ def delete_conversation(
     if not success:
         raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다")
 
+@router.post(
+    "/chat-rooms",
+    response_model=schemas.ChatRoomResponse,
+    summary="새 채팅방 생성",
+    responses={
+        200: {
+            "description": "채팅방 생성 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "room_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "title": "두리와의 대화",
+                        "curator_id": "123e4567-e89b-12d3-a456-426614174000"
+                    }
+                }
+            }
+        }
+    }
+)
 @router.post("/chat-rooms", response_model=schemas.ChatRoomResponse)
 async def create_chat_room(
     chat_room: schemas.ChatRoomCreate,
@@ -520,21 +688,93 @@ async def create_chat_room(
     """새로운 채팅방을 생성합니다."""
     return services.create_chat_room(db, chat_room, current_user.user_id)
 
-@router.get("/chat-rooms", response_model=List[schemas.ChatRoomDetail])
+
+@router.get(
+    "/chat-rooms",
+    response_model=List[schemas.ChatRoomDetail],
+    summary="채팅방 목록 조회",
+    responses={
+        200: {
+            "description": "채팅방 목록 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": [{
+                        "room_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "title": "일반 상담",
+                        "curator_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "conversation_count": 15,
+                        "last_conversation": {
+                            "question": "마지막 질문입니다",
+                            "answer": "마지막 답변입니다",
+                            "question_time": "2024-01-01T12:00:00"
+                        },
+                        "created_at": "2024-01-01T10:00:00",
+                        "updated_at": "2024-01-01T12:00:00"
+                    }]
+                }
+            }
+        }
+    }
+)
 async def get_chat_rooms(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
-    """사용자의 채팅방 목록을 가져옵니다."""
+    """
+    현재 사용자의 모든 채팅방 목록을 조회합니다.
+
+    Returns
+    -------
+    채팅방 목록 (각 채팅방의 정보, 대화 수, 마지막 대화 내용 포함)
+    """
     return services.get_user_chat_rooms(db, current_user.user_id)
 
+@router.get(
+    "/chat-rooms/{room_id}",
+    response_model=schemas.ChatRoomDetail,
+    summary="채팅방 상세 정보",
+    responses={
+        200: {
+            "description": "채팅방 조회 성공",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "room_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "title": "일반 상담",
+                        "curator_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "conversations": [
+                            {
+                                "question": "첫 번째 질문입니다",
+                                "answer": "첫 번째 답변입니다",
+                                "question_time": "2024-01-01T12:00:00"
+                            },
+                            {
+                                "question": "두 번째 질문입니다",
+                                "answer": "두 번째 답변입니다",
+                                "question_time": "2024-01-01T12:05:00"
+                            }
+                        ],
+                        "created_at": "2024-01-01T10:00:00",
+                        "updated_at": "2024-01-01T12:05:00"
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "채팅방을 찾을 수 없음"
+        }
+    }
+)
 @router.get("/chat-rooms/{room_id}", response_model=schemas.ChatRoomDetail)
 async def get_chat_room(
     room_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """특정 채팅방의 상세 정보를 가져옵니다."""
+    """
+    특정 채팅방의 모든 정보를 조회합니다.
+    대화 내역을 포함한 전체 상세 정보를 반환합니다.
+    """
     chat_room = services.get_chat_room(db, room_id, current_user.user_id)
     if not chat_room:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
