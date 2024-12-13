@@ -672,7 +672,7 @@ def delete_conversation(
                     "example": {
                         "room_id": "123e4567-e89b-12d3-a456-426614174000",
                         "title": "두리와의 대화",
-                        "curator_id": "123e4567-e89b-12d3-a456-426614174000"
+                        "curator_id": "1"
                     }
                 }
             }
@@ -741,7 +741,7 @@ async def get_chat_rooms(
                     "example": {
                         "room_id": "123e4567-e89b-12d3-a456-426614174000",
                         "title": "일반 상담",
-                        "curator_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "curator_id": "1",
                         "conversations": [
                             {
                                 "question": "첫 번째 질문입니다",
