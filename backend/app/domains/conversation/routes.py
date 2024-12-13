@@ -792,7 +792,7 @@ async def get_chat_room(
                     "example": {
                         "room_id": "123e4567-e89b-12d3-a456-426614174000",
                         "curator": {
-                            "curator_id": 1,
+                            "curator_id": "1",
                             "name": "예술 큐레이터",
                             "persona": "현대 미술을 전공한 큐레이터",
                             "introduction": "안녕하세요, 저는 현대 미술을 전문으로 하는 큐레이터입니다.",
