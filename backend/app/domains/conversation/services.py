@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple, Union
 from uuid import UUID
 from app.domains.curator import services as curator_services
+from app.domains.conversation.models import ChatRoom
 
 def create_conversation(
     db: Session,
@@ -160,26 +161,14 @@ def get_user_chat_rooms(db: Session, user_id: UUID) -> List[models.ChatRoom]:
     return chat_rooms
 
 
-def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[models.ChatRoom]:
+def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoom]:
     """특정 채팅방의 정보를 가져옵니다."""
-    room = (
-        db.query(models.ChatRoom)
+    return (
+        db.query(ChatRoom)
         .filter(
-            models.ChatRoom.room_id == room_id,
-            models.ChatRoom.user_id == user_id,
-            models.ChatRoom.is_active == True
+            ChatRoom.room_id == room_id,
+            ChatRoom.user_id == user_id,
+            ChatRoom.is_active == True
         )
         .first()
     )
-
-    if room:
-        # 전체 대화 내역 조회 (시간순)
-        conversations = (
-            db.query(models.Conversation)
-            .filter(models.Conversation.room_id == room.room_id)
-            .order_by(models.Conversation.question_time.asc())
-            .all()
-        )
-        room.conversations = conversations
-
-    return room
