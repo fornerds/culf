@@ -426,7 +426,7 @@ async def create_chat(
             tokens_used = response.usage.total_tokens
 
         # 대화 저장
-        chat = schemas.ConversationCreate(question=question, question_image=image_url)
+        chat = schemas.ConversationCreate(question=question, question_image=image_url, room_id=room_id)
         conversation = services.create_conversation(db, chat, current_user.user_id, answer, tokens_used)
 
         # MongoDB 저장
