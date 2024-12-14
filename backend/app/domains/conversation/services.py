@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc
 from . import models, schemas
 from datetime import datetime
@@ -25,6 +25,7 @@ def create_conversation(
     # 대화 저장
     db_conversation = models.Conversation(
         user_id=user_id,
+        room_id=chat.room_id,
         question=chat.question,
         question_summary=question_summary,
         question_image=chat.question_image,
@@ -122,12 +123,18 @@ def create_chat_room(db: Session, chat_room: schemas.ChatRoomCreate, user_id: UU
     return db_chat_room
 
 
-def get_user_chat_rooms(db: Session, user_id: UUID) -> List[models.ChatRoom]:
+def get_user_chat_rooms(db: Session, user_id: UUID) -> List[ChatRoom]:
     """사용자의 채팅방 목록을 가져옵니다."""
     chat_rooms = (
-        db.query(models.ChatRoom)
-        .filter(models.ChatRoom.user_id == user_id, models.ChatRoom.is_active == True)
-        .order_by(models.ChatRoom.updated_at.desc())
+        db.query(ChatRoom)
+        .filter(
+            ChatRoom.user_id == user_id,
+            ChatRoom.is_active == True
+        )
+        .options(
+            joinedload(ChatRoom.curator).joinedload(Curator.tags)  # curator와 tags 정보를 함께 로드
+        )
+        .order_by(ChatRoom.created_at.desc())
         .all()
     )
 
@@ -135,16 +142,16 @@ def get_user_chat_rooms(db: Session, user_id: UUID) -> List[models.ChatRoom]:
     for room in chat_rooms:
         # 대화 수 계산
         room.conversation_count = (
-            db.query(models.Conversation)
-            .filter(models.Conversation.room_id == room.room_id)
+            db.query(Conversation)
+            .filter(Conversation.room_id == room.room_id)
             .count()
         )
 
         # 마지막 대화 가져오기
         last_conversation = (
-            db.query(models.Conversation)
-            .filter(models.Conversation.room_id == room.room_id)
-            .order_by(models.Conversation.question_time.desc())
+            db.query(Conversation)
+            .filter(Conversation.room_id == room.room_id)
+            .order_by(Conversation.question_time.desc())
             .first()
         )
 
@@ -158,7 +165,6 @@ def get_user_chat_rooms(db: Session, user_id: UUID) -> List[models.ChatRoom]:
             room.last_conversation = None
 
     return chat_rooms
-
 
 def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoom]:
     """특정 채팅방의 정보를 가져옵니다."""

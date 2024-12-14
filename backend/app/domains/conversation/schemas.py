@@ -24,7 +24,9 @@ class ChatRoomDetail(BaseModel):
     room_id: UUID
     title: str
     curator_id: int
-    conversations: List[Dict[str, Any]] = []  # 대화 목록
+    curator: Optional[Curator]  # Curator 정보 포함
+    conversation_count: int
+    last_conversation: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: Optional[datetime]
 
