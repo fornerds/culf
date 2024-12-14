@@ -7,6 +7,8 @@ from typing import List, Optional, Tuple, Union
 from uuid import UUID
 from app.domains.curator import services as curator_services
 from app.domains.conversation.models import ChatRoom, Conversation
+from app.domains.curator.models import Curator
+
 def create_conversation(
     db: Session,
     chat: schemas.ConversationCreate,
@@ -166,7 +168,7 @@ def get_user_chat_rooms(db: Session, user_id: UUID) -> List[ChatRoom]:
 
     return chat_rooms
 
-def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoom]:
+def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[dict]:
     """특정 채팅방의 정보를 가져옵니다."""
     chat_room = (
         db.query(ChatRoom)
@@ -187,14 +189,22 @@ def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoo
             .all()
         )
 
-        # 응답 형식에 맞게 대화 내역 변환
-        chat_room.conversations = [
-            {
-                "question": conv.question,
-                "answer": conv.answer,
-                "question_time": conv.question_time
-            }
-            for conv in conversations
-        ]
+        # Convert SQLAlchemy model to dict
+        chat_room_dict = {
+            "room_id": chat_room.room_id,
+            "title": chat_room.title,
+            "curator_id": chat_room.curator_id,
+            "created_at": chat_room.created_at,
+            "updated_at": chat_room.updated_at,
+            "conversations": [
+                {
+                    "question": conv.question,
+                    "answer": conv.answer,
+                    "question_time": conv.question_time
+                }
+                for conv in conversations
+            ]
+        }
+        return chat_room_dict
 
-    return chat_room
+    return None
