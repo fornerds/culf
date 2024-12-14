@@ -1,5 +1,5 @@
 from pydantic import BaseModel, HttpUrl
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 from datetime import datetime
 from uuid import UUID
 from app.domains.curator.schemas import Curator
@@ -20,14 +20,16 @@ class ChatRoomResponse(BaseModel):
         from_attributes = True
 
 
-class ChatRoomDetail(ChatRoomResponse):
+class ChatRoomDetail(BaseModel):
+    room_id: UUID
+    title: str
+    curator_id: int
+    conversations: List[Dict[str, Any]] = []  # 대화 목록
+    created_at: datetime
     updated_at: Optional[datetime]
-    conversation_count: int
-    last_conversation: Optional[dict]
 
     class Config:
-        from_attributes = True
-
+        orm_mode = True
 
 class ConversationCreate(BaseModel):
     question: str
