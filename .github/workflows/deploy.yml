@@ -3,6 +3,11 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'admin/**'
+      - 'db/**'
   pull_request:
     branches: [ main ]
 
@@ -12,66 +17,80 @@ env:
   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
 jobs:
-  test-and-build:
+  check-changes:
     runs-on: ubuntu-latest
-
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      admin: ${{ steps.filter.outputs.admin }}
+      db: ${{ steps.filter.outputs.db }}
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-
-    - name: Install Python dependencies
-      run: |
-        cd backend
-        pip install -r requirements.txt
-
-    - name: Run Python tests
-      run: |
-        cd backend
-        pytest
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
-
-    - name: Install Node.js dependencies
-      run: |
-        cd frontend
-        npm install --legacy-peer-deps
-
-    - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # 전체 히스토리를 가져오기 위해 필요
+      
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          base: ${{ github.event.before }}  # 이전 커밋과 비교
+          ref: ${{ github.event.after }}    # 현재 커밋
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+            admin:
+              - 'admin/**'
+            db:
+              - 'db/**'
 
   deploy:
-    needs: test-and-build
+    needs: check-changes
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ env.EC2_HOST }}
-        username: ubuntu
-        key: ${{ env.SSH_PRIVATE_KEY }}
-        script: |
-          cd ~/culf
-          git pull origin main
-          sudo docker-compose -f infra/docker-compose.yml down
-          sudo docker system prune -af
-          sudo docker-compose -f infra/docker-compose.yml up -d --build
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ubuntu
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/culf
+            git pull origin main
+            
+            # Frontend changes
+            if [[ "${{ needs.check-changes.outputs.frontend }}" == "true" ]]; then
+              echo "Rebuilding frontend..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build frontend
+            fi
+            
+            # Backend changes
+            if [[ "${{ needs.check-changes.outputs.backend }}" == "true" ]]; then
+              echo "Rebuilding backend..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build backend
+            fi
+            
+            # Admin changes
+            if [[ "${{ needs.check-changes.outputs.admin }}" == "true" ]]; then
+              echo "Rebuilding admin..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build admin
+            fi
+            
+            # DB changes
+            if [[ "${{ needs.check-changes.outputs.db }}" == "true" ]]; then
+              echo "Rebuilding database..."
+              sudo docker-compose -f infra/docker-compose.yml up -d --build db
+            fi
+            
+            # Clean up unused images
+            sudo docker image prune -f

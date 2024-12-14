@@ -20,7 +20,7 @@ CREATE TABLE Users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     nickname VARCHAR(50) UNIQUE NOT NULL,
-    phone_number VARCHAR(20) UNIQUE,
+    phone_number VARCHAR(20), -- todo UNIQUE contraint 임시 제거
     birthdate DATE NOT NULL,
     gender gender_enum DEFAULT 'N',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -36,15 +36,38 @@ CREATE TABLE Users (
     provider_id VARCHAR(255) UNIQUE
 );
 
+-- UserProvider 테이블 정의
+CREATE TABLE User_Provider (
+    user_id UUID NOT NULL REFERENCES Users(user_id), -- 사용자 고유 ID (Users 테이블 참조)
+    provider provider NOT NULL DEFAULT 'GOOGLE', -- Provider 이름(Google, Kakao)
+    provider_id VARCHAR(255), -- Provider가 제공하는 서비스 유저 식별키
+    PRIMARY KEY (user_id, provider_id) -- 복합 기본 키
+);
+
 -- Curators 테이블
 CREATE TABLE Curators (
     curator_id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
+    persona VARCHAR(100) NOT NULL,
+    main_image VARCHAR(255),
     profile_image VARCHAR(255),
     introduction TEXT,
     category VARCHAR(50),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tags 테이블
+CREATE TABLE Tags (
+    tag_id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL
+);
+
+-- Curator_Tags 중간 테이블
+CREATE TABLE Curator_Tags (
+    curator_id INTEGER REFERENCES Curators(curator_id) ON DELETE CASCADE,
+    tag_id INTEGER REFERENCES Tags(tag_id) ON DELETE CASCADE,
+    PRIMARY KEY (curator_id, tag_id)
 );
 
 -- User Interests 테이블
@@ -54,9 +77,23 @@ CREATE TABLE User_Interests (
     PRIMARY KEY (user_id, curator_id)
 );
 
+-- ChatRooms 테이블
+CREATE TABLE Chat_Rooms (
+    room_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES Users(user_id),
+    curator_id INTEGER NOT NULL REFERENCES Curators(curator_id),
+    title VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_curator FOREIGN KEY (curator_id) REFERENCES Curators(curator_id) ON DELETE CASCADE
+);
+
 -- Conversations 테이블
 CREATE TABLE Conversations (
     conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    room_id UUID REFERENCES Chat_Rooms(room_id),
     user_id UUID REFERENCES Users(user_id),
     question TEXT NOT NULL,
     question_summary TEXT,
@@ -65,8 +102,31 @@ CREATE TABLE Conversations (
     answer_summary TEXT,
     question_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     answer_time TIMESTAMP,
-    tokens_used INTEGER NOT NULL DEFAULT 0
+    tokens_used INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT fk_chat_room FOREIGN KEY (room_id) REFERENCES Chat_Rooms(room_id) ON DELETE SET NULL,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
+
+-- 인덱스 생성
+CREATE INDEX idx_chat_rooms_user_id ON Chat_Rooms(user_id);
+CREATE INDEX idx_chat_rooms_curator_id ON Chat_Rooms(curator_id);
+CREATE INDEX idx_conversations_room_id ON Conversations(room_id);
+CREATE INDEX idx_conversations_user_id ON Conversations(user_id);
+CREATE INDEX idx_conversations_question_time ON Conversations(question_time);
+
+-- updated_at을 자동으로 업데이트하기 위한 트리거
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_chat_room_updated_at
+    BEFORE UPDATE ON Chat_Rooms
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- Tokens 테이블
 CREATE TABLE tokens (
@@ -108,7 +168,9 @@ CREATE TABLE User_Subscriptions (
     plan_id INTEGER REFERENCES Subscription_Plans(plan_id),
     start_date DATE NOT NULL,
     next_billing_date DATE NOT NULL,
-    status subscription_status NOT NULL DEFAULT 'ACTIVE'
+    status subscription_status NOT NULL DEFAULT 'ACTIVE',
+    subscription_number VARCHAR(20) UNIQUE NULL,
+    subscriptions_method VARCHAR(50) NOT NULL
 );
 
 -- Token Plans 테이블
@@ -137,11 +199,12 @@ CREATE TABLE Coupons (
 
 -- Payments 테이블
 CREATE TABLE Payments (
-    payment_id SERIAL PRIMARY KEY,
+    payment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES Users(user_id),
     subscription_id BIGINT REFERENCES User_Subscriptions(subscription_id),
     token_plan_id INTEGER REFERENCES Token_Plans(token_plan_id),
     payment_number VARCHAR(20) UNIQUE NOT NULL,
+    transaction_number VARCHAR(20) UNIQUE NULL,
     tokens_purchased INTEGER,
     amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
     payment_method VARCHAR(50) NOT NULL,
@@ -149,20 +212,6 @@ CREATE TABLE Payments (
     payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status payment_status NOT NULL DEFAULT 'FAILED',
     manual_payment_reason TEXT
-);
-
--- Refunds 테이블
-CREATE TABLE Refunds (
-    refund_id SERIAL PRIMARY KEY,
-    payment_id BIGINT REFERENCES Payments(payment_id),
-    user_id UUID REFERENCES Users(user_id),
-    amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
-    reason TEXT,
-    status refund_status NOT NULL DEFAULT 'PENDING',
-    processed_at TIMESTAMP,
-    processed_by UUID REFERENCES Users(user_id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- User Coupons 테이블
@@ -224,8 +273,23 @@ CREATE TABLE Inquiries (
     email VARCHAR(255) NOT NULL,
     contact VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
-    attachment VARCHAR(255),
+    attachments VARCHAR(255),
     status inquiry_status NOT NULL DEFAULT 'PENDING',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Refunds 테이블
+CREATE TABLE Refunds (
+    refund_id SERIAL PRIMARY KEY,
+    payment_id UUID REFERENCES Payments(payment_id),
+    user_id UUID REFERENCES Users(user_id),
+    inquiry_id SERIAL REFERENCES Inquiries(inquiry_id),
+    amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    reason TEXT,
+    status refund_status NOT NULL DEFAULT 'PENDING',
+    processed_at TIMESTAMP,
+    processed_by UUID REFERENCES Users(user_id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -315,14 +379,6 @@ CREATE TABLE Conversation_Feedbacks (
 -- user_id 컬럼 타입 변경
 ALTER TABLE users ALTER COLUMN "user_id" SET DATA TYPE uuid;
 
--- UserProvider 테이블 정의
-CREATE TABLE User_Provider (
-    user_id UUID NOT NULL REFERENCES Users(user_id), -- 사용자 고유 ID (Users 테이블 참조)
-    provider provider NOT NULL DEFAULT 'GOOGLE', -- Provider 이름(Google, Kakao)
-    provider_id VARCHAR(255), -- Provider가 제공하는 서비스 유저 식별키
-    PRIMARY KEY (user_id, provider_id) -- 복합 기본 키
-);
-
 -- Users 테이블 mock 데이터
 INSERT INTO Users (user_id, email, password, nickname, phone_number, birthdate, gender, status, role) VALUES
 (uuid_generate_v4(), 'user1@example.com', 'hashedpassword1', '사용자1', '01012345678', '1990-01-01', 'M', 'ACTIVE', 'USER'),
@@ -334,10 +390,39 @@ INSERT INTO public.users
 VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, true);
 
 -- Curators 테이블 mock 데이터
-INSERT INTO Curators (name, profile_image, introduction, category) VALUES
-('여행 전문가', 'travel_expert.jpg', '세계 각국의 숨은 명소를 소개합니다.', '여행'),
-('문화 큐레이터', 'culture_curator.jpg', '다양한 문화 행사와 전시회 정보를 제공합니다.', '문화'),
-('예술 가이드', 'art_guide.jpg', '현대 미술부터 고전 예술까지 폭넓게 다룹니다.', '예술');
+-- 새로운 태그 데이터 추가
+INSERT INTO Tags (name) VALUES
+('초보'),
+('미술입문'),
+('유럽'),
+('인상주의'),
+('동시대미술'),
+('국내');
+
+-- 새로운 큐레이터 데이터 추가
+INSERT INTO Curators (name, persona, main_image, profile_image, introduction, category) VALUES
+('외계인 네오', '지구 예술에 푹 빠진 외계인 네오', 'alien_curator_main.jpg', 'alien_curator.jpg', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
+('레미', '19세기 출신 파리지앵 레미', 'remy_curator_main.jpg', 'remy_curator.jpg', '인상주의 작품들과 유럽 미술을 소개해드립니다.', '미술'),
+('두리', '감성 충만한 미술 애호가 두리', 'duri_curator_main.jpg', 'duri_curator.jpg', '한국의 현대미술과 동시대 작가들을 만나보세요.', '미술');
+
+-- 큐레이터-태그 연결
+-- 외계인 네오의 태그
+INSERT INTO Curator_Tags (curator_id, tag_id)
+SELECT c.curator_id, t.tag_id
+FROM Curators c, Tags t
+WHERE c.name = '외계인 네오' AND t.name IN ('초보', '미술입문');
+
+-- 레미의 태그
+INSERT INTO Curator_Tags (curator_id, tag_id)
+SELECT c.curator_id, t.tag_id
+FROM Curators c, Tags t
+WHERE c.name = '레미' AND t.name IN ('유럽', '인상주의');
+
+-- 두리의 태그
+INSERT INTO Curator_Tags (curator_id, tag_id)
+SELECT c.curator_id, t.tag_id
+FROM Curators c, Tags t
+WHERE c.name = '두리' AND t.name IN ('국내', '동시대미술');
 
 -- Conversations 테이블 mock 데이터
 INSERT INTO Conversations (conversation_id, user_id, question, answer, question_time, answer_time, tokens_used) VALUES
@@ -347,12 +432,6 @@ INSERT INTO Conversations (conversation_id, user_id, question, answer, question_
 -- Subscription_Plans 테이블 mock 데이터
 INSERT INTO Subscription_Plans (plan_id, plan_name, price, discounted_price, tokens_included, description, is_promotion) VALUES
 (1, '정기 구독', 20000, 15000, 0, '정기구독 플랜입니다.', true);
-
-
--- User_Subscriptions 테이블 mock 데이터
-INSERT INTO User_Subscriptions (user_id, plan_id, start_date, next_billing_date, status) VALUES
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 1, '2023-09-01', '2023-10-01', 'ACTIVE'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 1, '2023-08-15', '2023-09-15', 'ACTIVE');
 
 -- Tokens 테이블 mock 데이터
 INSERT INTO Tokens (user_id, total_tokens, used_tokens, last_charged_at, expires_at) VALUES

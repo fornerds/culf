@@ -1,10 +1,12 @@
-from sqlalchemy.orm import Session
+from fastapi import HTTPException
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc
 from . import models, schemas
 from datetime import datetime
 from typing import List, Optional, Tuple, Union
 from uuid import UUID
-
+from app.domains.curator import services as curator_services
+from app.domains.conversation.models import ChatRoom, Conversation
 def create_conversation(
     db: Session,
     chat: schemas.ConversationCreate,
@@ -23,6 +25,7 @@ def create_conversation(
     # 대화 저장
     db_conversation = models.Conversation(
         user_id=user_id,
+        room_id=chat.room_id,
         question=chat.question,
         question_summary=question_summary,
         question_image=chat.question_image,
@@ -101,3 +104,97 @@ def delete_conversation(db: Session, conversation_id: UUID, user_id: UUID) -> bo
     ).delete()
     db.commit()
     return result > 0
+
+def create_chat_room(db: Session, chat_room: schemas.ChatRoomCreate, user_id: UUID) -> models.ChatRoom:
+    """새로운 채팅방을 생성합니다."""
+    # 큐레이터 존재 확인
+    curator = curator_services.get_curator(db, chat_room.curator_id)
+    if not curator:
+        raise HTTPException(status_code=404, detail="큐레이터를 찾을 수 없습니다")
+
+    db_chat_room = models.ChatRoom(
+        user_id=user_id,
+        curator_id=chat_room.curator_id,
+        title=chat_room.title or f"{curator.name}와의 대화"  # 제목이 없으면 기본값 설정
+    )
+    db.add(db_chat_room)
+    db.commit()
+    db.refresh(db_chat_room)
+    return db_chat_room
+
+
+def get_user_chat_rooms(db: Session, user_id: UUID) -> List[ChatRoom]:
+    """사용자의 채팅방 목록을 가져옵니다."""
+    chat_rooms = (
+        db.query(ChatRoom)
+        .filter(
+            ChatRoom.user_id == user_id,
+            ChatRoom.is_active == True
+        )
+        .options(
+            joinedload(ChatRoom.curator).joinedload(Curator.tags)  # curator와 tags 정보를 함께 로드
+        )
+        .order_by(ChatRoom.created_at.desc())
+        .all()
+    )
+
+    # 각 채팅방에 대한 추가 정보 계산
+    for room in chat_rooms:
+        # 대화 수 계산
+        room.conversation_count = (
+            db.query(Conversation)
+            .filter(Conversation.room_id == room.room_id)
+            .count()
+        )
+
+        # 마지막 대화 가져오기
+        last_conversation = (
+            db.query(Conversation)
+            .filter(Conversation.room_id == room.room_id)
+            .order_by(Conversation.question_time.desc())
+            .first()
+        )
+
+        if last_conversation:
+            room.last_conversation = {
+                "question": last_conversation.question,
+                "answer": last_conversation.answer,
+                "question_time": last_conversation.question_time
+            }
+        else:
+            room.last_conversation = None
+
+    return chat_rooms
+
+def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoom]:
+    """특정 채팅방의 정보를 가져옵니다."""
+    chat_room = (
+        db.query(ChatRoom)
+        .filter(
+            ChatRoom.room_id == room_id,
+            ChatRoom.user_id == user_id,
+            ChatRoom.is_active == True
+        )
+        .first()
+    )
+
+    if chat_room:
+        # 대화 내역 조회
+        conversations = (
+            db.query(Conversation)
+            .filter(Conversation.room_id == room_id)
+            .order_by(Conversation.question_time.desc())
+            .all()
+        )
+
+        # 응답 형식에 맞게 대화 내역 변환
+        chat_room.conversations = [
+            {
+                "question": conv.question,
+                "answer": conv.answer,
+                "question_time": conv.question_time
+            }
+            for conv in conversations
+        ]
+
+    return chat_room

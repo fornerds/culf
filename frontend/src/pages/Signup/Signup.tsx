@@ -36,10 +36,26 @@ export function Signup() {
  
  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
  const [isSnsSignup, setIsSnsSignup] = useState(false);
+ const [isLoading, setIsLoading] = useState(false);
+
+ const formatBirthDate = (value: string) => {
+   // Remove any non-digit characters
+   const numbers = value.replace(/\D/g, '');
+   
+   // Don't allow more than 8 digits
+   if (numbers.length > 8) return form.birthDate;
+   
+   // Format as YYYY-MM-DD
+   if (numbers.length >= 4 && numbers.length < 6) {
+     return `${numbers.slice(0, 4)}-${numbers.slice(4)}`;
+   } else if (numbers.length >= 6) {
+     return `${numbers.slice(0, 4)}-${numbers.slice(4, 6)}-${numbers.slice(6, 8)}`;
+   }
+   return numbers;
+ };
 
  useEffect(() => {
    const fetchSnsEmail = async () => {
-     // provider_info 쿠키가 있는지 확인
      const hasProviderInfo = document.cookie
        .split('; ')
        .some(row => row.startsWith('provider_info='));
@@ -54,7 +70,7 @@ export function Signup() {
          }));
        } catch (error) {
          console.error('Failed to get provider email:', error);
-         navigate('/login'); // 에러 발생시 로그인 페이지로 리다이렉트
+         navigate('/beta/login');
        }
      }
    };
@@ -100,9 +116,13 @@ export function Signup() {
  };
 
  const handleFormChange = async (id: string, value: string) => {
-   // SNS 회원가입시 이메일 변경 방지
    if (id === 'email' && isSnsSignup) {
      return;
+   }
+
+   // Format birthDate input
+   if (id === 'birthDate') {
+     value = formatBirthDate(value);
    }
 
    setForm((prev) => ({
@@ -114,7 +134,8 @@ export function Signup() {
      id === 'email' ||
      id === 'nickname' ||
      id === 'phoneNumber' ||
-     id === 'passwordConfirmation'
+     id === 'passwordConfirmation' ||
+     id === 'birthDate'
    ) {
      validationCheck(id, value);
    }
@@ -141,31 +162,36 @@ export function Signup() {
  };
 
  const handleRegister = async () => {
-   try {
-     const res = await auth.register({
-       email: form.email,
-       nickname: form.nickname,
-       phone_number: form.phoneNumber,
-       birthdate: form.birthDate,
-       gender: form.gender,
-       password: form.password,
-       password_confirmation: form.passwordConfirmation,
-       marketing_agreed: isMarketingAgreed,
-     });
-     
-     if (res.status === 200) {
-       await refreshToken.mutateAsync();
-       goCompleteSignupPage();
-     }
-   } catch (error: any) {
-     if (error.response?.data?.detail?.error === "validation_error") {
-       alert(error.response.data.detail.message);
-     } else {
-       alert('회원가입이 실패했습니다.');
-     }
-     console.error(error);
-   }
- };
+  if (isLoading) return;
+  
+  try {
+    setIsLoading(true);
+    const res = await auth.register({
+      email: form.email,
+      nickname: form.nickname,
+      phone_number: form.phoneNumber,
+      birthdate: form.birthDate,
+      gender: form.gender,
+      password: form.password,
+      password_confirmation: form.passwordConfirmation,
+      marketing_agreed: isMarketingAgreed,
+    });
+    
+    if (res.status === 200) {
+      await refreshToken.mutateAsync();
+      goCompleteSignupPage();
+    }
+  } catch (error: any) {
+    if (error.response?.data?.detail?.error === "validation_error") {
+      alert(error.response.data.detail.message);
+    } else {
+      alert('회원가입이 실패했습니다.');
+    }
+    console.error(error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
  useEffect(() => {
    if (form.passwordConfirmation) {
@@ -206,12 +232,13 @@ export function Signup() {
        <InputBox
          id="birthDate"
          label="생년월일"
-         placeholder="생년월일을 입력하세요"
+         placeholder="YYYY-MM-DD"
          value={form.birthDate}
          validationMessage={formMessage.birthDate}
          validationMessageType="error"
          onChangeObj={handleFormChange}
          onBlur={() => handleBlur('birthDate')}
+         maxLength={10}
        />
      </div>
      <PhoneVerificationForm
@@ -259,13 +286,13 @@ export function Signup() {
        />
      </div>
      <div className={styles.buttonArea}>
-       <Button
-         variant={!isFormValid() ? 'disable' : 'default'}
-         disabled={!isFormValid()}
-         onClick={handleRegister}
-       >
-         가입하기
-       </Button>
+     <Button
+          variant={!isFormValid() || isLoading ? 'disable' : 'default'}
+          disabled={!isFormValid() || isLoading}
+          onClick={handleRegister}
+        >
+          {isLoading ? '가입중...' : '가입하기'}
+        </Button>
      </div>
    </main>
  );

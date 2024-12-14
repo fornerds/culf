@@ -29,6 +29,10 @@ class Settings(BaseSettings):
 
     MONGODB_URL: str
 
+    # CloudFront 설정
+    CLOUDFRONT_DOMAIN: str
+    CLOUDFRONT_DISTRIBUTION_ID: str
+
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
     AWS_REGION: str
@@ -68,6 +72,11 @@ class Settings(BaseSettings):
     PHONE_NUMBER_VERIFICATION_SECONDS: int
 
     SNS_LOGIN_REDIRECT_URL: str
+
+    USE_GEMINI: bool
+    GEMINI_API_KEY: str
+    GEMINI_API_URL: str
+
     class Config:
         env_file = ".env"
 

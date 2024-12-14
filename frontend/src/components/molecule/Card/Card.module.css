@@ -25,7 +25,7 @@
   height: 176px;
   border-radius: 12px 12px 0 12px;
   border: 1px solid var(--line-stay-the-same, #222);
-  padding: 16px 13px 14px;
+  padding: 16px 13px 10px;
   box-sizing: border-box;
   z-index: 2;
   transition: transform 0.3s ease;
@@ -39,7 +39,7 @@
 }
 
 .title {
-  width: 87px;
+  width: 102px;
   word-break: keep-all;
 }
 
@@ -63,10 +63,10 @@
 
 .character {
   position: absolute;
-    right: 0px;
-    bottom: 0px;
-    max-width: 148px;
-    max-height: 130px;
-    z-index: -1;
-    border-radius: 0 0 0 10px;
+  right: 0px;
+  bottom: 0px;
+  max-width: 146px;
+  max-height: 130px;
+  z-index: -1;
+  border-radius: 0 0 0 10px;
 }

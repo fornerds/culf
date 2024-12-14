@@ -1,14 +1,54 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import select, func
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.domains.auth import services as auth_services
 from app.domains.user import schemas as user_schemas
 from app.domains.user import services as user_services
 from app.domains.token import services as token_services
+from app.domains.user.models import User
 from uuid import UUID
 
 router = APIRouter()
+
+
+
+@router.get("/users")
+async def get_users(
+        db: Session = Depends(get_db)
+):
+    """
+    전체 사용자 목록을 가져옵니다.
+    관리자 페이지에서 사용됩니다.
+    """
+    query = select(
+        User.user_id,
+        User.email,
+        User.nickname,
+        User.phone_number,
+        User.gender,
+        User.created_at
+    ).order_by(User.created_at.desc())
+
+    results = db.execute(query).all()
+
+    users = [
+        {
+            "user_id": result.user_id,
+            "email": result.email,
+            "nickname": result.nickname,
+            "phone": result.phone_number,
+            "gender": result.gender,
+            "created_at": result.created_at
+        }
+        for result in results
+    ]
+
+    return {
+        "users": users,
+        "total_count": len(users)
+    }
 
 @router.post("/users/me", response_model=user_schemas.UserInfo)
 def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):

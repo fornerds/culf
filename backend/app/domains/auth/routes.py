@@ -18,25 +18,13 @@ from starlette.responses import RedirectResponse
 from starlette.requests import Request
 
 router = APIRouter()
+@router.get("/check-cookies")
+def check_cookies(request: Request):
+    cookies = request.cookies
+    return JSONResponse(content={"cookies": cookies})
 
 @router.post("/auth/register", response_model=user_schemas.UserCreationResponse)
 def create_user(request:Request, user: user_schemas.UserCreate, db: Session = Depends(get_db)):
-
-    verified_phone_number = request.cookies.get("verified_phone_number")
-    if not verified_phone_number or auth_services.encrypt(user.phone_number)!=verified_phone_number:
-        raise HTTPException(status_code=400, detail={
-            "error": "phone_number_verification_failed",
-            "message": "전화번호 인증이 필요합니다."
-        })
-
-    db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
-    if db_user:
-        raise HTTPException(status_code=400, detail={
-            "error": "validation_error",
-            "message": "입력 정보가 올바르지 않습니다.",
-            "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
-        })
-    
     db_user = user_services.get_user_by_nickname(db, nickname=user.nickname)
     if db_user:
         raise HTTPException(status_code=400, detail={
@@ -69,6 +57,19 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
                 detail=f"Invalid provider info: {str(e)}"
             )
     else:
+        verified_phone_number = request.cookies.get("verified_phone_number")
+        if not verified_phone_number or auth_services.encrypt(user.phone_number) != verified_phone_number:
+            raise HTTPException(status_code=400, detail={
+                "error": "phone_number_verification_failed",
+                "message": "전화번호 인증이 필요합니다."
+            })
+        db_user = user_services.get_user_by_phone_number(db, phone_number=user.phone_number)
+        if db_user:
+            raise HTTPException(status_code=400, detail={
+                "error": "validation_error",
+                "message": "입력 정보가 올바르지 않습니다.",
+                "details": [{"field": "phone_number", "message": "이미 등록된 번호입니다."}]
+            })
         # Perform the regular email duplication check
         db_user = user_services.get_user_by_email(db, email=user.email)
         if db_user:
@@ -105,7 +106,9 @@ def create_user(request:Request, user: user_schemas.UserCreate, db: Session = De
         secure=False,  # HTTPS에서만 전송 (개발 중에는 False로 설정 가능)
         samesite="lax",  # 쿠키의 SameSite 속성
     )
-    response.set_cookie(key="provider_info", value="", max_age=0)
+    response.delete_cookie("provider_info")
+    response.delete_cookie("verification_code")
+    response.delete_cookie("verified_phone_number")
 
     return response
 
@@ -166,9 +169,10 @@ def refresh_token(request:Request, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 async def logout():
-    # 쿠키에서 Refresh Token 삭제
+    # Delete all cookies
     response = JSONResponse(content={"detail": "Successfully logged out"})
-    response.delete_cookie("refresh_token")
+    for cookie in ['refresh_token', 'provider_info', 'verification_code', 'verified_phone_number']:
+        response.delete_cookie(cookie)
     return response
 
 @router.post("/auth/find-email")
@@ -222,12 +226,17 @@ def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depen
 
 @router.post("/auth/phone-verification/request")
 def send_verification_code(
+    request: Request,
     phone_number: str = Body(..., embed=True), 
     db: Session = Depends(get_db)
 ):
-    user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
-    if user:
-        raise HTTPException(status_code=400, detail="User already exists with this phone number")
+    #todo 핸드폰 번호 중복확인 임시 조건문 추가
+    provider_info = request.cookies.get("provider_info")
+    if not provider_info:
+        user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
+        if user:
+            raise HTTPException(status_code=400, detail="User already exists with this phone number")
+    #todo 핸드폰 번호 중복확인 임시 조건문 추가
 
     # Generate a random 6-digit verification code
     verification_code = ''.join(random.sample('0123456789', 6))
@@ -281,6 +290,7 @@ def verify_verification_code(
         "verified_phone_number":phone_number,
         "is_verified": True
     })
+    response.delete_cookie("verification_code")
     response.set_cookie(key="verified_phone_number",value=auth_services.encrypt(phone_number),httponly=True,expires=1200)
     return response
 @router.get("/auth/login/{provider}")
