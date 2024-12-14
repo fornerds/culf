@@ -5,7 +5,7 @@ from openai import OpenAI
 from uuid import UUID
 import time
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, func
 from typing import Optional, Union, Dict, Any, List
 from app.db.session import get_db
@@ -25,6 +25,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from urllib.parse import urlparse
 from app.domains.conversation.models import Conversation
+from app.domains.conversation.models import ChatRoom
+from app.domains.curator.schemas import Curator
 from app.domains.user.models import User
 from .services import get_chat_room
 
@@ -840,22 +842,22 @@ async def get_chat_room_curator(
     """
     # 채팅방 조회
     chat_room = (
-        db.query(models.ChatRoom)
+        db.query(ChatRoom)
         .filter(
-            models.ChatRoom.room_id == room_id,
-            models.ChatRoom.user_id == current_user.user_id,
-            models.ChatRoom.is_active == True
+            ChatRoom.room_id == room_id,
+            ChatRoom.user_id == current_user.user_id,
+            ChatRoom.is_active == True
         )
-        .options(joinedload(models.ChatRoom.curator))
+        .options(joinedload(ChatRoom.curator))
         .first()
     )
-    
+
     if not chat_room:
         raise HTTPException(
             status_code=404,
             detail="채팅방을 찾을 수 없습니다"
         )
-    
+
     return {
         "room_id": chat_room.room_id,
         "curator": chat_room.curator
