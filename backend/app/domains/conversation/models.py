@@ -11,16 +11,34 @@ class ChatRoom(Base):
 
     room_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False)
-    curator_id = Column(Integer, ForeignKey('curators.curator_id'), nullable=False)  # 큐레이터 정보 추가
+    curator_id = Column(Integer, ForeignKey('curators.curator_id'), nullable=False)
     title = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     user = relationship("User", back_populates="chat_rooms")
-    curator = relationship("Curator")  # 큐레이터와의 관계 추가
+    curator = relationship("Curator")
     conversations = relationship("Conversation", back_populates="chat_room")
 
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._conversation_count = 0
+        self._last_conversation = None
+        self._conversations_list = []
+
+    @property
+    def conversation_count(self):
+        return getattr(self, '_conversation_count', 0)
+
+    @property
+    def last_conversation(self):
+        return getattr(self, '_last_conversation', None)
+
+    @property
+    def conversations_response(self):
+        return getattr(self, '_conversations_list', [])
 
 class Conversation(Base):
     __tablename__ = "conversations"

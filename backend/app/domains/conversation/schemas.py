@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, Field, validator
 from typing import List, Optional, Union, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -12,29 +12,44 @@ class ChatRoomCreate(BaseModel):
 class ChatRoomResponse(BaseModel):
     room_id: UUID
     curator_id: int
-    curator: Curator  # 큐레이터 정보 포함
+    curator: Curator
     title: Optional[str]
+    conversations: Optional[List[dict]] = Field(alias='conversations_response')
+    conversation_count: Optional[int] = 0
+    last_conversation: Optional[dict] = None
     created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True
 
+class ConversationInRoom(BaseModel):
+    """채팅방 내 대화 정보를 위한 스키마"""
+    question: str
+    answer: str
+    question_time: datetime
+    answer_time: Optional[datetime]
+    question_image: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class ChatRoomDetail(BaseModel):
     room_id: UUID
     title: str
     curator_id: int
-    curator: Optional[Curator]  # Curator 정보 포함
+    curator: Optional[Curator]
+    conversations: List[ConversationInRoom]
     conversation_count: int
-    last_conversation: Optional[Dict[str, Any]]
+    last_conversation: Optional[Dict]
     created_at: datetime
     updated_at: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ConversationCreate(BaseModel):
-    question: str
+    question: Optional[str] = None
     question_image: Optional[str] = None
     room_id: Optional[UUID] = None
 
@@ -89,6 +104,20 @@ class ChatRoomCuratorResponse(BaseModel):
     """채팅방의 큐레이터 정보 응답을 위한 스키마"""
     room_id: UUID
     curator: Curator
+
+    class Config:
+        from_attributes = True
+
+class ChatRoomListItem(BaseModel):
+    """채팅방 목록 조회를 위한 스키마"""
+    room_id: UUID
+    title: str
+    curator_id: int
+    curator: Optional[Curator]
+    conversation_count: int
+    last_conversation: Optional[dict]
+    created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True

@@ -95,7 +95,7 @@ CREATE TABLE Conversations (
     conversation_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     room_id UUID REFERENCES Chat_Rooms(room_id),
     user_id UUID REFERENCES Users(user_id),
-    question TEXT NOT NULL,
+    question TEXT,
     question_summary TEXT,
     question_image VARCHAR(255),
     answer TEXT NOT NULL,

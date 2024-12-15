@@ -4,10 +4,10 @@ from datetime import datetime
 from openai import OpenAI
 from uuid import UUID
 import time
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query, Body
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, func
-from typing import Optional, Union, Dict, Any, List
+from typing import Optional, Union, Dict, Any, List, Annotated
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.domains.user.models import User
@@ -48,6 +48,7 @@ if not MONGODB_URL:
 mongo_client = AsyncIOMotorClient(MONGODB_URL)
 mongodb = mongo_client.culf  # 데이터베이스 이름을 'culf'로 지정
 
+
 async def get_recent_chat_history(user_id: str, limit: int = 10) -> list:
     """사용자의 최근 대화 내용을 가져오는 함수"""
     try:
@@ -56,7 +57,7 @@ async def get_recent_chat_history(user_id: str, limit: int = 10) -> list:
             {"user_id": user_id},
             sort=[("last_updated", -1)]
         )
-        
+
         if chat and "messages" in chat:
             # 최근 10개 메시지만 반환
             return chat["messages"][-limit:]
@@ -311,16 +312,16 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
     }
 )
 async def create_chat(
-        question: str = Form(
+        question: Optional[str] = Form(
             ...,
-            description="질문 내용 (필수)",
+            description="질문 내용 (선택)",
             example="오늘 날씨는 어떤가요?"
         ),
         room_id: Optional[UUID] = Form(
             None,
             description="채팅방 ID (선택, UUID 형식)"
         ),
-        image_file: Union[UploadFile, None] = File(
+        image_file: Optional[Union[UploadFile, None]] = File(
             None,
             description="이미지 파일 (선택, 최대 10MB)",
         ),
@@ -332,7 +333,7 @@ async def create_chat(
 
     Parameters
     ----------
-    - question: 필수 입력 항목입니다.
+    - question: 질문 내용 (선택)
     - room_id: 채팅방 ID (선택)
     - image_file: 이미지 파일 (선택, 최대 10MB)
 
@@ -514,25 +515,25 @@ async def upload_image(file: UploadFile = File(...)):
     }
 )
 async def get_conversations(
-    page: int = Query(1, ge=1, description="페이지 번호 (1부터 시작)"),
-    limit: int = Query(10, ge=1, description="페이지당 항목 수"),
-    sort: str = Query(
-        "question_time:desc",
-        description="정렬 기준 (예: question_time:desc)"
-    ),
-    summary: bool = Query(
-        False,
-        description="요약 보기 여부 (true/false)"
-    ),
-    user_id: Optional[str] = Query(
-        None,
-        description="특정 사용자의 대화만 조회"
-    ),
-    search_query: Optional[str] = Query(
-        None,
-        description="사용자 닉네임으로 검색"
-    ),
-    db: Session = Depends(get_db)
+        page: int = Query(1, ge=1, description="페이지 번호 (1부터 시작)"),
+        limit: int = Query(10, ge=1, description="페이지당 항목 수"),
+        sort: str = Query(
+            "question_time:desc",
+            description="정렬 기준 (예: question_time:desc)"
+        ),
+        summary: bool = Query(
+            False,
+            description="요약 보기 여부 (true/false)"
+        ),
+        user_id: Optional[str] = Query(
+            None,
+            description="특정 사용자의 대화만 조회"
+        ),
+        search_query: Optional[str] = Query(
+            None,
+            description="사용자 닉네임으로 검색"
+        ),
+        db: Session = Depends(get_db)
 ):
     """대화 목록을 조회합니다."""
     # 정렬 조건 파싱
@@ -551,7 +552,6 @@ async def get_conversations(
     # 검색어가 있는 경우 필터 적용
     if search_query:
         query = query.filter(User.nickname.ilike(f"%{search_query}%"))
-    
 
     # 사용자 필터링 적용
     if user_id:
@@ -563,7 +563,7 @@ async def get_conversations(
     count_query = select(func.count()).select_from(Conversation)
     if user_id:
         count_query = count_query.where(Conversation.user_id == user_id)
-    
+
     total_count = db.scalar(count_query)
 
     # 페이지네이션 적용
@@ -577,16 +577,17 @@ async def get_conversations(
     for result in results:
         conversation = result[0].__dict__
         conversation["user_nickname"] = result[1]
-        
+
         if summary and conversation["answer"]:
             conversation["answer"] = conversation["answer"][:100] + "..."
-            
+
         conversations.append(conversation)
 
     return {
         "conversations": conversations,
         "total_count": total_count
     }
+
 
 @router.get(
     "/conversations/{conversation_id}",
@@ -663,6 +664,7 @@ def delete_conversation(
     if not success:
         raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다")
 
+
 @router.post(
     "/chat-rooms",
     response_model=schemas.ChatRoomResponse,
@@ -684,9 +686,17 @@ def delete_conversation(
 )
 @router.post("/chat-rooms", response_model=schemas.ChatRoomResponse)
 async def create_chat_room(
-    chat_room: schemas.ChatRoomCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        chat_room: Annotated[
+            schemas.ChatRoomCreate,
+            Body(
+                example={
+                    "curator_id": 1,
+                    "title": "두리와의 대화"
+                }
+            )
+        ],
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     """새로운 채팅방을 생성합니다."""
     return services.create_chat_room(db, chat_room, current_user.user_id)
@@ -694,7 +704,7 @@ async def create_chat_room(
 
 @router.get(
     "/chat-rooms",
-    response_model=List[schemas.ChatRoomDetail],
+    response_model=List[schemas.ChatRoomListItem],
     summary="채팅방 목록 조회",
     responses={
         200: {
@@ -731,6 +741,7 @@ async def get_chat_rooms(
     채팅방 목록 (각 채팅방의 정보, 대화 수, 마지막 대화 내용 포함)
     """
     return services.get_user_chat_rooms(db, current_user.user_id)
+
 
 @router.get(
     "/chat-rooms/{room_id}",
@@ -770,9 +781,9 @@ async def get_chat_rooms(
 )
 @router.get("/chat-rooms/{room_id}", response_model=schemas.ChatRoomDetail)
 async def get_chat_room(
-    room_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        room_id: UUID,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     """
     특정 채팅방의 모든 정보를 조회합니다.
@@ -782,6 +793,7 @@ async def get_chat_room(
     if not chat_room:
         raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
     return chat_room
+
 
 @router.get(
     "/chat-rooms/{room_id}/curator",
@@ -819,13 +831,13 @@ async def get_chat_room(
     }
 )
 async def get_chat_room_curator(
-    room_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        room_id: UUID,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     """
     특정 채팅방의 큐레이터 정보를 조회합니다.
-    
+
     Parameters
     ----------
     room_id : UUID
@@ -834,7 +846,7 @@ async def get_chat_room_curator(
         데이터베이스 세션
     current_user : User
         현재 인증된 사용자
-        
+
     Returns
     -------
     ChatRoomCuratorResponse
