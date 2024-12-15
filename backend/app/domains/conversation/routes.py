@@ -313,7 +313,7 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
 )
 async def create_chat(
         question: Optional[str] = Form(
-            ...,
+            None,
             description="질문 내용 (선택)",
             example="오늘 날씨는 어떤가요?"
         ),
