@@ -1,9 +1,10 @@
 import React from 'react';
 import styles from './Layout.module.css';
 import { Header } from '../Header';
-import { SideMenu } from '../../molecule';
+import { Modal, SideMenu } from '../../molecule';
 import { useHeaderStore } from '../../../state/client/useHeaderStore';
 import { useSideMenuStore } from '../../../state/client/useSideMenuStore';
+import useModalStore from '@/state/client/useModalStore';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,6 +13,14 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { useHeader, remainingTokens } = useHeaderStore();
   const { isOpen, toggle } = useSideMenuStore();
+  const {
+    isModalOpen,
+    description,
+    pointDescription,
+    confirmButtonText,
+    onConfirm,
+    closeModal,
+  } = useModalStore();
 
   return (
     <div className={styles.layout}>
@@ -22,6 +31,14 @@ export function Layout({ children }: LayoutProps) {
           isOpen={isOpen}
           onClose={toggle}
           remainingTokens={remainingTokens}
+        />
+        <Modal
+          isModalOpen={isModalOpen}
+          description={description}
+          pointDescription={pointDescription}
+          confirmButtonText={confirmButtonText}
+          onConfirm={onConfirm}
+          closeModal={closeModal}
         />
       </div>
     </div>
