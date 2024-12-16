@@ -37,7 +37,6 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // refresh_token은 HttpOnly 쿠키로 자동 전송됨
         const res = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
@@ -47,13 +46,11 @@ api.interceptors.response.use(
         );
 
         if (res.status === 200) {
-          // 새로운 access_token을 sessionStorage에 저장
           tokenService.setAccessToken(res.data.access_token);
           originalRequest.headers['Authorization'] = `Bearer ${res.data.access_token}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // 실패 시 모든 인증 정보 삭제
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
         useAuthStore.getState().resetSnsAuth?.();
@@ -70,7 +67,9 @@ api.interceptors.response.use(
 export const auth = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
-  logout: () => api.post('/logout'),
+
+  logout: () => api.post('/auth/logout'),
+
   register: (userData: any) => {
     const providerInfo = document.cookie
       .split('; ')
@@ -84,18 +83,24 @@ export const auth = {
       withCredentials: true
     });
   },
+
   refreshToken: () => api.post('/auth/refresh', {}, { withCredentials: true }),
+
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),
+
   findEmail: (phoneNumber: string, birthdate: string) =>
     api.post('/auth/find-email', { phone_number: phoneNumber, birthdate }),
+
   requestPhoneVerification: (phoneNumber: string) =>
     api.post('/auth/phone-verification/request', { phone_number: phoneNumber }),
+
   verifyPhone: (phoneNumber: string, verificationCode: string) =>
     api.post('/auth/phone-verification/verify', {
       phone_number: phoneNumber,
       verification_code: verificationCode,
     }),
+
   resetPassword: (
     email: string,
     newPassword: string,
@@ -106,7 +111,7 @@ export const auth = {
       new_password: newPassword,
       new_password_confirmation: newPasswordConfirmation,
     }),
-  
+
   getProviderEmail: async () => {
     const providerInfo = document.cookie
       .split('; ')
@@ -124,12 +129,12 @@ export const auth = {
       withCredentials: true
     });
   },
-  
-    processCallback: (provider: string, code: string) =>
-      api.get(`/auth/login/${provider}`, {
-        params: { code },
-        withCredentials: true
-      }),
+
+  processCallback: (provider: string, code: string) =>
+    api.get(`/auth/login/${provider}`, {
+      params: { code },
+      withCredentials: true
+    }),
 };
 
 // User API
@@ -153,49 +158,76 @@ export const chat = {
   sendMessage: async (
     question: string,
     imageFile?: File,
+    roomId?: string,
     onMessage?: (message: string) => void,
-  ): Promise<(() => void) | null> => {
-    const formData = new FormData();
-    formData.append('question', question);
-    if (imageFile) {
-      formData.append('image_file', imageFile);
-    }
-
-    try {
+  ): Promise<any> => {
+    try {  
+      if (!roomId) {
+        throw new Error('Room ID is required');
+      }
+  
+      const formData = new FormData();
+      formData.append('question', question);
+      formData.append('room_id', roomId);
+      
+      if (imageFile) {
+        formData.append('image_file', imageFile);
+      }
+  
+      const token = tokenService.getAccessToken();
+      if (!token) {
+        throw new Error('Authorization token is missing');
+      }
+  
+      console.log('Sending chat request:', {
+        roomId,
+        question,
+        hasImage: !!imageFile
+      });
+  
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${sessionStorage.getItem('accessToken')}`,
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
-
+  
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 404) {
+          throw new Error('Chat room not found');
+        } else if (response.status === 500) {
+          throw new Error('Internal server error occurred. Please try again later.');
+        } else {
+          throw new Error(
+            `Chat API Error: ${response.status}` +
+            (errorData.detail ? `, Details: ${JSON.stringify(errorData.detail)}` : '')
+          );
+        }
       }
-
+  
       const data = await response.json();
+      console.log('Chat API Response:', data);
 
       if (!onMessage || !data.answer) {
-        return null;
+        return data;
       }
 
       const text = data.answer;
       let isCancelled = false;
       let currentIndex = 0;
 
-      return new Promise<(() => void) | null>((resolve) => {
+      return new Promise((resolve) => {
         const streamText = () => {
           if (isCancelled) {
-            resolve(() => {
-              isCancelled = true;
-            });
+            resolve(() => { isCancelled = true; });
             return;
           }
 
           if (currentIndex < text.length) {
             let endIndex = currentIndex + 2;
-
+            
             while (
               endIndex < text.length &&
               !text[endIndex - 1].match(/[\s\n.!?,;:]/)
@@ -218,34 +250,63 @@ export const chat = {
 
             setTimeout(streamText, delay);
           } else {
-            resolve(() => {
-              isCancelled = true;
-            });
+            resolve(() => { isCancelled = true; });
           }
         };
 
         streamText();
       });
     } catch (error) {
-      console.error('Streaming error:', error);
+      console.error('Chat API Error:', error);
       throw error;
     }
   },
 
-  // 나머지 메서드들은 유지
+  uploadImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   getConversations: (
     page: number = 1,
     limit: number = 10,
     sort: string = 'question_time:desc',
     summary: boolean = false,
-  ) => api.get('/conversations', { params: { page, limit, sort, summary } }),
+    userId?: string,
+    searchQuery?: string,
+  ) => {
+    return api.get('/conversations', {
+      params: {
+        page,
+        limit,
+        sort,
+        summary,
+        user_id: userId,
+        search_query: searchQuery
+      }
+    });
+  },
 
   getConversationById: (conversationId: string) =>
     api.get(`/conversations/${conversationId}`),
 
   deleteConversation: (conversationId: string) =>
     api.delete(`/conversations/${conversationId}`),
+
+  getChatRooms: () => api.get('/chat-rooms'),
+
+  createChatRoom: (curatorId: number, title?: string) =>
+    api.post('/chat-rooms', { curator_id: curatorId, title }),
+
+  getChatRoomById: (roomId: string) => api.get(`/chat-rooms/${roomId}`),
+
+  getChatRoomCurator: (roomId: string) => 
+    api.get(`/chat-rooms/${roomId}/curator`),
 };
+
 // Token API
 export const token = {
   getMyTokenInfo: () => api.get('/users/me/tokens'),

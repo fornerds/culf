@@ -258,7 +258,7 @@ function AppRoutes() {
           />
           <Route path="/mypage/:tab" element={<Mypage />} />
           <Route path="/chat" element={<Chat />} />
-          <Route path="/chat/:chat_id" element={<ChatDetail />} />
+          <Route path="/chat/:roomId" element={<ChatDetail />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/payment" element={<Payment />} />
           <Route path="/cancel-payment" element={<CancelPayment />} />

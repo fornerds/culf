@@ -1,2 +1,2 @@
 export { Chat } from './Chat';
-export { ChatDetail } from './[chat_id]';
+export { ChatDetail } from './[roomId]';

@@ -4,17 +4,22 @@ import {
   useQuery,
   useMutation,
   useInfiniteQuery,
-  InfiniteData,
+  UseQueryResult,
+  UseMutationResult,
+  UseInfiniteQueryResult,
 } from '@tanstack/react-query';
-import { chat } from '../../api';
-import { AxiosResponse } from 'axios';
+import { AxiosError } from 'axios';
+import { chat } from '@/api';
+import { useAuthStore } from '@/state/client/authStore';
 
-interface Message {
+// Types
+export interface Message {
   question: string;
-  question_image?: string;
+  imageFile?: File;
+  roomId?: string;
 }
 
-interface Conversation {
+export interface Conversation {
   conversation_id: string;
   user_id: string;
   question: string;
@@ -25,71 +30,137 @@ interface Conversation {
   tokens_used: number;
 }
 
-interface ConversationSummary {
+export interface ConversationSummary {
   conversation_id: string;
   question_summary: string;
   answer_summary: string;
   question_time: string;
 }
 
-interface ConversationsResponse {
+export interface ConversationsResponse {
   conversations: (Conversation | ConversationSummary)[];
   total_count: number;
 }
 
-const getConversations = (
-  page: number = 1,
-  limit: number = 10,
-  sort: string = 'question_time:desc',
-  summary: boolean = false,
-): Promise<AxiosResponse<ConversationsResponse>> => {
-  return chat.getConversations(page, limit, sort, summary);
-};
+export interface ChatResponse {
+  conversation_id: string;
+  answer: string;
+  tokens_used: number;
+}
 
-export const useChat = () => {
+export interface ChatRoom {
+  room_id: string;
+  curator_id: number;
+  curator: {
+    name: string;
+    persona: string;
+    main_image: string;
+    profile_image: string;
+    introduction: string;
+    category: string;
+    curator_id: number;
+    tags: Array<{ name: string; tag_id: number }>;
+  };
+  title: string;
+  created_at: string;
+  updated_at: string;
+  conversation_count: number;
+  last_conversation?: Conversation;
+}
+
+export interface UseChatParams {
+  onMessageStream?: (message: string) => void;
+}
+
+export const useChat = ({ onMessageStream }: UseChatParams = {}) => {
   const [isLoading, setIsLoading] = useState(false);
+  const { isAuthenticated } = useAuthStore();
 
-  const sendMessageMutation = useMutation({
-    mutationFn: (message: Message) =>
-      chat.sendMessage(message.question, message.question_image),
+  // Send Message Mutation
+  const sendMessageMutation = useMutation<
+    ChatResponse,
+    AxiosError,
+    Message,
+    unknown
+  >({
+    mutationFn: async ({ question, imageFile, roomId }) => {
+      const response = await chat.sendMessage(
+        question, 
+        imageFile, 
+        roomId,
+        onMessageStream
+      );
+      return response;
+    },
   });
 
+  // Get Conversations Query
   const getConversationsQuery = useInfiniteQuery<
     ConversationsResponse,
-    Error,
-    InfiniteData<ConversationsResponse>,
+    AxiosError,
+    ConversationsResponse,
     string[],
     number
   >({
     queryKey: ['conversations'],
-    queryFn: async ({ pageParam }) => {
-      const response = await getConversations(pageParam);
+    queryFn: async ({ pageParam = 1 }) => {
+      const response = await chat.getConversations(
+        pageParam,
+        10,
+        'question_time:desc',
+        false
+      );
       return response.data;
     },
-    initialPageParam: 1, // 여기에 초기 페이지 파라미터를 추가합니다
+    initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
       const nextPage = allPages.length + 1;
       return lastPage.conversations.length === 0 ? undefined : nextPage;
     },
+    enabled: isAuthenticated,
   });
 
-  const deleteConversationMutation = useMutation({
+  // Get Chat Rooms Query
+  const getChatRoomsQuery = useQuery<ChatRoom[], AxiosError>({
+    queryKey: ['chatRooms'],
+    queryFn: async () => {
+      const response = await chat.getChatRooms();
+      return response.data;
+    },
+    enabled: isAuthenticated,
+  });
+
+  // Create Chat Room Mutation
+  const createChatRoomMutation = useMutation<
+    ChatRoom,
+    AxiosError,
+    { curatorId: number; title?: string }
+  >({
+    mutationFn: async ({ curatorId, title }) => {
+      const response = await chat.createChatRoom(curatorId, title);
+      return response.data;
+    },
+  });
+
+  // Delete Conversation Mutation
+  const deleteConversationMutation = useMutation<void, AxiosError, string>({
     mutationFn: (conversationId: string) =>
       chat.deleteConversation(conversationId),
   });
 
+  // Utility Functions
   const sendMessage = async (message: Message) => {
     setIsLoading(true);
     try {
       const response = await sendMessageMutation.mutateAsync(message);
-      return response.data;
+      return response;
     } finally {
       setIsLoading(false);
     }
   };
 
   const getConversationById = (conversationId: string) => {
-    return useQuery<Conversation, Error>({
+    return useQuery<Conversation, AxiosError>({
       queryKey: ['conversation', conversationId],
       queryFn: async () => {
         const response = await chat.getConversationById(conversationId);
@@ -107,11 +178,38 @@ export const useChat = () => {
     }
   };
 
+  const createChatRoom = async (curatorId: number, title?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await createChatRoomMutation.mutateAsync({
+        curatorId,
+        title,
+      });
+      return response;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
+    // State
     isLoading,
-    sendMessage,
-    getConversations: getConversationsQuery,
+
+    // Queries
+    conversations: getConversationsQuery,
+    chatRooms: getChatRoomsQuery,
     getConversationById,
+
+    // Mutations
+    sendMessage,
+    createChatRoom,
     deleteConversation,
+
+    // Raw Mutations (for more control)
+    sendMessageMutation,
+    createChatRoomMutation,
+    deleteConversationMutation,
   };
 };
+
+export default useChat;
