@@ -1,0 +1,114 @@
+.container {
+}
+
+.section {
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sectionTitle {
+  display: flex;
+  width: 375px;
+  padding: 10px 22px;
+  gap: 10px;
+  flex-direction: column;
+  margin-top: 16px;
+}
+
+.tokenHeader {
+  display: flex;
+  padding: 0px 2px;
+  justify-content: space-between;
+  align-items: center;
+  align-self: stretch;
+}
+
+.tokenCount {
+  display: flex;
+  padding: 4px 12px;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+
+  border-radius: 999px;
+  background: #e6e6e6;
+
+  font-family: 'PretendardVariable', sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 123%;
+}
+
+.cardGrid {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 12px;
+}
+
+.button {
+  display: flex;
+  width: calc(100% - 40px);
+  padding: 16px 10px;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 0 20px;
+  box-sizing: border-box;
+
+  border-radius: 16px 16px 0px 16px;
+  border: 1px solid var(--line-stay-the-same, #222);
+  background: var(--keycolor-2, #6314e4);
+  cursor: pointer;
+}
+
+.buttonEnabled {
+  background-color: #7c3aed;
+  color: white;
+}
+
+.buttonEnabled:hover {
+  background-color: #6d28d9;
+}
+
+.buttonDisabled {
+  background-color: #e5e7eb;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.inquirySection {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 0 20px;
+  margin-top: 60px;
+}
+
+.inquiryText {
+  color: #717171;
+}
+
+.inquiryButton {
+  display: flex;
+  height: 50px;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+
+  border-radius: 6px;
+  border: 1px solid #474747;
+  background: #f3f3f3;
+  color: #474747;
+  cursor: pointer;
+}

@@ -8,3 +8,4 @@ export { SideMenu } from './SideMenu';
 export { MarkdownChat } from './MarkdownChat';
 export { Modal } from './Modal';
 export { Popup } from './Popup';
+export { PriceCard } from './PriceCard';
