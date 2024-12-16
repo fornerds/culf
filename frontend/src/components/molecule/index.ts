@@ -7,3 +7,4 @@ export { QuestionBox } from './QuestionBox';
 export { SideMenu } from './SideMenu';
 export { MarkdownChat } from './MarkdownChat';
 export { Modal } from './Modal';
+export { Popup } from './Popup';
