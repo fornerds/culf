@@ -46,7 +46,6 @@ export function Card({
         <div className={styles.cardContentWrap}>
           <h3 className={`${styles.title} font-card-title-1`} style={outlineStyle}>
             {title}
-            <div style={outlineStyle}>{curator}</div>
           </h3>
           <div className={styles.hashtags}>
             {hashtags.map((tag, index) => (

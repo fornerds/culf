@@ -28,7 +28,7 @@ def create_conversation(
     db_conversation = models.Conversation(
         user_id=user_id,
         room_id=chat.room_id,
-        question=chat.question,
+        question=chat.question or "",  # 이미지만 있는 경우 빈 문자열 사용
         question_summary=question_summary,
         question_image=chat.question_image,
         answer=answer,
@@ -200,7 +200,7 @@ def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoo
     # 대화 내역을 시간순으로 정렬
     sorted_conversations = sorted(
         chat_room.conversations,
-        key=lambda x: x.question_time,
+        key=lambda x: x.question_time.timestamp() if x.question_time else 0,
         reverse=True
     )
 
