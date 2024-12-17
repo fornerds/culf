@@ -197,37 +197,28 @@ def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoo
     if not chat_room:
         return None
 
-    # 대화 내역을 시간순으로 정렬
-    sorted_conversations = sorted(
-        chat_room.conversations,
-        key=lambda x: x.question_time.timestamp() if x.question_time else 0,
-        reverse=True
-    )
-
-    # 기본 정보 설정
-    setattr(chat_room, '_conversation_count', len(sorted_conversations))
-    if sorted_conversations:
-        latest = sorted_conversations[0]
+    # conversations를 리스트로 변환
+    conversations_list = [{
+        "question": conv.question,
+        "answer": conv.answer,
+        "question_time": conv.question_time,
+        "answer_time": conv.answer_time,
+        "question_image": conv.question_image
+    } for conv in chat_room.conversations]  # 이미 정렬된 상태
+    
+    # 속성 설정
+    setattr(chat_room, '_conversation_count', len(conversations_list))
+    setattr(chat_room, '_conversations_list', conversations_list)
+    
+    # 마지막 대화 설정
+    if conversations_list:
+        latest = conversations_list[0]  # 첫 번째가 가장 최근 대화
         setattr(chat_room, '_last_conversation', {
-            "question": latest.question,
-            "answer": latest.answer,
-            "question_time": latest.question_time
+            "question": latest["question"],
+            "answer": latest["answer"],
+            "question_time": latest["question_time"]
         })
     else:
         setattr(chat_room, '_last_conversation', None)
-
-    # conversations를 리스트 형태로 변환하여 저장
-    sorted_conversations_list = [
-        {
-            "question": conv.question,
-            "answer": conv.answer,
-            "question_time": conv.question_time,
-            "answer_time": conv.answer_time,
-            "question_image": conv.question_image
-        }
-        for conv in sorted_conversations
-    ]
-    # _conversations 속성에 저장 (원본 conversations는 그대로 유지)
-    setattr(chat_room, '_conversations_list', sorted_conversations_list)
 
     return chat_room
