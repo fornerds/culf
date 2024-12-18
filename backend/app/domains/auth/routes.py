@@ -204,18 +204,7 @@ def mask_email(email: str) -> str:
     else:
         masked_user = user
     return f"{masked_user}@{domain}"
-
-@router.post("/password-reset", response_model=auth_schemas.Msg)
-def reset_password(email: str, db: Session = Depends(get_db)):
-    user = user_services.get_user_by_email(db, email=email)
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="The user with this email does not exist in the system.",
-        )
-    # Here you would typically send an email with password reset instructions
-    # For this example, we'll just return a success message
-    return {"msg": "Password reset email sent"}
+\
 
 @router.post("/auth/check-email", response_model=dict)
 def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depends(get_db)):
@@ -227,12 +216,13 @@ def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depen
 @router.post("/auth/phone-verification/request")
 def send_verification_code(
     request: Request,
+    findpw: bool = Body(default=False, embed=True),
     phone_number: str = Body(..., embed=True), 
     db: Session = Depends(get_db)
 ):
     #todo 핸드폰 번호 중복확인 임시 조건문 추가
     provider_info = request.cookies.get("provider_info")
-    if not provider_info:
+    if not provider_info and not findpw:
         user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
         if user:
             raise HTTPException(status_code=400, detail="User already exists with this phone number")
@@ -266,7 +256,7 @@ def send_verification_code(
 @router.post("/auth/phone-verification/verify")
 def verify_verification_code(
     request: Request,
-    verification_code: str = Body(..., embed=True), 
+    verification_code: str = Body(..., embed=True),
     phone_number: str = Body(..., embed=True),
     db: Session = Depends(get_db)
 ):
@@ -293,6 +283,57 @@ def verify_verification_code(
     response.delete_cookie("verification_code")
     response.set_cookie(key="verified_phone_number",value=auth_services.encrypt(phone_number),httponly=True,expires=1200)
     return response
+
+@router.post("/auth/reset-password", response_model=auth_schemas.Msg)
+def reset_password(
+    request: Request,
+    email: str = Body(..., embed=True),
+    phone_number: str = Body(..., embed=True),
+    new_password: str = Body(..., embed=True),
+    new_password_confirm: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
+):
+    # Verify that the new password and confirmation match
+    if new_password != new_password_confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "validation_error",
+                "message": "새 비밀번호와 비밀번호 확인이 일치하지 않습니다."
+            }
+        )
+
+    # Verify phone number with the cookie value
+    verified_phone_number = request.cookies.get("verified_phone_number")
+    if not verified_phone_number or auth_services.encrypt(phone_number) != verified_phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "phone_number_verification_failed",
+                "message": "전화번호 인증이 필요합니다."
+            }
+        )
+
+    # Retrieve the user by phone number and verify the email
+    user = user_services.get_user_by_phone_number(db, phone_number=phone_number)
+    if not user or user.email != email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "validation_error",
+                "message": "전화번호와 이메일이 일치하는 사용자를 찾을 수 없습니다."
+            }
+        )
+
+    # If all checks pass, update the user's password
+    user_services.change_user_password(db, user_id=user.user_id, new_password=new_password,new_password_confirm=new_password_confirm)
+    
+    response = JSONResponse(content={"message": "비밀번호가 성공적으로 변경되었습니다."})
+    response.delete_cookie("verification_code")
+    response.delete_cookie("verified_phone_number")
+
+    return response
+
 @router.get("/auth/login/{provider}")
 def login_with_provider(provider: str, request: Request):
     if provider not in ["google", "kakao"]:  # Add any other supported providers
