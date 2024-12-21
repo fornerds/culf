@@ -180,6 +180,11 @@ function AppRoutes() {
       setTitle('이메일 찾기');
       setShowBackButton(true);
       setShowMenuButton(false);
+    } else if (matchPath('/change-password', pathname)) {
+      setUseHeader(true);
+      setTitle('비밀번호 찾기');
+      setShowBackButton(true);
+      setShowMenuButton(false);
     } else if (matchPath('/mypage/:tab', pathname)) {
       setUseHeader(true);
       setTitle('마이페이지');
