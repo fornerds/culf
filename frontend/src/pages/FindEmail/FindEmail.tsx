@@ -80,11 +80,9 @@ export function FindEmail() {
         phoneNumber: form.phoneNumber,
         birthdate: form.birthDate,
       });
-      showModal('회원님의 이메일 주소입니다.', res.data.email, undefined, () =>
-        navigate('/login'),
-      );
+      showModal('회원님의 이메일 주소입니다.', res.data.email);
     } catch (e) {
-      alert('실패했습니다.');
+      showModal('일치하는 정보를 찾을 수 없습니다.');
     }
   };
 

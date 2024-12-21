@@ -42,12 +42,13 @@ api.interceptors.response.use(
           {},
           {
             withCredentials: true,
-          }
+          },
         );
 
         if (res.status === 200) {
           tokenService.setAccessToken(res.data.access_token);
-          originalRequest.headers['Authorization'] = `Bearer ${res.data.access_token}`;
+          originalRequest.headers['Authorization'] =
+            `Bearer ${res.data.access_token}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
@@ -60,7 +61,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 // Auth API
@@ -77,10 +78,12 @@ export const auth = {
       ?.split('=')[1];
 
     return api.post('/auth/register', userData, {
-      headers: providerInfo ? {
-        'provider_info': providerInfo
-      } : undefined,
-      withCredentials: true
+      headers: providerInfo
+        ? {
+            provider_info: providerInfo,
+          }
+        : undefined,
+      withCredentials: true,
     });
   },
 
@@ -92,8 +95,11 @@ export const auth = {
   findEmail: (phoneNumber: string, birthdate: string) =>
     api.post('/auth/find-email', { phone_number: phoneNumber, birthdate }),
 
-  requestPhoneVerification: (phoneNumber: string) =>
-    api.post('/auth/phone-verification/request', { phone_number: phoneNumber }),
+  requestPhoneVerification: (phoneNumber: string, findPw: boolean) =>
+    api.post('/auth/phone-verification/request', {
+      phone_number: phoneNumber,
+      findpw: findPw,
+    }),
 
   verifyPhone: (phoneNumber: string, verificationCode: string) =>
     api.post('/auth/phone-verification/verify', {
@@ -103,13 +109,15 @@ export const auth = {
 
   resetPassword: (
     email: string,
+    phoneNumber: string,
     newPassword: string,
-    newPasswordConfirmation: string,
+    newPasswordConfirm: string,
   ) =>
-    api.put('/auth/reset-password', {
+    api.post('/auth/reset-password', {
       email,
+      phone_number: phoneNumber,
       new_password: newPassword,
-      new_password_confirmation: newPasswordConfirmation,
+      new_password_confirm: newPasswordConfirm,
     }),
 
   getProviderEmail: async () => {
@@ -124,16 +132,16 @@ export const auth = {
 
     return api.get('/auth/provider_email', {
       headers: {
-        'provider_info': providerInfo
+        provider_info: providerInfo,
       },
-      withCredentials: true
+      withCredentials: true,
     });
   },
 
   processCallback: (provider: string, code: string) =>
     api.get(`/auth/login/${provider}`, {
       params: { code },
-      withCredentials: true
+      withCredentials: true,
     }),
 };
 
@@ -161,30 +169,30 @@ export const chat = {
     roomId?: string,
     onMessage?: (message: string) => void,
   ): Promise<any> => {
-    try {  
+    try {
       if (!roomId) {
         throw new Error('Room ID is required');
       }
-  
+
       const formData = new FormData();
       formData.append('question', question);
       formData.append('room_id', roomId);
-      
+
       if (imageFile) {
         formData.append('image_file', imageFile);
       }
-  
+
       const token = tokenService.getAccessToken();
       if (!token) {
         throw new Error('Authorization token is missing');
       }
-  
+
       console.log('Sending chat request:', {
         roomId,
         question,
-        hasImage: !!imageFile
+        hasImage: !!imageFile,
       });
-  
+
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
@@ -192,21 +200,25 @@ export const chat = {
         },
         body: formData,
       });
-  
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         if (response.status === 404) {
           throw new Error('Chat room not found');
         } else if (response.status === 500) {
-          throw new Error('Internal server error occurred. Please try again later.');
+          throw new Error(
+            'Internal server error occurred. Please try again later.',
+          );
         } else {
           throw new Error(
             `Chat API Error: ${response.status}` +
-            (errorData.detail ? `, Details: ${JSON.stringify(errorData.detail)}` : '')
+              (errorData.detail
+                ? `, Details: ${JSON.stringify(errorData.detail)}`
+                : ''),
           );
         }
       }
-  
+
       const data = await response.json();
       console.log('Chat API Response:', data);
 
@@ -221,13 +233,15 @@ export const chat = {
       return new Promise((resolve) => {
         const streamText = () => {
           if (isCancelled) {
-            resolve(() => { isCancelled = true; });
+            resolve(() => {
+              isCancelled = true;
+            });
             return;
           }
 
           if (currentIndex < text.length) {
             let endIndex = currentIndex + 2;
-            
+
             while (
               endIndex < text.length &&
               !text[endIndex - 1].match(/[\s\n.!?,;:]/)
@@ -250,7 +264,9 @@ export const chat = {
 
             setTimeout(streamText, delay);
           } else {
-            resolve(() => { isCancelled = true; });
+            resolve(() => {
+              isCancelled = true;
+            });
           }
         };
 
@@ -285,8 +301,8 @@ export const chat = {
         sort,
         summary,
         user_id: userId,
-        search_query: searchQuery
-      }
+        search_query: searchQuery,
+      },
     });
   },
 
@@ -303,7 +319,7 @@ export const chat = {
 
   getChatRoomById: (roomId: string) => api.get(`/chat-rooms/${roomId}`),
 
-  getChatRoomCurator: (roomId: string) => 
+  getChatRoomCurator: (roomId: string) =>
     api.get(`/chat-rooms/${roomId}/curator`),
 };
 

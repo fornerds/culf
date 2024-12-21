@@ -5,6 +5,7 @@ import { auth } from '@/api';
 
 interface PhoneVerificationFormProps {
   phoneNumber: string;
+  findPw: boolean;
   isVerified: boolean;
   onVerificationSuccess: () => void;
   validationMessage?: string;
@@ -13,6 +14,7 @@ interface PhoneVerificationFormProps {
 
 export function PhoneVerificationForm({
   phoneNumber,
+  findPw,
   isVerified,
   onVerificationSuccess,
   validationMessage,
@@ -32,6 +34,7 @@ export function PhoneVerificationForm({
     try {
       const res = await auth.requestPhoneVerification(
         phoneNumber.replace(/-/g, ''),
+        findPw,
       );
       if (res.status === 200) {
         // alert('인증번호가 발송되었습니다.');

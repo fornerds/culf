@@ -71,6 +71,7 @@ export function Account() {
           />
           <PhoneVerificationForm
             phoneNumber={form.phoneNumber}
+            findPw={false}
             isVerified={isPhoneVerified}
             onVerificationSuccess={() => setIsPhoneVerified(true)}
             onChangeObj={handleFormChange}
