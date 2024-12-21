@@ -1,1 +1,1 @@
-export { Pricing } from './Terms';
+export { Pricing } from './Pricing';

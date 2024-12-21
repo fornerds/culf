@@ -1,0 +1,57 @@
+.card {
+  border-radius: 12px 12px 0px 12px;
+  border: 1.5px solid var(--line-less-highlight, #dadde0);
+  background: #fff;
+  width: 100%;
+}
+
+.selected {
+  border: 1px solid #7c3aed;
+}
+
+.cardContent {
+  padding: 16px 18px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.titleSection {
+  flex: 1;
+}
+
+.title {
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+.subtitle {
+  margin-top: 4px;
+}
+
+.priceSection {
+  display: flex;
+  box-sizing: border-box;
+  justify-content: space-between;
+  text-align: end;
+  align-items: end;
+}
+
+.originalPrice {
+  font-size: 14px;
+  font-family: 'PretendardVariable', sans-serif;
+  color: #a3a3a3;
+  text-decoration: line-through;
+}
+
+.finalPrice {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.discount {
+  margin-top: 25px;
+}

@@ -19,8 +19,11 @@ class ChatRoom(Base):
 
     user = relationship("User", back_populates="chat_rooms")
     curator = relationship("Curator")
-    conversations = relationship("Conversation", back_populates="chat_room")
-
+    conversations = relationship(
+        "Conversation",
+        back_populates="chat_room",
+        order_by="asc(Conversation.question_time)"
+    )
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
