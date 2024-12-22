@@ -80,6 +80,7 @@
   font-style: normal;
   font-weight: 500;
   line-height: 150%;
+  white-space: pre-wrap;
 }
 
 .suggestionListContainer {

@@ -21,6 +21,7 @@ export function ChatInput({ onSendMessage, hasImage = false, disabled = false }:
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initialHeight = useRef<number>(0);
+  const MAX_CHARS = 200;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -29,16 +30,25 @@ export function ChatInput({ onSendMessage, hasImage = false, disabled = false }:
   }, []);
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
-    adjustTextareaHeight(e.target);
+    const newValue = e.target.value;
+    if (newValue.length <= MAX_CHARS) {
+      setMessage(newValue);
+      adjustTextareaHeight(e.target);
+    }
+  };
+
+  const resetTextareaHeight = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '22px'; // min-height 값으로 초기화
+    }
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if ((message.trim() || hasImage) && !isComposing && !disabled) {
+    if ((message.trim() || hasImage) && !isComposing && !disabled && message.length <= MAX_CHARS) {
       onSendMessage(message);
       setMessage('');
-      adjustTextareaHeight(textareaRef.current);
+      resetTextareaHeight();
     }
   };
 
@@ -56,7 +66,7 @@ export function ChatInput({ onSendMessage, hasImage = false, disabled = false }:
     }
   };
 
-  const isButtonActive = (message.trim() || hasImage) && !disabled;
+  const isButtonActive = (message.trim() || hasImage) && !disabled && message.length <= MAX_CHARS;
 
   return (
     <form className={styles.chatInput} onSubmit={handleSubmit}>
@@ -71,10 +81,16 @@ export function ChatInput({ onSendMessage, hasImage = false, disabled = false }:
         className={`${styles.input} font-text-2`}
         rows={1}
         disabled={disabled}
+        maxLength={MAX_CHARS}
       />
+      {message.length > 0 && (
+        <span className={`${styles.charCount} ${message.length >= 180 ? styles.charCountNearLimit : ''}`}>
+          {message.length}/200자
+        </span>
+      )}
       <button
         type="submit"
-        className={`${styles.button} ${isButtonActive ? styles.active : ''}`}
+        className={styles.button}
         disabled={!isButtonActive || isComposing}
       >
         {isButtonActive ? <ButtonIcon /> : <ButtonDisabledIcon />}
