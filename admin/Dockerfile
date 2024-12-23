@@ -10,8 +10,14 @@ COPY package*.json ./
 # 의존성 설치
 RUN npm install --legacy-peer-deps
 
+# serve 글로벌 설치
+RUN npm install -g serve  
+
 # 소스 코드 복사
 COPY . .
+
+# NODE_ENV를 production으로 설정
+ENV NODE_ENV=production
 
 # 빌드
 RUN npm run build
@@ -20,4 +26,4 @@ RUN npm run build
 EXPOSE 3000
 
 # 개발 서버 실행
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "serve"]

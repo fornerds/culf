@@ -27,35 +27,38 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-
-    const username = e.target.username.value
+  
+    const email = e.target.username.value // username을 email로 사용
     const password = e.target.password.value
-
-    // admin 계정 하드코딩 체크
-    if (username === 'admin' && password === 'Culf123!@#') {
-      try {
-        // 실제 API 호출은 하지 않고 토큰만 저장
-        const mockToken = 'mock_admin_token'
-        localStorage.setItem('token', mockToken)
-        
-        dispatch({ 
-          type: 'LOGIN_SUCCESS', 
-          payload: { username: 'admin' } 
-        })
-        
-        // httpClient의 기본 헤더에 토큰 설정
-        httpClient.defaults.headers.common['Authorization'] = `Bearer ${mockToken}`
-        
-        navigate('/')
-      } catch (error) {
-        console.error('Login error:', error)
-        setError('로그인 중 오류가 발생했습니다.')
-      }
-    } else {
-      setError('아이디 또는 비밀번호가 올바르지 않습니다.')
+  
+    try {
+      // 실제 로그인 API 호출
+      const response = await httpClient.post('/auth/login', {
+        email,
+        password
+      })
+      
+      // 응답에서 access_token 추출
+      const { access_token } = response.data
+      
+      // 토큰 저장
+      localStorage.setItem('token', access_token)
+      
+      // httpClient의 기본 헤더에 토큰 설정
+      httpClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+      
+      dispatch({ 
+        type: 'LOGIN_SUCCESS', 
+        payload: { username: email } 
+      })
+      
+      navigate('/')
+    } catch (error) {
+      console.error('Login error:', error)
+      setError('로그인 중 오류가 발생했습니다.')
       dispatch({ 
         type: 'LOGIN_FAILURE', 
-        payload: '로그인에 실패했습니다.' 
+        payload: error.response?.data?.detail || '로그인에 실패했습니다.' 
       })
     }
   }

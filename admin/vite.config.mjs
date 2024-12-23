@@ -7,7 +7,7 @@ export default defineConfig(() => {
   return {
     base: '/admin',
     build: {
-      outDir: 'build',
+      outDir: 'dist',
     },
     css: {
       postcss: {

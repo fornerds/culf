@@ -26,6 +26,9 @@ import {
 } from '@coreui/react'
 import { format } from 'date-fns'
 import httpClient from '../../api/httpClient'
+import { cilCloudDownload } from '@coreui/icons'
+import CIcon from '@coreui/icons-react'
+import * as XLSX from 'xlsx'
 
 const ConversationList = () => {
     const [conversations, setConversations] = useState([])
@@ -116,6 +119,73 @@ const ConversationList = () => {
             handleSearch()
         }
     }
+    
+// 전체 대화 내용을 가져오는 함수 추가
+const fetchAllConversations = async () => {
+    try {
+      const response = await httpClient.get('/conversations', {
+        params: {
+          limit: 999999,  // 또는 매우 큰 숫자
+          page: 1,
+          search_query: searchQuery
+        }
+      })
+      
+      if (response.data && response.data.conversations) {
+        return response.data.conversations
+      }
+      return []
+    } catch (error) {
+      console.error('Error fetching all conversations:', error)
+      return []
+    }
+  }
+  
+  // 엑셀 다운로드 함수 수정
+  const handleExportExcel = async () => {
+    // 데이터 가져오기 전 로딩 표시
+    setLoading(true)
+    
+    try {
+      // 전체 대화 내용 가져오기
+      const allConversations = await fetchAllConversations()
+      
+      // 엑셀로 변환할 데이터 준비
+      const exportData = allConversations.map(conv => ({
+        '사용자': conv.user_nickname,
+        '질문': conv.question,
+        '답변': conv.answer,
+        '질문 시간': format(new Date(conv.question_time), 'yyyy-MM-dd HH:mm:ss'),
+        '토큰 사용량': conv.tokens_used
+      }))
+  
+      // 워크북 생성
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(exportData)
+  
+      // 열 너비 자동 조정
+      const maxWidth = 50
+      const wscols = [
+        { wch: 15 }, // 사용자
+        { wch: 30 }, // 질문
+        { wch: maxWidth }, // 답변
+        { wch: 20 }, // 질문 시간
+        { wch: 12 }  // 토큰 사용량
+      ]
+      ws['!cols'] = wscols
+  
+      // 워크시트를 워크북에 추가
+      XLSX.utils.book_append_sheet(wb, ws, '대화내역')
+  
+      // 파일 저장
+      const fileName = `대화내역_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      XLSX.writeFile(wb, fileName)
+    } catch (error) {
+      console.error('Error exporting conversations:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
     if (loading) {
         return (
@@ -129,9 +199,17 @@ const ConversationList = () => {
         <CRow>
             <CCol xs={12}>
                 <CCard className="mb-4">
-                    <CCardHeader>
-                        <strong>대화 내역</strong>
-                    </CCardHeader>
+                <CCardHeader className="d-flex justify-content-between align-items-center">
+  <strong>대화 내역</strong>
+  <CButton 
+    color="primary"
+    size="sm"
+    onClick={handleExportExcel}
+  >
+    <CIcon icon={cilCloudDownload} className="me-2" />
+    대화내용 내보내기
+  </CButton>
+</CCardHeader>
                     <CCardBody>
                         <div className="mb-3 d-flex justify-content-end">
                             <CInputGroup style={{ width: 'auto' }}>
@@ -184,16 +262,16 @@ const ConversationList = () => {
                             </CTableBody>
                         </CTable>
                         <CPagination align="center" aria-label="Page navigation">
-                            {[...Array(Math.ceil(totalCount / limit))].map((_, index) => (
-                                <CPaginationItem
-                                    key={index + 1}
-                                    active={currentPage === index + 1}
-                                    onClick={() => setCurrentPage(index + 1)}
-                                >
-                                    {index + 1}
-                                </CPaginationItem>
-                            ))}
-                        </CPagination>
+  {[...Array(Math.min(10, Math.ceil(totalCount / limit)))].map((_, index) => (
+    <CPaginationItem
+      key={index + 1}
+      active={currentPage === index + 1}
+      onClick={() => setCurrentPage(index + 1)}
+    >
+      {index + 1}
+    </CPaginationItem>
+  ))}
+</CPagination>
 
                         <CModal
                             visible={visible}

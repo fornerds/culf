@@ -13,6 +13,8 @@ import {
   CButton,
   CImage,
   CFormSelect,
+  CBadge,
+  CInputGroup,
 } from '@coreui/react'
 import httpClient from '../../api/httpClient'
 
@@ -20,12 +22,16 @@ const CuratorCreate = () => {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     name: '',
+    persona: '',
     introduction: '',
     category: '',
+    tag_names: [],
   })
-  const [imageFile, setImageFile] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [mainImageFile, setMainImageFile] = useState(null)
+  const [profileImageFile, setProfileImageFile] = useState(null)
+  const [mainImagePreview, setMainImagePreview] = useState(null)
+  const [profileImagePreview, setProfileImagePreview] = useState(null)
+  const [currentTag, setCurrentTag] = useState('')
 
   // Category options
   const categoryOptions = [
@@ -35,12 +41,37 @@ const CuratorCreate = () => {
     { value: '여행', label: '여행' }
   ]
 
-  const handleImageChange = (e) => {
+  const handleMainImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
-      setImageFile(file)
-      setPreviewUrl(URL.createObjectURL(file))
+      setMainImageFile(file)
+      setMainImagePreview(URL.createObjectURL(file))
     }
+  }
+
+  const handleProfileImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setProfileImageFile(file)
+      setProfileImagePreview(URL.createObjectURL(file))
+    }
+  }
+
+  const handleAddTag = () => {
+    if (currentTag && formData.tag_names.length < 2) {
+      setFormData({
+        ...formData,
+        tag_names: [...formData.tag_names, currentTag],
+      })
+      setCurrentTag('')
+    }
+  }
+
+  const handleRemoveTag = (tagToRemove) => {
+    setFormData({
+      ...formData,
+      tag_names: formData.tag_names.filter(tag => tag !== tagToRemove),
+    })
   }
 
   const handleSubmit = async (e) => {
@@ -48,13 +79,20 @@ const CuratorCreate = () => {
     
     const data = new FormData()
     
-    if (imageFile) {
-      data.append('profile_image', imageFile)
+    if (mainImageFile) {
+      data.append('main_image', mainImageFile)
+    }
+    if (profileImageFile) {
+      data.append('profile_image', profileImageFile)
     }
     
     data.append('name', formData.name)
+    data.append('persona', formData.persona)
     data.append('introduction', formData.introduction)
     data.append('category', formData.category)
+    formData.tag_names.forEach(tag => {
+      data.append('tag_names', tag)
+    })
 
     try {
       const response = await httpClient.post('/curators', data, {
@@ -71,10 +109,6 @@ const CuratorCreate = () => {
     }
   }
 
-  const handleSearch = (e) => {
-    setSearchQuery(e.target.value)
-  }
-
   return (
     <CRow>
       <CCol xs={12}>
@@ -85,16 +119,32 @@ const CuratorCreate = () => {
           <CCardBody>
             <CForm onSubmit={handleSubmit}>
               <div className="mb-3">
+                <CFormLabel>메인 이미지</CFormLabel>
+                <CFormInput
+                  type="file"
+                  accept="image/*"
+                  onChange={handleMainImageChange}
+                  required
+                />
+                {mainImagePreview && (
+                  <CImage 
+                    src={mainImagePreview} 
+                    width={200} 
+                    className="mt-2"
+                  />
+                )}
+              </div>
+              <div className="mb-3">
                 <CFormLabel>프로필 이미지</CFormLabel>
                 <CFormInput
                   type="file"
                   accept="image/*"
-                  onChange={handleImageChange}
+                  onChange={handleProfileImageChange}
                   required
                 />
-                {previewUrl && (
+                {profileImagePreview && (
                   <CImage 
-                    src={previewUrl} 
+                    src={profileImagePreview} 
                     width={100} 
                     height={100} 
                     className="mt-2 rounded-circle"
@@ -107,6 +157,16 @@ const CuratorCreate = () => {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="mb-3">
+                <CFormLabel>페르소나</CFormLabel>
+                <CFormInput
+                  type="text"
+                  value={formData.persona}
+                  onChange={(e) => setFormData({ ...formData, persona: e.target.value })}
+                  placeholder="예: 지구 예술에 푹 빠진 외계인"
                   required
                 />
               </div>
@@ -134,26 +194,55 @@ const CuratorCreate = () => {
                 </CFormSelect>
               </div>
               <div className="mb-3">
-                <CFormLabel>사용자 검색</CFormLabel>
-                <CFormInput
-                  type="text"
-                  placeholder="사용자 닉네임을 입력하세요"
-                  value={searchQuery}
-                  onChange={handleSearch}
-                />
+                <CFormLabel>태그 (최대 2개)</CFormLabel>
+                <CInputGroup>
+                  <CFormInput
+                    type="text"
+                    value={currentTag}
+                    onChange={(e) => setCurrentTag(e.target.value)}
+                    placeholder="태그를 입력하세요"
+                    disabled={formData.tag_names.length >= 2}
+                  />
+                  <CButton 
+                    type="button" 
+                    color="primary" 
+                    onClick={handleAddTag}
+                    disabled={!currentTag || formData.tag_names.length >= 2}
+                  >
+                    추가
+                  </CButton>
+                </CInputGroup>
+                <div className="mt-2">
+                  {formData.tag_names.map((tag, index) => (
+                    <CBadge 
+                      key={index} 
+                      color="info" 
+                      className="me-2"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handleRemoveTag(tag)}
+                    >
+                      {tag} ✕
+                    </CBadge>
+                  ))}
+                </div>
               </div>
-              <div>
-                <CButton type="submit" color="primary" className="me-2">
-                  등록
-                </CButton>
-                <CButton 
-                  type="button" 
-                  color="secondary" 
-                  onClick={() => navigate('/curators')}
-                >
-                  취소
-                </CButton>
-              </div>
+              <div className="d-flex justify-content-center">
+  <CButton 
+    type="submit" 
+    color="primary" 
+    className="me-4 px-5"  // px-5로 좌우 패딩 추가
+  >
+    등록
+  </CButton>
+  <CButton 
+    type="button" 
+    color="secondary" 
+    className="px-5"      // px-5로 좌우 패딩 추가
+    onClick={() => navigate('/curators')}
+  >
+    취소
+  </CButton>
+</div>
             </CForm>
           </CCardBody>
         </CCard>

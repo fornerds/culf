@@ -43,12 +43,20 @@ const App = () => {
   }, [dispatch])
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/admin">
       <React.Suspense fallback={loading}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/404" element={<Page404 />} />
           <Route path="/500" element={<Page500 />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/banners" replace />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="*"
             element={

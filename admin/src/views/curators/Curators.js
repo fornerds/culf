@@ -14,6 +14,8 @@ import {
   CTableRow,
   CButton,
   CSpinner,
+  CImage,
+  CBadge,
 } from '@coreui/react'
 import httpClient from '../../api/httpClient'
 
@@ -48,6 +50,19 @@ const Curators = () => {
     }
   }
 
+  const renderTags = (tags) => {
+    return tags?.map((tag, index) => (
+      <CBadge 
+        key={index} 
+        color="info" 
+        className="me-1"
+        style={{ fontSize: '0.8rem' }}
+      >
+        {tag.name}
+      </CBadge>
+    ))
+  }
+
   if (loading) {
     return (
       <div className="text-center">
@@ -70,22 +85,55 @@ const Curators = () => {
             </CButton>
           </CCardHeader>
           <CCardBody>
-            <CTable hover>
+            <CTable hover align="middle">
               <CTableHead>
                 <CTableRow>
-                  <CTableHeaderCell>이름</CTableHeaderCell>
-                  <CTableHeaderCell>카테고리</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '110px' }}>메인 이미지</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '100px' }}>프로필</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '80px' }}>이름</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '220px' }}>페르소나</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '90px' }}>카테고리</CTableHeaderCell>
                   <CTableHeaderCell>소개</CTableHeaderCell>
-                  <CTableHeaderCell style={{ width: '150px' }}>작업</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '150px' }}>태그</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '120px' }}>작업</CTableHeaderCell>
                 </CTableRow>
               </CTableHead>
               <CTableBody>
                 {curators.map((curator) => (
                   <CTableRow key={curator.curator_id}>
-                    
-                    <CTableDataCell>{curator.name}</CTableDataCell>
+                    <CTableDataCell>
+                      {curator.main_image && (
+                        <CImage
+                          rounded
+                          src={curator.main_image}
+                          width={80}
+                          height={80}
+                          className="object-fit-cover"
+                        />
+                      )}
+                    </CTableDataCell>
+                    <CTableDataCell>
+                      {curator.profile_image && (
+                        <CImage
+                          rounded
+                          src={curator.profile_image}
+                          width={80}
+                          height={80}
+                          className="object-fit-cover"
+                        />
+                      )}
+                    </CTableDataCell>
+                    <CTableDataCell>
+                      <strong>{curator.name}</strong>
+                    </CTableDataCell>
+                    <CTableDataCell>{curator.persona || '-'}</CTableDataCell>
                     <CTableDataCell>{curator.category || '-'}</CTableDataCell>
-                    <CTableDataCell>{curator.introduction || '-'}</CTableDataCell>
+                    <CTableDataCell>
+                      <div style={{ maxWidth: '300px', whiteSpace: 'pre-wrap' }}>
+                        {curator.introduction || '-'}
+                      </div>
+                    </CTableDataCell>
+                    <CTableDataCell>{renderTags(curator.tags)}</CTableDataCell>
                     <CTableDataCell>
                       <CButton 
                         color="info"

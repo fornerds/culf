@@ -30,7 +30,7 @@ const Banners = () => {
 
   const fetchBanners = async () => {
     try {
-      const response = await httpClient.get('/banners')
+      const response = await httpClient.get('/banners/all')
       setBanners(response.data)
     } catch (error) {
       console.error('Error fetching banners:', error)
