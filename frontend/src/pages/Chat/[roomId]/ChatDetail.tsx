@@ -7,6 +7,7 @@ import {
   FileUploadButton,
   QuestionBox,
   MarkdownChat,
+  SlideUpModal
 } from '@/components/molecule';
 import CameraIcon from '@/assets/icons/camera.svg?react';
 import CloseIcon from '@/assets/icons/close.svg?react';
@@ -120,6 +121,7 @@ export function ChatDetail() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const messageCompleteRef = useRef<boolean>(false);
   const isMobile = window.innerWidth < 425;
+  // const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { mutate: sendMessage, isLoading: isSending } = useSendMessage();
 
@@ -474,6 +476,15 @@ export function ChatDetail() {
         )}
   
         <div className={styles.chatContainer} ref={chatContainerRef}>
+        {/* <button onClick={() => setIsModalOpen(true)}>모달 열기</button> */}
+      
+      {/* <SlideUpModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        navigationLink="/beta/pricing"
+        title="가지고 있는 토큰을 모두 사용했어요"
+        content="더 대화를 나누기 위해서는 토큰 추가 구입이 필요해요."
+      /> */}
           {messages.map((message, index) =>
             message.type === 'ai' ? (
               <MarkdownChat

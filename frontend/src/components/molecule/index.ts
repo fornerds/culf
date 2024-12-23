@@ -9,3 +9,4 @@ export { MarkdownChat } from './MarkdownChat';
 export { Modal } from './Modal';
 export { Popup } from './Popup';
 export { PriceCard } from './PriceCard';
+export { SlideUpModal } from "./SlideUpModal"
