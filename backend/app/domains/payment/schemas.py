@@ -190,7 +190,6 @@ class PaymentAdminResponse(BaseModel):
     class Config:
         orm_mode = True
 
-
 class AdminPaymentCreate(BaseModel):
     user_id: UUID
     amount: float
@@ -216,7 +215,6 @@ class AdminRefundResponse(BaseModel):
     class Config:
         orm_mode = True
 
-
 class RefundResponse(BaseModel):
     refund_id: int
     payment_id: UUID
@@ -228,7 +226,6 @@ class RefundResponse(BaseModel):
 
     class Config:
         orm_mode = True
-
 
 class PaymentListResponse(BaseModel):
     payment_id: UUID
@@ -255,7 +252,6 @@ class InquiryResponse(BaseModel):
 
     class Config:
         orm_mode = True
-
 
 class PaymentDetailResponse(BaseModel):
     payment_id: UUID

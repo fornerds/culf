@@ -1,7 +1,7 @@
 import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.domains.subscription.models import SubscriptionPlan, UserSubscription
+from . import models, schemas
 from typing import Optional
 from uuid import UUID
 from datetime import date
@@ -10,15 +10,15 @@ class SubscriptionService:
     @staticmethod
     def get_user_subscription(db: Session, user_id: UUID):
         logging.info(f"Searching for subscriptions with user_id: {user_id}")
-        subscriptions = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).all()
+        subscriptions = db.query(models.UserSubscription).filter(models.UserSubscription.user_id == user_id).all()
         if not subscriptions:
             logging.info(f"No subscriptions found for user_id: {user_id}")
         return subscriptions
 
     @staticmethod
-    def update_user_subscription(db: Session, user_id: UUID, plan_id: int) -> UserSubscription:
+    def update_user_subscription(db: Session, user_id: UUID, plan_id: int) -> models.UserSubscription:
         # 구독 변경 껍데기 함수
-        user_subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).all()
+        user_subscription = db.query(models.UserSubscription).filter(models.UserSubscription.user_id == user_id).all()
         if not user_subscription:
             raise HTTPException(status_code=404, detail="Subscription not found for this user")
 
@@ -31,7 +31,7 @@ class SubscriptionService:
     @staticmethod
     def cancel_user_subscription(db: Session, user_id: UUID):
         # 구독 해지 껍데기 함수
-        user_subscription = db.query(UserSubscription).filter(UserSubscription.user_id == user_id).all()
+        user_subscription = db.query(models.UserSubscription).filter(models.UserSubscription.user_id == user_id).all()
         if not user_subscription:
             raise HTTPException(status_code=404, detail="Subscription not found for this user")
 
