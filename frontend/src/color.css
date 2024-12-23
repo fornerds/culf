@@ -24,13 +24,13 @@
 
   /* Line Colors */
   --line-stay-the-same: #222222;
-  --line-highlight: #7d7d7d;
-  --line-less-highlight: #c9c9c9;
+  --line-highlight: #A0A4B9; /* #7d7d7d; */
+  --line-less-highlight: #DADDE0; /* #c9c9c9; */
 
   /* Text Colors */
-  --text-default: #222222;
-  --text-sub: #767676;
-  --text-guidetext: #a7a7a7;
+  --text-default: #35313C; /* #222222; */
+  --text-sub: #707687; /* #767676; */
+  --text-guidetext: #C5CCD8; /*  #a7a7a7; */
   --text-on-keycolor: #ffffff;
 
   /* Point Colors */

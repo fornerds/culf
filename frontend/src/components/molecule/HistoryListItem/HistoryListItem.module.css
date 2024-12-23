@@ -1,0 +1,59 @@
+.selectContainer {
+  display: flex;
+}
+
+.historyItem {
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-default, #fbfbfb);
+}
+
+.historyItem + .historyItem {
+  margin-top: 16px;
+}
+
+.historyRow + .historyRow {
+  margin-top: 4px;
+}
+
+.historyRow > span:first-child {
+  display: inline-block;
+  width: 50px;
+  margin-right: 12px;
+  color: var(--text-sub, #767676);
+}
+
+.historyBottom {
+  display: flex;
+  margin-top: 12px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cancelButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.cancelButtonText {
+  color: var(--line-highlight, #7d7d7d);
+  font-family: 'Pretendard Variable';
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.button {
+  border: 0;
+  background-color: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}

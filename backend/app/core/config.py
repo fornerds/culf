@@ -1,5 +1,6 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
+from typing import List
 import os
 
 # 환경 변수에 따라 적절한 .env 파일 로드
@@ -14,11 +15,23 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 8  # 8 days
     ALGORITHM: str = "HS256"
 
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
+    DB_HOST: str = os.getenv("DB_HOST")
+    DB_PORT: int = os.getenv("DB_PORT")
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
+
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8000",
+    ]
+
+    MONGODB_URL: str
+
+    # CloudFront 설정
+    CLOUDFRONT_DOMAIN: str
+    CLOUDFRONT_DISTRIBUTION_ID: str
 
     AWS_ACCESS_KEY_ID: str
     AWS_SECRET_ACCESS_KEY: str
@@ -27,12 +40,42 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str
     OPENAI_ASSISTANT_ID: str
+    PERPLEXITY_API_KEY: str
 
     # 개발 모드 설정 추가
-    DEV_MODE: bool = False
+    DEV_MODE: bool = os.getenv("DEV_MODE", "False") == "True"
 
     CLOUDFRONT_DOMAIN: str
     CLOUDFRONT_DISTRIBUTION_ID: str
+
+    KAKAO_CLIENT_ID: str
+    KAKAO_CLIENT_SECRET: str
+    KAKAO_AUTH_URI: str
+    KAKAO_TOKEN_URI: str
+    KAKAO_REDIRECT_URI: str
+    KAKAO_REST_API_KEY: str
+    
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
+    PROJECT_ID: str
+    GOOGLE_AUTH_URI: str
+    GOOGLE_TOKEN_URI: str
+    GOOGLE_AUTH_PROVIDER_X509_CERT_URL: str
+    GOOGLE_REDIRECT_URI: str
+    GOOGLE_JAVASCRIPT_ORIGINS: str
+
+    ALIGO_KEY: str
+    ALIGO_USER_ID: str
+    ALIGO_SENDER: str
+    ALIGO_TESTMODE_YN: str
+
+    PHONE_NUMBER_VERIFICATION_SECONDS: int
+
+    SNS_LOGIN_REDIRECT_URL: str
+
+    USE_GEMINI: bool
+    GEMINI_API_KEY: str
+    GEMINI_API_URL: str
 
     class Config:
         env_file = ".env"

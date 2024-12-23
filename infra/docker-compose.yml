@@ -1,6 +1,6 @@
 services:
   db:
-    build: 
+    build:
       context: ../db
       dockerfile: Dockerfile
     container_name: culf_db
@@ -13,6 +13,9 @@ services:
       - "5433:5432"
     env_file:
       - ../db/.env
+    environment:
+      - TZ=Asia/Seoul
+      - POSTGRES_TZ=Asia/Seoul
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     networks:
       - culf-network
@@ -44,6 +47,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        - NODE_ENV=development
     restart: unless-stopped
     tty: true
     volumes:
@@ -52,7 +57,24 @@ services:
     ports:
       - 5173:5173
     env_file:
-      - ../frontend/.env
+      - ../frontend/.env.development
+    networks:
+      - culf-network
+
+  admin:
+    container_name: culf_admin
+    build:
+      context: ../admin
+      dockerfile: Dockerfile
+    volumes:
+      - ../admin:/app
+      - /app/node_modules
+      - /app/dist
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
     networks:
       - culf-network
 

@@ -47,7 +47,7 @@ export const Default: Story = {
 
 export const PlusIcon: Story = {
   args: {
-    children: '+ Add Item',
+    children: 'Add Item',
     size: 'size2',
     variant: 'plus_icon',
   },

@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './Button.module.css';
+import PlusIcon from '@/assets/icons/plus.svg?react';
 
 export type ButtonSize = 'size1' | 'size2' | 'size3' | 'size4';
 export type ButtonVariant =
@@ -31,6 +32,7 @@ export function Button({
 
   return (
     <button className={buttonClass} onClick={onClick} {...props}>
+      {variant === 'plus_icon' && <PlusIcon />}
       {children}
     </button>
   );

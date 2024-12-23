@@ -10,9 +10,12 @@ from app.domains.notice.schemas import UserNoticeRead
 class UserBase(BaseModel):
     email: EmailStr
     nickname: str = Field(..., min_length=2, max_length=50)
-    phone_number: Optional[str] = Field(None, regex=r'^\d{10,11}$')
-    birthdate: date
-    gender: str = Field(..., regex='^(M|F|N)$')
+    phone_number: Optional[str] = Field(
+        None, 
+        pattern=r'^\d{10,11}$'  # Example: '1234567890' or '01234567890'
+    )
+    birthdate: Optional[date]
+    gender: str = Field(..., pattern='^(M|F|N)$')
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
@@ -24,6 +27,9 @@ class UserCreate(UserBase):
         if 'password' in values and v != values['password']:
             raise ValueError('passwords do not match')
         return v
+
+class OAuthUserCreate(UserBase):
+    marketing_agreed: bool = False
 
 class UserCreationResponse(BaseModel):
     user_id: UUID
@@ -55,7 +61,7 @@ class UserInfo(BaseModel):
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = Field(None, min_length=2, max_length=50)
-    phone_number: Optional[str] = Field(None, regex=r'^\d{10,11}$')
+    phone_number: Optional[str] = Field(None, pattern=r'^\d{10,11}$')
 
 class UserUpdateResponse(BaseModel):
     message: str
@@ -67,9 +73,12 @@ class UserDelete(BaseModel):
 class UserDeleteResponse(BaseModel):
     message: str
 
-class PasswordChange(BaseModel):
+class PasswordCheck(BaseModel):
     current_password: str
+
+class PasswordChange(BaseModel):
     new_password: str
+    new_password_confirm: str
 
 class PasswordChangeResponse(BaseModel):
     message: str
@@ -83,6 +92,7 @@ class TokenInfo(BaseModel):
 
 class UserInDBBase(UserBase):
     user_id: UUID
+    hashed_password:str
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime]
@@ -111,3 +121,15 @@ class CorporateUserInDB(CorporateUserCreate):
 
     class Config:
         orm_mode = True
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+    nickname: Optional[str]
+    phone: Optional[str]
+    gender: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

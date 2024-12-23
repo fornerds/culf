@@ -1,0 +1,149 @@
+/* QuestionBox.module.css */
+.box {
+  max-width: 80%;
+  padding: 10px 15px;
+  border-radius: 20px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.aiContainer {
+  display: flex;
+  align-items: end;
+}
+
+.ai {
+  align-self: flex-start;
+  display: inline-flex;
+  max-width: 80%;
+  padding: 8px 10px;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+
+  border-radius: 9px 9px 9px 0px;
+  border: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-light, #f7f7f7);
+}
+
+.user {
+  align-self: flex-end;
+  display: inline-flex;
+  max-width: 80%;
+  padding: 8px 10px;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+
+  border-radius: 9px 9px 0px 9px;
+  border: 1px solid var(--keycolor-3, #7b4fff);
+  background: var(--keycolor-5, #b6b4ff);
+}
+
+.suggestion {
+  display: flex;
+  width: 158px;
+  height: 82px;
+  padding: 10px 12px;
+  align-items: flex-start;
+  gap: 10px;
+  flex-shrink: 0;
+
+  border-radius: 12px 12px 0px 12px;
+  border: 1px solid var(--line-less-highlight, #c9c9c9);
+  background: var(--box-default, #fbfbfb);
+  cursor: pointer;
+}
+
+.aiImage {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+  display: flex;
+  align-self: flex-start;
+  margin-top: 20px;
+}
+
+.content {
+  flex: 1;
+  word-break: break-word;
+  color: var(--text-default, #222);
+  font-family: 'PretendardVariable';
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 150%;
+  white-space: pre-wrap;
+}
+
+.suggestionListContainer {
+  position: fixed;
+  bottom: 80px;
+  left: 0;
+  right: 0;
+  padding: 10px;
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+
+.suggestionList {
+  display: flex;
+  overflow-x: auto;
+  gap: 12px;
+  padding: 20px;
+}
+
+.suggestionList::-webkit-scrollbar {
+  height: 6px;
+}
+
+.suggestionList::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+/* 새로 추가된 이미지 관련 스타일 */
+.imageWrapper {
+  margin-bottom: 8px;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.messageImage {
+  width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.loadingIndicator {
+  color: var(--text-default, #222);
+  font-family: 'PretendardVariable';
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.userContainer {
+  align-self: flex-end;
+  display: inline-flex;
+  max-width: 80%;
+  padding: 8px 10px;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+
+  border-radius: 9px 9px 0px 9px;
+  border: 1px solid var(--keycolor-3, #7b4fff);
+  background: var(--keycolor-5, #b6b4ff);
+}

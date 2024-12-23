@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from . import models, schemas
 from uuid import UUID
+from . import models, schemas
 
 def get_all_token_plans(db: Session) -> List[models.TokenPlan]:
     return db.query(models.TokenPlan).all()
@@ -51,4 +52,3 @@ def use_tokens(db: Session, user_id: UUID, tokens: int) -> None:
     user_tokens = db.query(models.Token).filter(models.Token.user_id == user_id).first()
     if user_tokens:
         user_tokens.used_tokens += tokens
-        db.commit()

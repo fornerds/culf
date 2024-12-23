@@ -1,81 +1,116 @@
 import React, { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../molecule/Card';
 import styles from './Cards.module.css';
+import { chat } from '@/api';
+import { useChatRoomStore } from '@/state/client/chatRoomStore';
 
 interface CardsProps {
   cards: {
     frontColor: string;
     backColor: string;
+    outlineColor: string;
     title: string;
+    curator: string;
     hashtags: string[];
     characterImage: string;
-    link: string;
+    curatorId: number;
   }[];
 }
 
 export function Cards({ cards }: CardsProps) {
+  const navigate = useNavigate();
+  const setCurrentRoom = useChatRoomStore((state) => state.setCurrentRoom);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
+  const clickStartTimeRef = useRef(0);
+
+  const handleCardClick = async (curatorId: number) => {
+    try {
+      const response = await chat.createChatRoom(curatorId);
+      const { room_id, curator } = response.data;
+      
+      setCurrentRoom({
+        roomId: room_id,
+        curatorId: curatorId,
+        curatorInfo: {
+          name: curator.name,
+          profileImage: curator.profile_image,
+          persona: curator.persona
+        }
+      });
+      
+      navigate(`/chat/${room_id}`);
+    } catch (error) {
+      console.error('채팅방 생성 실패:', error);
+    }
+  };
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    let isClick = true;
-
     const onPointerDown = (e: PointerEvent) => {
       isDraggingRef.current = true;
       startXRef.current = e.pageX - container.offsetLeft;
       scrollLeftRef.current = container.scrollLeft;
-      isClick = true;
+      clickStartTimeRef.current = Date.now();
     };
 
     const onPointerMove = (e: PointerEvent) => {
       if (!isDraggingRef.current) return;
+      
       const x = e.pageX - container.offsetLeft;
       const dx = x - startXRef.current;
-      if (Math.abs(dx) > 5) {
-        isClick = false;
-      }
       container.scrollLeft = scrollLeftRef.current - dx;
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      isDraggingRef.current = false;
-      if (isClick) {
-        handleCardClick(e);
+      const clickDuration = Date.now() - clickStartTimeRef.current;
+      const isQuickClick = clickDuration < 200; // 200ms 이내의 클릭만 처리
+
+      if (isQuickClick) {
+        const target = e.target as HTMLElement;
+        const cardWrapper = target.closest(`.${styles.cardWrapper}`);
+        
+        if (cardWrapper) {
+          const curatorId = cardWrapper.getAttribute('data-curator-id');
+          if (curatorId) {
+            handleCardClick(parseInt(curatorId));
+          }
+        }
       }
+
+      isDraggingRef.current = false;
     };
 
-    const handleCardClick = (e: MouseEvent | PointerEvent) => {
-      const target = e.target as HTMLElement;
-      // console.log('Clicked element:', target); // 디버깅 로그
-      // console.log('Clicked element classes:', target.className); // 디버깅 로그
-      const cardWrapper = target.closest(`.${styles.cardWrapper}`);
-      if (cardWrapper) {
-        const link = cardWrapper.getAttribute('data-link');
-        // console.log('Clicked card link:', link);
-        if (link) {
-          window.location.href = link; // 임시로 window.location.href 사용
-        }
-      } else {
-        // console.log('No card wrapper found');
-        // console.log('Container children:', container.children); // 디버깅 로그
+    const onPointerLeave = () => {
+      isDraggingRef.current = false;
+    };
+
+    // 모바일에서 스크롤 중에 화면이 끌려가는 것을 방지
+    const preventDrag = (e: TouchEvent) => {
+      if (isDraggingRef.current) {
+        e.preventDefault();
       }
     };
 
     container.addEventListener('pointerdown', onPointerDown);
     container.addEventListener('pointermove', onPointerMove);
     container.addEventListener('pointerup', onPointerUp);
+    container.addEventListener('pointerleave', onPointerLeave);
+    container.addEventListener('touchmove', preventDrag, { passive: false });
 
     return () => {
       container.removeEventListener('pointerdown', onPointerDown);
       container.removeEventListener('pointermove', onPointerMove);
       container.removeEventListener('pointerup', onPointerUp);
+      container.removeEventListener('pointerleave', onPointerLeave);
+      container.removeEventListener('touchmove', preventDrag);
     };
-  }, []);
+  }, [navigate, setCurrentRoom]);
 
   return (
     <div className={styles.cardsOuterContainer}>
@@ -84,7 +119,7 @@ export function Cards({ cards }: CardsProps) {
           <div
             key={index}
             className={`${styles.cardWrapper} cardWrapper`}
-            data-link={card.link}
+            data-curator-id={card.curatorId}
           >
             <Card {...card} />
           </div>

@@ -10,11 +10,11 @@ COPY . /app
 # Remove package-lock.json and node_modules
 RUN rm -rf package-lock.json node_modules
 
-# Install dependencies
-RUN npm install
+# Install dependencies with legacy-peer-deps flag
+RUN npm install --legacy-peer-deps
 
 # Expose the app port
-EXPOSE 3000
+EXPOSE 5173
 
 # Run React app
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]

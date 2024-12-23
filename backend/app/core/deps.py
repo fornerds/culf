@@ -1,3 +1,5 @@
+import random
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError, ExpiredSignatureError
@@ -11,30 +13,32 @@ import logging
 from datetime import datetime, date
 import uuid
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
 async def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
 ) -> user_schemas.User:
     if settings.DEV_MODE:
         logging.warning("Using dev mode authentication")
-        dev_email = "dev@example.com"
-        dev_user = services.get_user_by_email(db, email=dev_email)
+        dev_user = user_services.get_user_by_email(db, email="dev@example.com")
+
         if not dev_user:
             dev_user = user_services.create_user(db, user_schemas.UserCreate(
-                email=dev_email,
+                email="dev@example.com",
                 password="devpassword",
                 password_confirmation="devpassword",
-                nickname="DevAdmin",
+                nickname="DevUser",
                 birthdate=date(1990, 1, 1),
                 gender="N",
-                phone_number="1234567890",
+                phone_number="01012345678",
                 marketing_agreed=False
             ))
             dev_user.role = 'ADMIN'
             db.commit()
         return dev_user
 
+    # 실제 운영 환경의 인증 로직
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -74,5 +78,16 @@ async def get_current_active_superuser(
     if not user_services.is_superuser(current_user):
         raise HTTPException(
             status_code=400, detail="The user doesn't have enough privileges"
+        )
+    return current_user
+
+def get_current_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """관리자 권한 확인"""
+    if current_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 권한이 필요합니다",
         )
     return current_user

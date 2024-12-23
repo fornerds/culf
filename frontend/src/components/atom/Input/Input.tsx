@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, MouseEventHandler } from 'react';
 import styles from './Input.module.css';
 
 interface InputProps
@@ -7,6 +7,8 @@ interface InputProps
   className?: string;
   type?: 'text' | 'password' | 'email' | 'number' | 'tel' | 'url';
   onChange?: (value: string) => void;
+  onChangeObj?: (id: string, value: string) => void;
+  onBlur?: () => void;
 }
 
 export function Input({
@@ -16,6 +18,8 @@ export function Input({
   type = 'text',
   value: propValue,
   onChange,
+  onChangeObj,
+  onBlur,
   ...props
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -29,17 +33,40 @@ export function Input({
   }, [propValue]);
 
   const handleFocus = () => setIsFocused(true);
-  const handleBlur = () => setIsFocused(false);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setInputValue(newValue);
-    if (onChange) {
-      onChange(newValue);
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (onBlur) {
+      onBlur();
     }
   };
 
-  const clearInput = () => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value: newValue } = e.target;
+    if (id === 'birthDate') {
+      const rawValue = newValue.replace(/\D/g, ''); // 숫자 이외의 문자 제거
+      let formattedDate = rawValue;
+
+      if (rawValue.length > 4) {
+        formattedDate = `${rawValue.slice(0, 4)}-${rawValue.slice(4)}`;
+      }
+      if (rawValue.length > 6) {
+        formattedDate = `${rawValue.slice(0, 4)}-${rawValue.slice(4, 6)}-${rawValue.slice(6)}`;
+      }
+      setInputValue(formattedDate);
+    } else {
+      setInputValue(newValue);
+    }
+
+    if (onChange) {
+      onChange(newValue);
+    }
+    if (onChangeObj) {
+      onChangeObj(id, newValue);
+    }
+  };
+
+  const clearInput: MouseEventHandler<HTMLButtonElement> = (e) => {
+    const target = e.target as HTMLButtonElement;
     setInputValue('');
     if (inputRef.current) {
       inputRef.current.value = '';
@@ -47,6 +74,9 @@ export function Input({
     }
     if (onChange) {
       onChange('');
+    }
+    if (onChangeObj) {
+      onChangeObj(target.id, '');
     }
   };
 
@@ -75,6 +105,7 @@ export function Input({
         />
         {inputValue && !disabled && type !== 'password' && (
           <button
+            id={id}
             type="button"
             className={styles.clearButton}
             onClick={clearInput}
