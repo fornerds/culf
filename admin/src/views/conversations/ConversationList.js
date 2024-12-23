@@ -29,6 +29,7 @@ import httpClient from '../../api/httpClient'
 import { cilCloudDownload } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
 import * as XLSX from 'xlsx'
+import { saveAs } from 'file-saver';
 
 const ConversationList = () => {
     const [conversations, setConversations] = useState([])
@@ -179,7 +180,9 @@ const fetchAllConversations = async () => {
   
       // 파일 저장
       const fileName = `대화내역_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
-      XLSX.writeFile(wb, fileName)
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      saveAs(blob, fileName);
     } catch (error) {
       console.error('Error exporting conversations:', error)
     } finally {
@@ -262,17 +265,38 @@ const fetchAllConversations = async () => {
                             </CTableBody>
                         </CTable>
                         <CPagination align="center" aria-label="Page navigation">
-  {[...Array(Math.min(10, Math.ceil(totalCount / limit)))].map((_, index) => (
-    <CPaginationItem
-      key={index + 1}
-      active={currentPage === index + 1}
-      onClick={() => setCurrentPage(index + 1)}
-    >
-      {index + 1}
-    </CPaginationItem>
-  ))}
-</CPagination>
+  <CPaginationItem 
+    aria-label="이전"
+    onClick={() => setCurrentPage(Math.max(1, currentPage - 10))}
+    disabled={currentPage <= 1}
+  >
+    <span aria-hidden="true">&laquo;</span>
+  </CPaginationItem>
 
+  {[...Array(10)].map((_, index) => {
+    const pageNum = Math.floor((currentPage - 1) / 10) * 10 + index + 1;
+    if (pageNum <= Math.ceil(totalCount / limit)) {
+      return (
+        <CPaginationItem
+          key={pageNum}
+          active={currentPage === pageNum}
+          onClick={() => setCurrentPage(pageNum)}
+        >
+          {pageNum}
+        </CPaginationItem>
+      );
+    }
+    return null;
+  })}
+
+  <CPaginationItem
+    aria-label="다음"
+    onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), currentPage + 10))}
+    disabled={currentPage > Math.ceil(totalCount / limit) - 10}
+  >
+    <span aria-hidden="true">&raquo;</span>
+  </CPaginationItem>
+</CPagination>
                         <CModal
                             visible={visible}
                             onClose={() => setVisible(false)}
