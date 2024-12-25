@@ -1,9 +1,7 @@
 import { Header } from '@/components/organism';
 import styles from './Mypage.module.css';
 import { Tab } from '@/modules';
-import { Account } from '@/components/organism';
-import { Subscription } from '@/components/organism/Subscription';
-import { PaymentHistory } from '@/components/organism/PaymentHistory';
+import { Account, Subscription, PaymentHistory } from '@/components/organism';
 import { useNavigate, useParams } from 'react-router-dom';
 
 export function Mypage() {

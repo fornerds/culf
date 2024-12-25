@@ -148,7 +148,7 @@ export const auth = {
 // User API
 export const user = {
   register: (userData: any) => api.post('/users', userData),
-  getMyInfo: () => api.get('/users/me'),
+  getMyInfo: () => api.post('/users/me'),
   updateMyInfo: (userData: any) => api.put('/users/me', userData),
   deleteAccount: (reason?: string, feedback?: string) =>
     api.delete('/users/me', { data: { reason, feedback } }),
@@ -325,7 +325,7 @@ export const chat = {
 
 // Token API
 export const token = {
-  getMyTokenInfo: () => api.get('/users/me/tokens'),
+  getMyTokenInfo: () => api.get('/me/tokens'),
 };
 
 // Payment API

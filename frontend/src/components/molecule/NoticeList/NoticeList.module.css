@@ -1,0 +1,40 @@
+.noticeList {
+    width: 100%;
+    max-width: var(--max-width);
+    margin: 0 auto;
+  }
+  
+  .noticeItem {
+    padding: 14px 20px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .noticeItem:hover {
+    background-color: #f8f8f8;
+  }
+  
+  .title {
+    color: var(--text-default, #35313C);
+    margin-bottom: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .content {
+    color: var(--text-sub, #707687);
+    margin-bottom: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .date {
+    color: var(--text-guidetext, #C5CCD8);
+  }

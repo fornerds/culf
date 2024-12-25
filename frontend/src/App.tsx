@@ -1,3 +1,4 @@
+// App.tsx
 import { useState, useEffect, useCallback } from 'react';
 import {
   Routes,
@@ -10,9 +11,9 @@ import {
   Outlet,
 } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-// import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useHeaderStore } from './state/client/useHeaderStore';
 import { useSideMenuStore } from './state/client/useSideMenuStore';
+import { useUser } from './hooks/user/useUser';
 
 import { Homepage } from './pages/Homepage';
 import { Mypage } from './pages/Mypage';
@@ -32,19 +33,20 @@ import { Notification } from './pages/Notification';
 import { CustomerInquiry } from './pages/CustomerInquiry';
 import logoimage from './assets/images/culf.png';
 import axios from 'axios';
-import { API_BASE_URL, auth, user } from './api';
+import { API_BASE_URL, auth } from './api';
 import { OAuthCallback } from './pages/OAuthCallback';
 import { tokenService } from './utils/tokenService';
 import { useAuthStore } from './state/client/authStore';
 import { LoadingAnimation } from './components/atom';
+import { NoticeDetail } from './pages/Notification/Notice/[notice_id]';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: false,
-      gcTime: 5 * 60 * 1000, // 5분 (이전의 cacheTime)
-      staleTime: 5 * 60 * 1000, // 5분
+      gcTime: 5 * 60 * 1000,
+      staleTime: 5 * 60 * 1000,
     },
     mutations: {
       retry: false,
@@ -78,48 +80,56 @@ export const PrivateOutlet = () => {
   const [isChecking, setIsChecking] = useState(true);
   const { setAuth } = useAuthStore();
   const accessToken = tokenService.getAccessToken();
+  const { getUserInfo, isLoading } = useUser();
 
   useEffect(() => {
+    let isActive = true;
+
     const validateAuth = async () => {
       try {
         if (!accessToken) {
           // Try to refresh token if no access token
           const response = await auth.refreshToken();
-          if (response.data.access_token) {
+          if (response.data.access_token && isActive) {
             tokenService.setAccessToken(response.data.access_token);
-            setAuth(true, response.data.user);
-            setIsChecking(false);
-            return;
+            await getUserInfo.refetch();
           }
         } else {
-          // Validate existing access token
-          const response = await user.getMyInfo();
-          setAuth(true, response.data);
-          setIsChecking(false);
-          return;
+          // Token exists, just validate it
+          await getUserInfo.refetch();
         }
       } catch (error) {
         console.error('Auth validation failed:', error);
+        if (isActive) {
+          setAuth(false, null);
+        }
+      } finally {
+        if (isActive) {
+          setIsChecking(false);
+        }
       }
-
-      setAuth(false, null);
-      setIsChecking(false);
     };
 
     validateAuth();
-  }, [accessToken, setAuth]);
 
-  if (isChecking) {
-    return <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
-      <LoadingAnimation
-        imageUrl={logoimage}
-        alt="Description"
-        width={58}
-        height={19}
-        duration={2200} 
-      />
-      <p className='font-tag-1' style={{color: "#a1a1a1"}}>로그인 확인 중</p>
-    </div>;
+    return () => {
+      isActive = false;
+    };
+  }, []);  // 의존성 배열을 비움
+
+  if (isChecking || isLoading) {
+    return (
+      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+        <LoadingAnimation
+          imageUrl={logoimage}
+          alt="Description"
+          width={58}
+          height={19}
+          duration={2200} 
+        />
+        <p className='font-tag-1' style={{color: "#a1a1a1"}}>로그인 확인 중</p>
+      </div>
+    );
   }
 
   return accessToken ? <Outlet /> : <Navigate to="/login" replace />;
@@ -195,9 +205,19 @@ function AppRoutes() {
       setTitle('컬프 베타');
       setShowBackButton(true);
       setShowMenuButton(true);
-    } else if (matchPath('/notification', pathname)) {
+    } else if (matchPath('/notification/:tab', pathname)) {
       setUseHeader(true);
       setTitle('알림');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else if (matchPath('/notification/notice/:notice_id', pathname)) {
+      setUseHeader(true);
+      setTitle('알림 상세');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else if (matchPath('/notification/my-notice/:notice_id', pathname)) {
+      setUseHeader(true);
+      setTitle('알림 상세');
       setShowBackButton(true);
       setShowMenuButton(false);
     } else if (matchPath('/inquiry', pathname)) {
@@ -228,7 +248,7 @@ function AppRoutes() {
       pathname,
       useHeader: useHeaderStore.getState().useHeader,
       showMenuButton: useHeaderStore.getState().showMenuButton,
-    }); // Debug log
+    });
   }, [
     pathname,
     setUseHeader,
@@ -269,7 +289,12 @@ function AppRoutes() {
           <Route path="/cancel-payment" element={<CancelPayment />} />
           <Route path="/delete-account" element={<DeleteAccount />} />
           <Route path="/inquiry" element={<CustomerInquiry />} />
-          <Route path="/notification" element={<Notification />} />
+          <Route
+            path="/notification"
+            element={<Navigate to="/notification/notice" replace />}
+          />
+          <Route path="/notification/:tab" element={<Notification />} />
+          <Route path="/notification/notice/:notice_id" element={<NoticeDetail />} />
         </Route>
       </Routes>
     </Layout>
@@ -282,9 +307,6 @@ function App() {
       <BrowserRouter basename="/beta">
         <AppRoutes />
       </BrowserRouter>
-      {/* {import.meta.env.MODE === 'development' && (
-        <ReactQueryDevtools initialIsOpen={false} />
-      )} */}
     </QueryClientProvider>
   );
 }
