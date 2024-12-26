@@ -270,7 +270,7 @@ const fetchAllConversations = async () => {
     onClick={() => setCurrentPage(Math.max(1, currentPage - 10))}
     disabled={currentPage <= 1}
   >
-    <span aria-hidden="true">&laquo;</span>
+    <span aria-hidden="true">&lt;</span>
   </CPaginationItem>
 
   {[...Array(10)].map((_, index) => {
@@ -294,7 +294,7 @@ const fetchAllConversations = async () => {
     onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), currentPage + 10))}
     disabled={currentPage > Math.ceil(totalCount / limit) - 10}
   >
-    <span aria-hidden="true">&raquo;</span>
+    <span aria-hidden="true">&rt;</span>
   </CPaginationItem>
 </CPagination>
                         <CModal
