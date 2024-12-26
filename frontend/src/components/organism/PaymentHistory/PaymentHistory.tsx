@@ -38,7 +38,7 @@ export function PaymentHistory() {
   ];
 
   return (
-    <main>
+    <main className={styles.selectContainerWrap}>
       <div className={styles.selectContainer}>
         <Dropdown
           id="year"

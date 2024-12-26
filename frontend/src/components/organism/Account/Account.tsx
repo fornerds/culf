@@ -50,7 +50,7 @@ export function Account() {
 
   return (
     <>
-      <main>
+      <main className={styles.accountContentWrap}>
         <div className={styles.accountContent}>
           <InputBox
             id="email"

@@ -1,3 +1,7 @@
+.selectContainerWrap {
+  padding: 30px 20px 40px;
+}
+
 .selectContainer {
   margin-bottom: 20px;
   display: flex;
