@@ -32,24 +32,6 @@ def get_product_by_id(db: Session, product_id: int, product_type: str):
         return db.query(TokenPlan).filter(TokenPlan.token_plan_id == product_id).first()
     return None
 
-# 껍데기 코드 수정 필요
-def create_payment(db: Session, payment_data: Payment):
-    payment_record = Payment(
-        user_id=payment_data.user_id,
-        subscription_id=payment_data.subscription_id,
-        token_plan_id=payment_data.token_plan_id,
-        payment_number="PAY123456",
-        tokens_purchased=payment_data.tokens_purchased,
-        amount=payment_data.amount,
-        payment_method=payment_data.payment_method,
-        payment_date=datetime.utcnow(),
-        status='SUCCESS',
-    )
-    db.add(payment_record)
-    db.commit()
-    db.refresh(payment_record)
-    return payment_record
-
 def get_me_payments(db: Session, user_id: int, page: int = 1, limit: int = 10, year: int = None, month: int = None):
     offset = (page - 1) * limit
     query = db.query(Payment).filter(Payment.user_id == user_id)
@@ -99,16 +81,6 @@ def inquiry_payment(db: Session, payment_id: UUID, user_id: str, refund_request:
 
     return {"inquiry": inquiry, "refund": refund}
 
-def create_refund(db: Session, refund_data: Refund):
-    db.add(refund_data)
-    db.commit()
-    db.refresh(refund_data)
-    return refund_data
-
-def get_refunds(db: Session, user_id: int, page: int = 1, limit: int = 10):
-    offset = (page - 1) * limit
-    return db.query(Refund).filter(Refund.user_id == user_id).offset(offset).limit(limit).all()
-
 def get_refund_detail(db: Session, refund_id: int):
     return db.query(Refund).filter(Refund.refund_id == refund_id).first()
 
@@ -133,198 +105,61 @@ def get_coupon_by_code(db, coupon_code):
         logger.info(f"Coupon details: {coupon}")
     return coupon
 
-def calculate_discount(coupon: Coupon, original_price: float) -> float:
-    if coupon.discount_type == "RATE":
-        return original_price * (coupon.discount_value / 100)
-    elif coupon.discount_type == "AMOUNT":
-        return coupon.discount_value
-    return 0
-
-def record_coupon_usage(db: Session, user_id: str, coupon_id: int):
-    user_coupon = UserCoupon(user_id=user_id, coupon_id=coupon_id, used_at=datetime.now())
-    db.add(user_coupon)
-    db.commit()
-
-def create_coupon(db: Session, coupon_data: payment_schemas.CouponCreate):
-    coupon = Coupon(**coupon_data.dict())
-    db.add(coupon)
-    db.commit()
-    db.refresh(coupon)
-    return coupon
-
-def update_coupon(db: Session, coupon_id: int, coupon_data: payment_schemas.CouponUpdate):
-    coupon = db.query(Coupon).filter(Coupon.coupon_id == coupon_id).first()
-    if not coupon:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
-    
-    for key, value in coupon_data.dict(exclude_unset=True).items():
-        setattr(coupon, key, value)
-
-    db.commit()
-    db.refresh(coupon)
-    return coupon
-
-def delete_coupon(db: Session, coupon_id: int):
-    coupon = db.query(Coupon).filter(Coupon.coupon_id == coupon_id).first()
-    if not coupon:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
-    
-    db.delete(coupon)
-    db.commit()
-
-def get_coupon(db: Session, coupon_id: int):
-    coupon = db.query(Coupon).filter(Coupon.coupon_id == coupon_id).first()
-    if not coupon:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
-    return coupon
-
 def validate_coupon(db: Session, coupon_code: str, user_id: str):
     coupon = db.query(Coupon).filter(Coupon.coupon_code == coupon_code).first()
     if not coupon:
-        return payment_schemas.CouponValidationResponse(is_valid=False, reason="Coupon not found")
-
+        return {
+            "is_valid": False,
+            "discount_value": 0,
+            "message": "유효하지 않은 쿠폰입니다. (쿠폰을 찾을 수 없습니다.)"
+        }
     today = datetime.now().date()
     if coupon.valid_from and coupon.valid_to:
         if today < coupon.valid_from or today > coupon.valid_to:
-            return payment_schemas.CouponValidationResponse(is_valid=False, reason="Coupon is expired or not yet valid")
-
+            return {
+                "is_valid": False,
+                "discount_value": 0,
+                "message": "유효하지 않은 쿠폰입니다. (쿠폰이 만료되었거나 아직 유효하지 않습니다.)"
+            }
     if coupon.max_usage and coupon.used_count >= coupon.max_usage:
-        return payment_schemas.CouponValidationResponse(is_valid=False, reason="Coupon usage limit exceeded")
-
+        return {
+            "is_valid": False,
+            "discount_value": 0,
+            "message": "유효하지 않은 쿠폰입니다. (쿠폰 사용 가능 횟수가 초과되었습니다.)"
+        }
     user_coupon = db.query(UserCoupon).filter(UserCoupon.user_id == user_id, UserCoupon.coupon_id == coupon.coupon_id).first()
     if user_coupon:
-        return payment_schemas.CouponValidationResponse(is_valid=False, reason="Coupon already used by the user")
-
-    return payment_schemas.CouponValidationResponse(is_valid=True)
-
-# admin
-def get_payment_detail(db: Session, payment_id: UUID):
-    payment = (
-        db.query(Payment)
-        .filter(Payment.payment_id == payment_id)
-        .options(
-            joinedload(Payment.refunds),
-            joinedload(Payment.user),
-        )
-        .first()
-    )
-
-    if not payment:
-        return None
-
-    refund = None
-    if payment.refunds:
-        refund_obj = payment.refunds[0]
-        refund = {
-            "refund_id": refund_obj.refund_id,
-            "payment_id": refund_obj.payment_id,
-            "amount": refund_obj.amount,
-            "reason": refund_obj.reason,
-            "status": refund_obj.status,
-            "processed_at": refund_obj.processed_at,
-            "created_at": refund_obj.created_at,
+        return {
+            "is_valid": False,
+            "discount_value": 0,
+            "message": "유효하지 않은 쿠폰입니다. (해당 사용자가 이미 쿠폰을 사용했습니다.)"
         }
-
-    inquiries = []
-    if payment.refunds:
-            if refund.inquiry:
-                inquiry = refund.inquiry
-                inquiries.append({
-                    "inquiry_id": inquiry.inquiry_id,
-                    "type": inquiry.type,
-                    "title": inquiry.title,
-                    "email": inquiry.email,
-                    "contact": inquiry.contact,
-                    "content": inquiry.content,
-                    "status": inquiry.status,
-                    "created_at": inquiry.created_at,
-                })
-
+    discount_value = coupon.discount_value
     return {
-        "payment_id": payment.payment_id,
-        "payment_number": payment.payment_number,
-        "amount": payment.amount,
-        "status": payment.status,
-        "payment_date": payment.payment_date,
-        "payment_method": payment.payment_method,
-        "user_nickname": payment.user.nickname if payment.user else None,
-        "refund": refund,
-        "inquiries": inquiries,
+        "is_valid": True,
+        "discount_value": discount_value,
+        "message": "유효한 쿠폰입니다."
     }
 
-# 수동 결제 처리 껍데기 코드
-def create_manual_payment(db: Session, payment_data: dict) -> Payment:
-    payment = Payment(**payment_data)
-    db.add(payment)
-    db.commit()
-    db.refresh(payment)
-    return payment
-# 환불 처리 껍데기 코드
-def process_refund(db: Session, payment_id: UUID, refund_data: dict) -> Refund:
-    refund = Refund(payment_id=payment_id, **refund_data)
-    db.add(refund)
-    db.commit()
-    db.refresh(refund)
-    return refund
-
-def get_admin_payments(
-    db: Session,
-    query: Optional[str],
-    start_date: Optional[datetime],
-    end_date: Optional[datetime],
-    page: int,
-    limit: int,
-    sort: str
-) -> List[payment_schemas.PaymentListResponse]:
-    query_builder = db.query(
-        Payment,
-        User.nickname.label("user_nickname"),
-        Refund
-    ).join(User, Payment.user_id == User.user_id, isouter=True).join(
-        Refund, Payment.payment_id == Refund.payment_id, isouter=True
+# 껍데기 코드 수정 필요
+def create_payment(db: Session, payment_data: Payment):
+    payment_record = Payment(
+        user_id=payment_data.user_id,
+        subscription_id=payment_data.subscription_id,
+        token_plan_id=payment_data.token_plan_id,
+        payment_number="PAY123456",
+        tokens_purchased=payment_data.tokens_purchased,
+        amount=payment_data.amount,
+        payment_method=payment_data.payment_method,
+        payment_date=datetime.utcnow(),
+        status='SUCCESS',
     )
+    db.add(payment_record)
+    db.commit()
+    db.refresh(payment_record)
+    return payment_record
 
-    if query:
-        query_builder = query_builder.filter(
-            or_(
-                Payment.payment_id.ilike(f"%{query}%"),
-                User.nickname.ilike(f"%{query}%"),
-                Payment.payment_method.ilike(f"%{query}%"),
-                Payment.manual_payment_reason.ilike(f"%{query}%") 
-            )
-        )
-
-    if start_date and end_date:
-        query_builder = query_builder.filter(
-            Payment.payment_date.between(start_date, end_date)
-        )
-
-    sort_column, sort_direction = sort.split(":")
-    if sort_direction == "desc":
-        query_builder = query_builder.order_by(getattr(Payment, sort_column).desc())
-    else:
-        query_builder = query_builder.order_by(getattr(Payment, sort_column))
-
-    results = query_builder.offset((page - 1) * limit).limit(limit).all()
-
-    payments = []
-    for payment, user_nickname, refund in results:
-        payments.append(
-            payment_schemas.PaymentListResponse(
-                payment_id=payment.payment_id,
-                user_nickname=user_nickname,
-                product_name=None, 
-                amount=payment.amount,
-                payment_method=payment.payment_method,
-                status=payment.status,
-                payment_date=payment.payment_date,
-                refund=payment_schemas.RefundResponse.from_orm(refund) if refund else None
-            )
-        )
-
-    return payments
-
-# 카카오 페이 서비스
+# 카카오 페이 코드
 def __init__(self):
     self.base_url = "https://open-api.kakaopay.com/online/v1/payment"
     self.secret_key = os.getenv("SECRET_KEY")
@@ -807,4 +642,218 @@ def process_refund(self, payment_id: uuid, refund_data: dict, db: Session):
     db.refresh(refund)
 
     return refund
+
+# admin
+def get_payment_detail(db: Session, payment_id: UUID):
+    payment = (
+        db.query(Payment)
+        .filter(Payment.payment_id == payment_id)
+        .options(
+            joinedload(Payment.refunds),
+            joinedload(Payment.user),
+        )
+        .first()
+    )
+
+    if not payment:
+        return None
+
+    refund = None
+    if payment.refunds:
+        refund_obj = payment.refunds[0]
+        refund = {
+            "refund_id": refund_obj.refund_id,
+            "payment_id": refund_obj.payment_id,
+            "amount": refund_obj.amount,
+            "reason": refund_obj.reason,
+            "status": refund_obj.status,
+            "processed_at": refund_obj.processed_at,
+            "created_at": refund_obj.created_at,
+        }
+
+    inquiries = []
+    if payment.refunds:
+            if refund.inquiry:
+                inquiry = refund.inquiry
+                inquiries.append({
+                    "inquiry_id": inquiry.inquiry_id,
+                    "type": inquiry.type,
+                    "title": inquiry.title,
+                    "email": inquiry.email,
+                    "contact": inquiry.contact,
+                    "content": inquiry.content,
+                    "status": inquiry.status,
+                    "created_at": inquiry.created_at,
+                })
+
+    return {
+        "payment_id": payment.payment_id,
+        "payment_number": payment.payment_number,
+        "amount": payment.amount,
+        "status": payment.status,
+        "payment_date": payment.payment_date,
+        "payment_method": payment.payment_method,
+        "user_nickname": payment.user.nickname if payment.user else None,
+        "refund": refund,
+        "inquiries": inquiries,
+    }
+
+def create_manual_payment(db: Session, payment_data: dict) -> Payment:
+    user = db.query(User).filter(User.user_id == payment_data["user_id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    payment = Payment(
+        payment_id=uuid.uuid4(),
+        user_id=payment_data["user_id"],
+        payment_number=str(uuid.uuid4()),
+        payment_method="manual",
+        manual_payment_reason=payment_data["manual_payment_reason"],
+        payment_date=datetime.now(),
+        status="SUCCESS",
+        amount=0,
+    )
+
+    if payment_data.get("subscription_id"):
+        subscription_plan = db.query(SubscriptionPlan).filter(
+            SubscriptionPlan.plan_id == payment_data["subscription_id"]
+        ).first()
+        if not subscription_plan:
+            raise HTTPException(status_code=404, detail="Subscription plan not found")
+        
+        payment.subscription_id = subscription_plan.plan_id
+        payment.amount = Decimal(subscription_plan.discounted_price or subscription_plan.price)
+
+    elif payment_data.get("token_plan_id"):
+        token_plan = db.query(TokenPlan).filter(
+            TokenPlan.token_plan_id == payment_data["token_plan_id"]
+        ).first()
+        if not token_plan:
+            raise HTTPException(status_code=404, detail="Token plan not found")
+        
+        payment.token_plan_id = token_plan.token_plan_id
+        payment.amount = Decimal(token_plan.discounted_price or token_plan.price)
+        payment.tokens_purchased = token_plan.tokens
+
+        token = db.query(Token).filter(Token.user_id == payment_data["user_id"]).first()
+        if not token:
+            token = Token(
+                user_id=payment_data["user_id"],
+                total_tokens=token_plan.tokens,
+                used_tokens=0,
+                last_charged_at=datetime.now(),
+                expires_at=datetime.now() + timedelta(days=365),
+            )
+            db.add(token)
+        else:
+            token.total_tokens += token_plan.tokens
+            token.last_charged_at = datetime.now()
+            token.expires_at = datetime.now() + timedelta(days=365)
+
+    try:
+        db.add(payment)
+        db.commit()
+        db.refresh(payment)
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create manual payment")
+
+    return payment
+# 환불 처리 껍데기 코드
+def process_refund(db: Session, payment_id: UUID, refund_data: dict) -> Refund:
+    refund = Refund(payment_id=payment_id, **refund_data)
+    db.add(refund)
+    db.commit()
+    db.refresh(refund)
+    return refund
+
+def get_admin_payments(
+    db: Session,
+    query: Optional[str],
+    start_date: Optional[datetime],
+    end_date: Optional[datetime],
+    page: int,
+    limit: int,
+    sort: str
+) -> List[payment_schemas.PaymentListResponse]:
+    query_builder = db.query(
+        Payment,
+        User.nickname.label("user_nickname"),
+        Refund
+    ).join(User, Payment.user_id == User.user_id, isouter=True).join(
+        Refund, Payment.payment_id == Refund.payment_id, isouter=True
+    )
+
+    if query:
+        query_builder = query_builder.filter(
+            or_(
+                Payment.payment_id.ilike(f"%{query}%"),
+                User.nickname.ilike(f"%{query}%"),
+                Payment.payment_method.ilike(f"%{query}%"),
+                Payment.manual_payment_reason.ilike(f"%{query}%") 
+            )
+        )
+
+    if start_date and end_date:
+        query_builder = query_builder.filter(
+            Payment.payment_date.between(start_date, end_date)
+        )
+
+    sort_column, sort_direction = sort.split(":")
+    if sort_direction == "desc":
+        query_builder = query_builder.order_by(getattr(Payment, sort_column).desc())
+    else:
+        query_builder = query_builder.order_by(getattr(Payment, sort_column))
+
+    results = query_builder.offset((page - 1) * limit).limit(limit).all()
+
+    payments = []
+    for payment, user_nickname, refund in results:
+        payments.append(
+            payment_schemas.PaymentListResponse(
+                payment_id=payment.payment_id,
+                user_nickname=user_nickname,
+                product_name=None, 
+                amount=payment.amount,
+                payment_method=payment.payment_method,
+                status=payment.status,
+                payment_date=payment.payment_date,
+                refund=payment_schemas.RefundResponse.from_orm(refund) if refund else None
+            )
+        )
+
+    return payments
+
+def create_coupon(db: Session, coupon_data: payment_schemas.CouponCreate):
+    coupon = Coupon(**coupon_data.dict())
+    db.add(coupon)
+    db.commit()
+    db.refresh(coupon)
+    return coupon
+
+def update_coupon(db: Session, coupon_id: int, coupon_data: payment_schemas.CouponUpdate):
+    coupon = db.query(Coupon).filter(Coupon.coupon_id == coupon_id).first()
+    if not coupon:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
+    
+    for key, value in coupon_data.dict(exclude_unset=True).items():
+        setattr(coupon, key, value)
+
+    db.commit()
+    db.refresh(coupon)
+    return coupon
+
+def delete_coupon(db: Session, coupon_id: int):
+    coupon = db.query(Coupon).filter(Coupon.coupon_id == coupon_id).first()
+    if not coupon:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
+    
+    db.delete(coupon)
+    db.commit()
+
+def get_coupon(db: Session, coupon_id: int):
+    coupon = db.query(Coupon).filter(Coupon.coupon_id == coupon_id).first()
+    if not coupon:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coupon not found")
+    return coupon
 

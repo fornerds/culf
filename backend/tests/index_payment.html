@@ -58,22 +58,28 @@
         let isCouponValidSubscription = false;
 
         // 로그인 버튼 클릭 이벤트
-        document.getElementById("loginButton").onclick = async function() {
+        document.getElementById("loginButton").onclick = async function () {
             const email = document.getElementById("email").value;
             const password = document.getElementById("password").value;
+
             try {
-                const response = await fetch('http://localhost:8000/v1/login', {
+                const response = await fetch('http://localhost:8000/v1/auth/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ "email": email, "password": password })
+                    body: JSON.stringify({ "email": email, "password": password }) // 변경된 요청 형식
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
-                    accessToken = data.access_token;
+                    const accessToken = data.access_token;
+                    const refreshToken = data.refresh_token; 
+                    
+                    // 저장하거나 UI를 업데이트
                     document.getElementById("loginStatus").innerText = "로그인 성공";
+                    console.log("Access Token:", accessToken);
+                    console.log("Refresh Token:", refreshToken);
                 } else {
                     const errorData = await response.json();
                     document.getElementById("loginStatus").innerText = "로그인 실패: " + errorData.detail;

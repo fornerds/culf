@@ -13,7 +13,7 @@ class Payment(Base):
     subscription_id = Column(Integer, ForeignKey('subscription_plans.plan_id'), nullable=True)
     token_plan_id = Column(Integer, ForeignKey('token_plans.token_plan_id'), nullable=True)
     payment_number = Column(String(20), unique=True, nullable=False)
-    transaction_number = Column(String(20), unique=True, nullable=True)  # 새로운 칼럼 추가
+    transaction_number = Column(String(20), unique=True, nullable=True)
     tokens_purchased = Column(Integer, nullable=True)
     amount = Column(Float, nullable=False, default=0)
     payment_method = Column(String(50), nullable=False)
