@@ -41,12 +41,6 @@ async def get_product_by_id(product_id: int, product_type: str, db: Session = De
     elif product_type == "token":
         return schemas.TokenPlanSchema.from_orm(product)
 
-# 결제 관련 엔드포인트
-@router.post("/payments", response_model=schemas.PaymentResponse)
-def create_payment(payment_data: schemas.PaymentCreate, db: Session = Depends(get_db)):
-    payment = services.create_payment(db, payment_data)
-    return payment
-
 # 개인 결제 내역 조회 API
 @router.get("/users/me/payments", response_model=List[schemas.PaymentResponse])
 async def get_me_payments(
@@ -61,7 +55,6 @@ async def get_me_payments(
     payments = services.get_me_payments(db, user_id, page, limit, year, month)
     return payments
 
-# 결제 상세 조회 API
 @router.get("/users/me/payments/{payment_id}", response_model=schemas.PaymentResponse)
 async def get_payment_detail(
     payment_id: int,
@@ -94,24 +87,7 @@ def inquiry_refund(
         "message": "환불 문의와 요청이 성공적으로 접수되었습니다."
     }
 
-# 쿠폰 관련 엔드포인트
-@router.post("/admin/coupons", response_model=schemas.CouponResponse, status_code=status.HTTP_201_CREATED)
-def create_coupon(coupon_data: schemas.CouponCreate, db: Session = Depends(get_db)):
-    return services.create_coupon(db, coupon_data)
-
-@router.put("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
-def update_coupon(coupon_id: int, coupon_data: schemas.CouponUpdate, db: Session = Depends(get_db)):
-    return services.update_coupon(db, coupon_id, coupon_data)
-
-@router.delete("/admin/coupons/{coupon_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
-    services.delete_coupon(db, coupon_id)
-    return {"message": "Coupon deleted successfully"}
-
-@router.get("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
-def get_coupon(coupon_id: int, db: Session = Depends(get_db)):
-    return services.get_coupon(db, coupon_id)
-
+# 쿠폰 유효성 검사
 @router.post("/payments/coupons/validate", response_model=schemas.CouponValidationResponse)
 def validate_coupon(
     coupon_data: schemas.CouponValidationRequest,
@@ -120,6 +96,12 @@ def validate_coupon(
 ):
     validation_response = services.validate_coupon(db, coupon_data.coupon_code, current_user.user_id)
     return validation_response
+
+# 결제 관련 엔드포인트
+@router.post("/payments", response_model=schemas.PaymentResponse)
+def create_payment(payment_data: schemas.PaymentCreate, db: Session = Depends(get_db)):
+    payment = services.create_payment(db, payment_data)
+    return payment
 
 @router.post("/pay")
 async def initiate_payment(
@@ -168,7 +150,7 @@ async def initiate_subscription(
         raise HTTPException(status_code=422, detail=str(e.errors())) 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-    
+
 @router.post("/subscription/pay")
 async def pay_subscription(
     db: Session = Depends(get_db),
@@ -238,10 +220,15 @@ def get_payment_detail(payment_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Payment not found")
     return payment
 
-@router.post("/admin/payments", response_model=schemas.PaymentDetailResponse)
-def create_manual_payment(payment: schemas.AdminPaymentCreate, db: Session = Depends(get_db)):
-    payment_data = payment.dict()
-    new_payment = services.create_manual_payment(db, payment_data)
+@router.post("/admin/payments", response_model=schemas.PaymentAdminResponse)
+def create_manual_payment_route(payment: schemas.AdminPaymentCreate, db: Session = Depends(get_db)):
+    if not payment.subscription_id and not payment.token_plan_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either 'subscription_id' or 'token_plan_id' must be provided."
+        )
+
+    new_payment = services.create_manual_payment(db, payment.dict())
     return new_payment
 
 @router.post("/admin/payments/{payment_id}/refund", response_model=schemas.AdminRefundResponse)
@@ -260,3 +247,20 @@ def process_refund(payment_id: UUID, refund: schemas.RefundRequest, db: Session 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 쿠폰 관련 엔드포인트
+@router.post("/admin/coupons", response_model=schemas.CouponResponse, status_code=status.HTTP_201_CREATED)
+def create_coupon(coupon_data: schemas.CouponCreate, db: Session = Depends(get_db)):
+    return services.create_coupon(db, coupon_data)
+
+@router.put("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
+def update_coupon(coupon_id: int, coupon_data: schemas.CouponUpdate, db: Session = Depends(get_db)):
+    return services.update_coupon(db, coupon_id, coupon_data)
+
+@router.delete("/admin/coupons/{coupon_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
+    services.delete_coupon(db, coupon_id)
+    return {"message": "Coupon deleted successfully"}
+
+@router.get("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
+def get_coupon(coupon_id: int, db: Session = Depends(get_db)):
+    return services.get_coupon(db, coupon_id)

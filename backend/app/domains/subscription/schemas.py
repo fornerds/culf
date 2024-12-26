@@ -17,6 +17,7 @@ class SubscriptionPlanResponse(BaseModel):
 
     class Config:
         orm_mode = True
+        from_attributes = True
 
 class UserSubscriptionResponse(BaseModel):
     subscription_id: int
