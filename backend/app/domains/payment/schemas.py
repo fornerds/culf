@@ -160,7 +160,7 @@ class SequentialPaymentMethod(BaseModel):
     payment_priority: int
     sid: str
     payment_method_type: str
-    card_info: Optional[CardInfo] = None  # 선택 사항, 카드 결제일 경우
+    card_info: Optional[CardInfo] = None
 
 class KakaoPayApproval(BaseModel):
     tid: str
@@ -177,6 +177,15 @@ class KakaoPayApproval(BaseModel):
     sequential_payment_methods: Optional[List[SequentialPaymentMethod]] = None  # 정기 결제 시 순차결제일 경우
     created_at: datetime
     approved_at: datetime
+
+class KakaoPayFailureExtras(BaseModel):
+    method_result_code: Optional[str] = Field(None, description="카카오페이 실패 상세 코드")
+    method_result_message: Optional[str] = Field(None, description="카카오페이 실패 상세 메시지")
+
+class KakaoPayFailureResponse(BaseModel):
+    error_code: int = Field(..., description="카카오페이 실패 코드")
+    error_message: str = Field(..., description="카카오페이 실패 메시지")
+    extras: Optional[KakaoPayFailureExtras] = Field(None, description="추가 실패 정보")
 
 # admin 
 class AdminPaymentCreate(BaseModel):

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from app.domains.user.models import User
 from app.domains.user import schemas as user_schemas
@@ -6,18 +7,13 @@ from app.domains.payment import schemas, services
 from app.domains.payment.services import PaymentService
 from app.db.session import get_db
 from app.core.deps import get_current_active_user
-from dotenv import load_dotenv
+from app.core.config import settings
 from typing import List, Optional, Union
 from uuid import UUID
 from datetime import datetime
 import logging
 
-# 로깅 설정
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# .env 파일 로드
-load_dotenv()
+logger = logging.getLogger("app")
 
 router = APIRouter()
 
@@ -132,9 +128,46 @@ async def approve_payment(
 ):
     try:
         payment_approval = payment_service.approve_payment(pg_token, db)
-        return payment_approval
+        redirect_url = f"{settings.PAYMENT_URL}?success"
+        return RedirectResponse(url=redirect_url)
+    except HTTPException as http_err:
+        logger.error(f"HTTPException during payment approval: {http_err}")
+        redirect_url = f"{settings.PAYMENT_URL}?fail&reason={http_err.detail}"
+        return RedirectResponse(url=redirect_url)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected error during payment approval: {e}")
+        redirect_url = f"{settings.PAYMENT_URL}?fail&reason=unknown_error"
+        return RedirectResponse(url=redirect_url)
+
+@router.get("/pay/fail")
+async def payment_fail(
+    reason: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        failure_data = payment_service.fail_payment(reason, db)
+
+        redirect_url = (
+            f"{settings.PAYMENT_URL}?fail"
+            f"&reason={failure_data['reason']}"
+            f"&payment_id={failure_data['payment_id']}"
+        )
+        return RedirectResponse(url=redirect_url)
+
+    except HTTPException as http_err:
+        logger.error(f"HTTPException during payment failure: {http_err}")
+        redirect_url = f"{settings.PAYMENT_URL}?fail&reason={http_err.detail}"
+        return RedirectResponse(url=redirect_url)
+
+    except Exception as e:
+        logger.error(f"Unexpected error during payment failure: {e}")
+        redirect_url = f"{settings.PAYMENT_URL}?fail&reason=unknown_error"
+        return RedirectResponse(url=redirect_url)
+
+@router.get("/pay/cancel")
+async def payment_cancel():
+    redirect_url = f"{settings.PAYMENT_URL}"
+    return RedirectResponse(url=redirect_url)
 
 @router.post("/subscription")
 async def initiate_subscription(

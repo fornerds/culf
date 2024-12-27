@@ -12,6 +12,7 @@ from app.domains.token.models import Token, TokenPlan
 from app.domains.user.models import User
 from app.domains.subscription.models import SubscriptionPlan, UserSubscription
 from app.domains.inquiry.models import Inquiry
+from app.core.config import settings
 from uuid import UUID
 import requests
 import os
@@ -374,15 +375,6 @@ def get_coupon(db: Session, coupon_id: int):
 
 class PaymentService:
     # 카카오 페이 코드
-    def __init__(self):
-        self.base_url = "https://open-api.kakaopay.com/online/v1/payment"
-        self.secret_key = os.getenv("SECRET_KEY")
-        self.cid_one = os.getenv("CID_ONE")
-        self.cid_sub = os.getenv("CID_SUB")
-        self.cid_seq = os.getenv("CID_SEQ")
-        self.dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
-        self.cache_store = None
-
     def set_cache(self, value):
         global global_cache
         global_cache = value
@@ -398,7 +390,7 @@ class PaymentService:
         current_user: User
     ):
         headers = {
-            "Authorization": f"SECRET_KEY {self.secret_key}",
+            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
@@ -430,7 +422,7 @@ class PaymentService:
         partner_order_id = str(uuid.uuid4())
 
         data = {
-            "cid": self.cid_one,
+            "cid": settings.KAKAO_PAY_CID_ONE,
             "partner_order_id": partner_order_id,
             "partner_user_id": str(current_user.user_id),
             "item_name": f"{token_plan.tokens} tokens",
@@ -438,13 +430,13 @@ class PaymentService:
             "total_amount": float(total_amount),
             "vat_amount": 0,
             "tax_free_amount": 0,
-            "approval_url": "http://localhost:8000/v1/pay/success",
-            "cancel_url": "http://localhost:8000/v1/pay/cancel",
-            "fail_url": "http://localhost:8000/v1/pay/fail",
+            "approval_url": settings.KAKAO_PAY_SUCCESS,
+            "cancel_url": settings.KAKAO_PAY_CANCEL,
+            "fail_url": settings.KAKAO_PAY_FAIL
         }
 
         try:
-            response = requests.post(f"{self.base_url}/ready", headers=headers, json=data)
+            response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/ready", headers=headers, json=data)
             response_data = response.json()
 
             logger.info(f"API response status: {response.status_code}, response data: {response_data}")
@@ -469,7 +461,7 @@ class PaymentService:
                 db.commit()
 
                 self.set_cache({
-                    "cid": self.cid_one,
+                    "cid": settings.KAKAO_PAY_CID_ONE,
                     "tid": tid,
                     "partner_order_id": partner_order_id,
                     "partner_user_id": str(current_user.user_id)
@@ -501,7 +493,7 @@ class PaymentService:
 
     def approve_payment(self, pg_token: str, db: Session):
         headers = {
-            "Authorization": f"SECRET_KEY {self.secret_key}",
+            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
@@ -519,7 +511,7 @@ class PaymentService:
                 "pg_token": pg_token,
             }
 
-            response = requests.post(f"{self.base_url}/approve", headers=headers, json=data)
+            response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/approve", headers=headers, json=data)
             response_data = response.json()
 
             if response.status_code == 200:
@@ -578,9 +570,34 @@ class PaymentService:
             logger.error(f"Exception occurred during payment approval process: {str(e)}")
             raise HTTPException(status_code=400, detail="An error occurred while processing the payment approval.")
 
+    def fail_payment(self, reason: str, db: Session):
+        payment_info = self.get_cache()
+        if not payment_info:
+            logger.error("Failed to retrieve payment information from cache for failure processing.")
+            raise HTTPException(status_code=400, detail="Failed to retrieve payment information.")
+
+        try:
+            # 결제 정보 조회
+            payment = db.query(Payment).filter(Payment.payment_number == payment_info["tid"]).first()
+
+            if not payment:
+                logger.error(f"Payment not found for tid: {payment_info['tid']}")
+                raise HTTPException(status_code=404, detail="Payment not found.")
+
+            payment.status = "FAILED"
+            db.commit()
+            db.refresh(payment)
+
+            logger.info(f"Payment marked as FAILED for user_id: {payment.user_id}, reason: {reason}")
+            return {"status": "FAILED", "reason": reason, "payment_id": payment.payment_id}
+
+        except Exception as e:
+            logger.error(f"Exception occurred during payment failure processing: {str(e)}")
+            raise HTTPException(status_code=500, detail="An error occurred while processing the payment failure.")
+
     def initiate_subscription(self, subscription_request: payment_schemas.KakaoPaySubscriptionRequest, db: Session, current_user: User):
         headers = {
-            "Authorization": f"SECRET_KEY {self.secret_key}",
+            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
@@ -612,7 +629,7 @@ class PaymentService:
         total_amount = max(Decimal(subscription_plan.discounted_price) - discount_amount, Decimal(0)) * subscription_request.quantity
         partner_order_id = str(uuid.uuid4())
         data = {
-            "cid": self.cid_sub,
+            "cid": settings.KAKAO_PAY_CID_SUB,
             "partner_order_id": partner_order_id,
             "partner_user_id": str(current_user.user_id),
             "item_name": subscription_plan.plan_name,
@@ -620,13 +637,13 @@ class PaymentService:
             "total_amount": float(total_amount),
             "vat_amount": 0,
             "tax_free_amount": 0,
-            "approval_url": "http://localhost:8000/v1/pay/success",
-            "cancel_url": "http://localhost:8000/v1/pay/cancel",
-            "fail_url": "http://localhost:8000/v1/pay/fail",
+            "approval_url": settings.KAKAO_PAY_SUCCESS,
+            "cancel_url": settings.KAKAO_PAY_CANCEL,
+            "fail_url": settings.KAKAO_PAY_FAIL
         }
 
         try:
-            response = requests.post(f"{self.base_url}/ready", headers=headers, json=data)
+            response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/ready", headers=headers, json=data)
             response_data = response.json()
             
             logger.info(f"API response status: {response.status_code}, response data: {response_data}")
@@ -663,7 +680,7 @@ class PaymentService:
                 db.commit()
 
                 self.set_cache({
-                    "cid": self.cid_sub,
+                    "cid": settings.KAKAO_PAY_CID_SUB,
                     "tid": tid,
                     "partner_order_id": partner_order_id,
                     "partner_user_id": str(current_user.user_id),
@@ -697,7 +714,7 @@ class PaymentService:
 
     def pay_subscription(self, db: Session = Depends(get_db)):
         headers = {
-            "Authorization": f"SECRET_KEY {self.secret_key}",
+            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
@@ -720,7 +737,7 @@ class PaymentService:
                 continue
 
             data = {
-                "cid": self.cid_sub,
+                "cid": settings.KAKAO_PAY_CID_SUB,
                 "sid": subscription.subscription_number,
                 "partner_order_id": f"{uuid.uuid4()}",
                 "partner_user_id": subscription.user_id,
@@ -730,7 +747,7 @@ class PaymentService:
                 "vat_amount": 0,
                 "tax_free_amount": 0,
             }
-            response = requests.post(f"{self.base_url}/subscription", headers=headers, json=data)
+            response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/subscription", headers=headers, json=data)
             response_data = response.json()
 
             if response.status_code == 200:
@@ -757,7 +774,7 @@ class PaymentService:
 
     def cancel_subscription(self, user_id: str, db: Session = Depends(get_db)):
         headers = {
-            "Authorization": f"SECRET_KEY {self.secret_key}",
+            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
@@ -770,11 +787,11 @@ class PaymentService:
             raise HTTPException(status_code=404, detail="Subscription not found for the given user_id")
 
         data = {
-            "cid": self.cid_sub,
+            "cid": settings.KAKAO_PAY_CID_SUB,
             "sid": subscription.subscription_number,
         }
 
-        response = requests.post(f"{self.base_url}/manage/subscription/inactive", headers=headers, json=data)
+        response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/manage/subscription/inactive", headers=headers, json=data)
         response_data = response.json()
 
         if response.status_code == 200:
@@ -786,7 +803,7 @@ class PaymentService:
 
     def get_subscription_status(self, user_id: str, db: Session = Depends(get_db)):
         headers = {
-            "Authorization": f"SECRET_KEY {self.secret_key}",
+            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
@@ -799,11 +816,11 @@ class PaymentService:
             raise HTTPException(status_code=404, detail="Subscription not found for the given user_id")
 
         data = {
-            "cid": self.cid_sub,
+            "cid": settings.KAKAO_PAY_CID_SUB,
             "sid": subscription.subscription_number,
         }
 
-        response = requests.post(f"{self.base_url}/manage/subscription/status", headers=headers, json=data)
+        response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/manage/subscription/status", headers=headers, json=data)
         response_data = response.json()
 
         if response.status_code == 200:
@@ -821,12 +838,12 @@ class PaymentService:
             raise HTTPException(status_code=400, detail="Invalid refund amount")
 
         headers = {
-            "Authorization": f"SECRET_KEY {self.secret_key}",
+            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
         data = {
-            "cid": self.cid_one,
+            "cid": settings.KAKAO_PAY_CID_ONE,
             "tid": payment.payment_number,
             "cancel_amount": cancel_amount,
             "cancel_tax_free_amount": refund_data.get("cancel_tax_free_amount", 0),
@@ -834,7 +851,7 @@ class PaymentService:
         }
 
         try:
-            response = requests.post(f"{self.base_url}/cancel", headers=headers, json=data)
+            response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/cancel", headers=headers, json=data)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=f"KakaoPay API request failed: {str(e)}")

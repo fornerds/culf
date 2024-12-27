@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     GEMINI_API_URL: str
 
+    KAKAO_PAY_BASE_URL: str
+    KAKAO_PAY_CID_ONE: str
+    KAKAO_PAY_CID_SUB: str
+    KAKAO_PAY_CID_SEQ: str
+    KAKAO_PAY_SECRET_KEY: str
+    PAYMENT_URL: str
+    KAKAO_PAY_SUCCESS: str
+    KAKAO_PAY_CANCEL: str
+    KAKAO_PAY_FAIL: str
+
     class Config:
         env_file = ".env"
 
