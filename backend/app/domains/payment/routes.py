@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from app.domains.user.models import User
 from app.domains.user import schemas as user_schemas
-from . import schemas, services
+from app.domains.payment import schemas, services
+from app.domains.payment.services import PaymentService
 from app.db.session import get_db
 from app.core.deps import get_current_active_user
 from dotenv import load_dotenv
@@ -103,27 +103,26 @@ def create_payment(payment_data: schemas.PaymentCreate, db: Session = Depends(ge
     payment = services.create_payment(db, payment_data)
     return payment
 
+payment_service = PaymentService()
+
 @router.post("/pay")
 async def initiate_payment(
     payment_request: schemas.KakaoPayRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
+        logger.info(f"User: {current_user}")
         logger.info(f"Received payment request: {payment_request}")
-        logger.info(f"Environment: {payment_request.environment}") 
-        token_plan = services.get_token_plan(db, payment_request.plan_id)
-        payment_data = services.initiate_payment(
-            payment_request, 
-            token_plan, 
-            db, 
-            current_user
-        )
+        logger.info(f"Environment: {payment_request.environment}")
+
+        payment_data = payment_service.initiate_payment(payment_request=payment_request, db=db, current_user=current_user)
         return payment_data
     except HTTPException as e:
+        logger.error(f"HTTP Exception: {str(e)}")
         raise e
     except Exception as e:
-        logger.error(f"Error initiating payment: {str(e)}")
+        logger.error(f"Unexpected error initiating payment: {str(e)}")
         raise HTTPException(status_code=400, detail="결제 준비에 실패했습니다.")
 
 @router.get("/pay/success")
@@ -132,7 +131,7 @@ async def approve_payment(
     db: Session = Depends(get_db),
 ):
     try:
-        payment_approval = services.approve_payment(pg_token, db)
+        payment_approval = payment_service.approve_payment(pg_token, db)
         return payment_approval
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -144,12 +143,14 @@ async def initiate_subscription(
     current_user: User = Depends(get_current_active_user)
 ):
     try:
-        subscription_data = services.initiate_subscription(subscription_request, db, current_user)
+        subscription_data = payment_service.initiate_subscription(subscription_request, db, current_user)
         return subscription_data
-    except ValidationError as e:
-        raise HTTPException(status_code=422, detail=str(e.errors())) 
+    except HTTPException as e:
+        logger.error(f"HTTP Exception: {str(e)}")
+        raise e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected error initiating payment: {str(e)}")
+        raise HTTPException(status_code=400, detail="결제 준비에 실패했습니다.")
 
 @router.post("/subscription/pay")
 async def pay_subscription(
@@ -157,7 +158,7 @@ async def pay_subscription(
     current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
-        payment_results = services.pay_subscription(db)
+        payment_results = payment_service.pay_subscription(db)
         return payment_results
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -168,7 +169,7 @@ async def cancel_subscription(
     current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
-        cancellation_response = services.cancel_subscription(current_user.user_id, db)
+        cancellation_response = payment_service.cancel_subscription(current_user.user_id, db)
         return cancellation_response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -179,7 +180,7 @@ async def subscription_status(
     current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
-        status_response = services.get_subscription_status(current_user.user_id, db)
+        status_response = payment_service.get_subscription_status(current_user.user_id, db)
         return status_response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

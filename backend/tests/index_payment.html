@@ -68,18 +68,14 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ "email": email, "password": password }) // 변경된 요청 형식
+                    body: JSON.stringify({ "email": email, "password": password })
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    const accessToken = data.access_token;
-                    const refreshToken = data.refresh_token; 
-                    
-                    // 저장하거나 UI를 업데이트
+                    accessToken = data.access_token; // Access Token 저장
                     document.getElementById("loginStatus").innerText = "로그인 성공";
                     console.log("Access Token:", accessToken);
-                    console.log("Refresh Token:", refreshToken);
                 } else {
                     const errorData = await response.json();
                     document.getElementById("loginStatus").innerText = "로그인 실패: " + errorData.detail;
@@ -92,7 +88,10 @@
 
         // 쿠폰 유효성 확인 함수
         async function validateCoupon(couponCode, statusElement, setValidFlag) {
-            if (!accessToken) alert("먼저 로그인 해주세요.");
+            if (!accessToken) {
+                alert("먼저 로그인 해주세요.");
+                return;
+            }
             if (couponCode === "") {
                 alert("쿠폰 코드를 입력해주세요.");
                 return;
@@ -134,7 +133,7 @@
             validateCoupon(couponCodeSubscription, document.getElementById("couponStatusSubscription"), valid => isCouponValidSubscription = valid);
         };
 
-        // 환경 인식 함수
+        // 환경 감지 함수
         function detectEnvironment() {
             const userAgent = navigator.userAgent.toLowerCase();
             if (/mobile/i.test(userAgent)) {
@@ -159,14 +158,6 @@
 
             const environment = detectEnvironment();
 
-            const requestData = {
-                "quantity": 1,
-                "plan_id": planId,
-                "coupon_code": couponCode || null,
-                "environment": environment
-            };
-            
-            console.log("Request Data:", requestData);  // 데이터 확인용
             try {
                 const response = await fetch(`http://localhost:8000/v1${endpoint}`, {
                     method: 'POST',
