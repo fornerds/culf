@@ -26,7 +26,7 @@ import { FindEmail } from './pages/FindEmail';
 import { ChangePassword } from './pages/ChangePassword';
 import { Chat, ChatDetail } from './pages/Chat';
 import { Pricing } from './pages/Pricing';
-import { Payment } from './pages/Payment';
+import { Payment, Result } from './pages/Payment';
 import { CancelPayment } from './pages/CancelPayment';
 import { DeleteAccount } from './pages/DeleteAccount';
 import { Notification } from './pages/Notification';
@@ -230,6 +230,16 @@ function AppRoutes() {
       setTitle('서비스결제');
       setShowBackButton(true);
       setShowMenuButton(false);
+    } else if (matchPath('/payment/:type/:id', pathname)) {
+      setUseHeader(true);
+      setTitle('서비스결제');
+      setShowBackButton(true);
+      setShowMenuButton(false);
+    } else if (matchPath('/payment/result', pathname)) {
+      setUseHeader(true);
+      setTitle('결제 메시지');
+      setShowBackButton(false);
+      setShowMenuButton(false);
     } else if (matchPath('/cancel-payment', pathname)) {
       setUseHeader(true);
       setTitle('취소 요청');
@@ -285,7 +295,8 @@ function AppRoutes() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/chat/:roomId" element={<ChatDetail />} />
           <Route path="/pricing" element={<Pricing />} />
-          <Route path="/payment" element={<Payment />} />
+          <Route path="/payment/:type/:id" element={<Payment />} />
+          <Route path="/payment/result" element={<Result />} />
           <Route path="/cancel-payment" element={<CancelPayment />} />
           <Route path="/delete-account" element={<DeleteAccount />} />
           <Route path="/inquiry" element={<CustomerInquiry />} />

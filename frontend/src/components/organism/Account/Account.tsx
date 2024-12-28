@@ -42,7 +42,7 @@ export function Account() {
     try {
       await logout();
       alert('로그아웃되었습니다.');
-      navigate('/beta/login');
+      navigate('/login');
     } catch (error) {
       console.error('Logout failed:', error);
     }

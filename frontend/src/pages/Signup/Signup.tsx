@@ -70,7 +70,7 @@ export function Signup() {
           }));
         } catch (error) {
           console.error('Failed to get provider email:', error);
-          navigate('/beta/login');
+          navigate('/login');
         }
       }
     };
