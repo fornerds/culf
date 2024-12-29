@@ -141,15 +141,31 @@ async def approve_payment(
 
 @router.get("/pay/fail")
 async def payment_fail(
-    reason: str,
+    error_code: Optional[int] = None,
+    error_message: Optional[str] = None,
+    method_result_code: Optional[str] = None,
+    method_result_message: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     try:
-        failure_data = payment_service.fail_payment(reason, db)
+        # 실패 응답 데이터 구성
+        response_data = {
+            "error_code": error_code,
+            "error_message": error_message,
+            "extras": {
+                "method_result_code": method_result_code,
+                "method_result_message": method_result_message,
+            },
+        }
 
+        # 실패 처리 서비스 호출
+        failure_data = payment_service.fail_payment(response_data, db)
+
+        # 리다이렉션 URL 생성
         redirect_url = (
             f"{settings.PAYMENT_URL}?fail"
             f"&reason={failure_data['reason']}"
+            f"&details={failure_data['details']}"
             f"&payment_id={failure_data['payment_id']}"
         )
         return RedirectResponse(url=redirect_url)
@@ -185,16 +201,34 @@ async def initiate_subscription(
         logger.error(f"Unexpected error initiating payment: {str(e)}")
         raise HTTPException(status_code=400, detail="결제 준비에 실패했습니다.")
 
-@router.post("/subscription/pay")
-async def pay_subscription(
+@router.post("/subscription/pay/{user_id}")
+async def pay_subscription_for_user(
+    user_id: UUID,
     db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
-        payment_results = payment_service.pay_subscription(db)
-        return payment_results
+        result = PaymentService.process_subscription(user_id, db)
+        return result
+    except HTTPException as e:
+        logger.error(f"Error processing subscription for user_id {user_id}: {str(e)}")
+        raise e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected error processing subscription for user_id {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during subscription processing.")
+
+@router.post("/subscriptions/automatic")
+async def automatic_subscription_payments(
+    db: Session = Depends(get_db),
+):
+    try:
+        results = PaymentService.process_all_subscriptions(db)
+        return results
+    except HTTPException as e:
+        logger.error(f"Error processing automatic subscriptions: {str(e)}")
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error during automatic subscription processing: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during automatic subscription processing.")
 
 @router.post("/subscription/cancel")
 async def cancel_subscription(
@@ -204,8 +238,12 @@ async def cancel_subscription(
     try:
         cancellation_response = payment_service.cancel_subscription(current_user.user_id, db)
         return cancellation_response
+    except HTTPException as e:
+        logger.error(f"Subscription cancellation failed: {str(e)}")
+        raise e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Unexpected error during subscription cancellation: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during subscription cancellation.")
 
 @router.get("/subscription/status")
 async def subscription_status(
@@ -217,6 +255,25 @@ async def subscription_status(
         return status_response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/subscription/change-method")
+async def change_subscription_method(
+    subscription_request: schemas.KakaoPaySubscriptionRequest,
+    db: Session = Depends(get_db),
+    current_user: user_schemas.User = Depends(get_current_active_user),
+):
+    try:
+        payment_service = PaymentService()
+        response = payment_service.change_subscription_method(
+            user_id=current_user.user_id,
+            subscription_request=subscription_request,
+            db=db,
+        )
+        return {"message": "Subscription payment method changed successfully.", "data": response}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 #admin 관련 엔드 포인트
 @router.get("/admin/payments", response_model=List[schemas.PaymentListResponse])
@@ -265,21 +322,18 @@ def create_manual_payment_route(payment: schemas.AdminPaymentCreate, db: Session
     new_payment = services.create_manual_payment(db, payment.dict())
     return new_payment
 
-@router.post("/admin/payments/{payment_id}/refund", response_model=schemas.AdminRefundResponse)
-def process_refund(payment_id: UUID, refund: schemas.RefundRequest, db: Session = Depends(get_db)):
+@router.post("/admin/refunds/{refund_id}", response_model=schemas.AdminRefundResponse)
+def admin_process_refund(refund_id: int, db: Session = Depends(get_db)):
     """
-    결제 환불 처리 API
-    - KakaoPay를 통해 결제 취소 요청
-    - 환불 내역을 데이터베이스에 기록
+    환불 요청 승인 및 처리
     """
     try:
-        # KakaoPay 환불 처리
-        new_refund = services.process_refund(payment_id=payment_id, refund_data=refund.dict(), db=db)
-        return new_refund
+        refund = services.process_refund(refund_id=refund_id, db=db)
+        return refund
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Unexpected error occurred.")
 
 # 쿠폰 관련 엔드포인트
 @router.post("/admin/coupons", response_model=schemas.CouponResponse, status_code=status.HTTP_201_CREATED)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Enum, TIMESTAMP, ForeignKey
+from sqlalchemy import JSON, Column, Integer, String, Float, Enum, TIMESTAMP, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.base_class import Base
@@ -77,3 +77,16 @@ class UserCoupon(Base):
 
     def __repr__(self):
         return f"<UserCoupon(user_id={self.user_id}, coupon_id={self.coupon_id})>"
+    
+class PaymentCache(Base):
+    __tablename__ = "payment_cache"
+
+    cache_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    tid = Column(String(64), nullable=False, unique=True)
+    cid = Column(String(64), nullable=False)
+    partner_order_id = Column(String(100), nullable=False)
+    partner_user_id = Column(String(100), nullable=False)
+    data = Column(JSON, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
+    updated_at = Column(TIMESTAMP, nullable=False, default=datetime.now, onupdate=datetime.now)

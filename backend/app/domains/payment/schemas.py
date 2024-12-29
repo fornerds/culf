@@ -83,7 +83,7 @@ class PaycancelRequest(BaseModel):
     email: str
     contact: str
     content: str
-    attachment: Optional[str] = None 
+    attachment: Optional[str] = None
 
 # 쿠폰
 class CouponCreate(BaseModel):
@@ -209,21 +209,16 @@ class PaymentAdminResponse(BaseModel):
     class Config:
         orm_mode = True
 
-class RefundRequest(BaseModel):
-    amount: float
-    reason: Optional[str]
-
 class AdminRefundResponse(BaseModel):
     refund_id: int
     payment_id: UUID
     user_id: UUID
+    inquiry_id: int
     amount: float
-    reason: Optional[str]
+    reason: str
     status: str
     processed_at: Optional[datetime]
-    processed_by: Optional[int]
     created_at: datetime
-    updated_at: datetime
 
     class Config:
         orm_mode = True
