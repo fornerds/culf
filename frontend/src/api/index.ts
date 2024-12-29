@@ -40,6 +40,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // pathname이 '/'인 경우에는 401 에러를 무시하고 진행
+    if (window.location.pathname === '/' && error.response?.status === 401) {
+      return Promise.reject(error);
+    }
+
     // 401 에러이고 토큰 갱신 시도를 하지 않은 경우에만 갱신 시도
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -67,13 +72,13 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
-        // 토큰 갱신 실패 시 로그인 페이지로 리다이렉트
+        // 토큰 갱신 실패 시 로그인 페이지로 리다이렉트 (홈페이지 제외)
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
         useAuthStore.getState().resetSnsAuth?.();
         
-        // 현재 URL이 로그인 페이지가 아닌 경우에만 리다이렉트
-        if (!window.location.pathname.includes('/login')) {
+        // 현재 URL이 로그인 페이지나 홈페이지가 아닌 경우에만 리다이렉트
+        if (!window.location.pathname.includes('/login') && window.location.pathname !== '/') {
           window.location.href = '/beta/login';
         }
       }

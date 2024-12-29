@@ -7,6 +7,7 @@ import { HeroBanner } from '@/modules';
 import { chat, curator } from '@/api';
 import { LoadingAnimation } from '@/components/atom';
 import logoimage from '@/assets/images/culf.png';
+import { tokenService } from '@/utils/tokenService';
 
 interface SlideItem {
   imageUrl: string;
@@ -18,28 +19,36 @@ const getImageUrl = (name: string): string => {
 };
 
 export function Homepage() {
-  // Fetch curators
+  const isAuthenticated = !!tokenService.getAccessToken();
+
   const { data: curators, isLoading: isCuratorsLoading } = useQuery({
     queryKey: ['curators'],
     queryFn: async () => {
-      const response = await curator.getCurators();
-      console.log('큐레이터 목록 조회:', response.data);
-      return response.data;
-    }
+      try {
+        const response = await curator.getCurators();
+        return response.data;
+      } catch (error) {
+        console.log('Curator fetch error:', error);
+        return []; // 에러 발생시 빈 배열 반환
+      }
+    },
+    retry: false, // API 호출 실패시 재시도 하지 않음
   });
 
-  // Fetch chat rooms
+  // Fetch chat rooms - only if authenticated
   const { data: chatRooms, isLoading: isChatRoomsLoading } = useQuery({
     queryKey: ['chatRooms'],
     queryFn: async () => {
-      const response = await chat.getChatRooms();
-      console.log('채팅방 목록 조회:', response.data);
-      return response.data;
+      try {
+        const response = await chat.getChatRooms();
+        return response.data;
+      } catch (error) {
+        console.log('ChatRoom fetch error:', error);
+        return []; // 에러 발생시 빈 배열 반환
+      }
     },
-    // 실시간 업데이트를 위한 설정 추가
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
-    staleTime: 0, // 항상 최신 데이터를 가져오도록 설정
+    enabled: isAuthenticated, // 인증된 경우에만 실행
+    retry: false, // API 호출 실패시 재시도 하지 않음
   });
 
   const slides: SlideItem[] = [
