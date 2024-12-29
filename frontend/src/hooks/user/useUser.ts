@@ -30,10 +30,15 @@ interface UpdateUserData {
   phone_number?: string;
 }
 
-interface ChangePasswordData {
+interface VerifyPasswordData {
   current_password: string;
-  new_password: string;
 }
+
+interface ChangePasswordData {
+  new_password: string;
+  new_password_confirm: string;
+}
+
 
 interface TokenInfo {
   total_tokens: number;
@@ -88,16 +93,20 @@ export const useUser = () => {
     },
   });
 
-  const verifyPasswordMutation = useMutation<boolean, Error, string>({
-    mutationFn: async (currentPassword) => {
-      const response = await userApi.verifyPassword(currentPassword);
-      return response.data;
+  const verifyPasswordMutation = useMutation<string, Error, VerifyPasswordData>({
+    mutationFn: async ({ current_password }) => {
+      const response = await userApi.verifyPassword(current_password);
+      return response.data.message;
     },
   });
 
-  const changePasswordMutation = useMutation<void, Error, ChangePasswordData>({
-    mutationFn: async ({ current_password, new_password }) => {
-      await userApi.changePassword(current_password, new_password);
+  const changePasswordMutation = useMutation<string, Error, ChangePasswordData>({
+    mutationFn: async ({ new_password, new_password_confirm }) => {
+      const response = await userApi.changePassword(
+        new_password,
+        new_password_confirm
+      );
+      return response.data.message;
     },
   });
 
@@ -129,18 +138,19 @@ export const useUser = () => {
 
   const verifyPassword = async (currentPassword: string) => {
     try {
-      const response = await verifyPasswordMutation.mutateAsync(currentPassword);
-      return response;
+      return await verifyPasswordMutation.mutateAsync({
+        current_password: currentPassword
+      });
     } catch (error) {
       throw error;
     }
   };
 
-  const changePassword = async (current_password: string, new_password: string) => {
+  const changePassword = async ({ new_password, new_password_confirm }: ChangePasswordData) => {
     try {
-      await changePasswordMutation.mutateAsync({
-        current_password,
+      return await changePasswordMutation.mutateAsync({
         new_password,
+        new_password_confirm
       });
     } catch (error) {
       throw error;

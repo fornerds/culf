@@ -197,14 +197,17 @@ export const user = {
   updateMyInfo: (userData: any) => api.put('/users/me', userData),
   deleteAccount: (reason?: string, feedback?: string) =>
     api.delete('/users/me', { data: { reason, feedback } }),
-  verifyPassword: (currentPassword: string) =>
-    api.post('/users/me/password', { current_password: currentPassword }),
-  changePassword: (currentPassword: string, newPassword: string) =>
+  verifyPassword: (current_password: string) =>
+    api.post('/users/me/password', { 
+      current_password: current_password 
+    }),
+  changePassword: (new_password: string, new_password_confirm: string) =>
     api.put('/users/me/password', {
-      current_password: currentPassword,
-      new_password: newPassword,
+      new_password,
+      new_password_confirm
     }),
 };
+
 
 // Chat API
 export const chat = {

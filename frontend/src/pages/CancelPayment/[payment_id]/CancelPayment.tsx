@@ -12,6 +12,7 @@ interface CancelPaymentForm {
   email: string;
   contact: string;
   content: string;
+  attachment: string | null
 }
 
 interface CancelResponse {
@@ -32,6 +33,7 @@ export function CancelPayment() {
     email: '',
     contact: '',
     content: '',
+    attachment: null,
   });
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -54,7 +56,7 @@ export function CancelPayment() {
           email: formData.get('email') as string,
           contact: formData.get('contact') as string,
           content: formData.get('content') as string,
-          attachment: formData.get('attachment') as string || ''
+          attachment: formData.get('attachment') as string || null
         };
 
         console.log('Sending cancel payment request:', jsonData);
@@ -106,7 +108,7 @@ export function CancelPayment() {
     setSelectedImage(null);
     setPreviewUrl(null);
     if (inputRef.current) {
-      inputRef.current.value = '';
+      inputRef.current.value = null;
     }
   };
 

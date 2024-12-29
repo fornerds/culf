@@ -12,3 +12,4 @@ export { PriceCard } from './PriceCard';
 export { SlideUpModal } from "./SlideUpModal";
 export { NoticeList } from "./NoticeList";
 export { Post } from "./Post";
+export { InputBox } from './InputBox';
