@@ -113,6 +113,9 @@ CREATE INDEX idx_chat_rooms_curator_id ON Chat_Rooms(curator_id);
 CREATE INDEX idx_conversations_room_id ON Conversations(room_id);
 CREATE INDEX idx_conversations_user_id ON Conversations(user_id);
 CREATE INDEX idx_conversations_question_time ON Conversations(question_time);
+CREATE INDEX idx_payment_cache_user_id ON Payment_Cache(user_id);
+CREATE INDEX idx_payment_cache_tid ON Payment_Cache(tid);
+CREATE INDEX idx_payment_cache_expires_at ON Payment_Cache(expires_at);
 
 -- updated_at을 자동으로 업데이트하기 위한 트리거
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -212,6 +215,21 @@ CREATE TABLE Payments (
     payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status payment_status NOT NULL DEFAULT 'FAILED',
     manual_payment_reason TEXT
+);
+
+-- Payment Cache 테이블
+CREATE TABLE Payment_Cache (
+    cache_id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES Users(user_id) ON DELETE CASCADE,
+    cid VARCHAR(50) NOT NULL,
+    tid VARCHAR(50) NOT NULL UNIQUE,
+    partner_order_id VARCHAR(100) NOT NULL,
+    partner_user_id VARCHAR(100) NOT NULL,
+    subscription_id INTEGER REFERENCES User_Subscriptions(subscription_id),
+    environment VARCHAR(20),
+    data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 hour')
 );
 
 -- User Coupons 테이블

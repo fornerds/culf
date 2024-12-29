@@ -1,10 +1,8 @@
 import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from . import models, schemas
-from typing import Optional
+from . import models
 from uuid import UUID
-from datetime import date
 
 class SubscriptionService:
     @staticmethod
