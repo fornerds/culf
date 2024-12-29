@@ -414,8 +414,22 @@ export const payment = {
     api.get('/users/me/payments', { params: { page, limit } }),
   getPaymentById: (paymentId: string) =>
     api.get(`/users/me/payments/${paymentId}`),
-  cancelPayment: (paymentId: string, cancellationData: any) =>
-    api.post(`/users/me/payments/${paymentId}/cancel`, cancellationData),
+  uploadImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/upload-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  cancelPayment: (paymentId: string, data: {
+    title: string;
+    email: string;
+    contact: string;
+    content: string;
+    attachment: string;
+  }) => api.post(`/users/me/payments/${paymentId}/cancel`, data),
 };
 
 // Subscription API

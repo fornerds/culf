@@ -27,7 +27,7 @@ import { ChangePassword } from './pages/ChangePassword';
 import { Chat, ChatDetail } from './pages/Chat';
 import { Pricing } from './pages/Pricing';
 import { Payment, Result } from './pages/Payment';
-import { CancelPayment } from './pages/CancelPayment';
+import { CancelPayment } from './pages/CancelPayment/[payment_id]';
 import { DeleteAccount } from './pages/DeleteAccount';
 import { Notification } from './pages/Notification';
 import { CustomerInquiry } from './pages/CustomerInquiry';
@@ -240,7 +240,7 @@ function AppRoutes() {
       setTitle('결제 메시지');
       setShowBackButton(false);
       setShowMenuButton(false);
-    } else if (matchPath('/cancel-payment', pathname)) {
+    } else if (matchPath('/cancel-payment/:payment_id', pathname)) {
       setUseHeader(true);
       setTitle('취소 요청');
       setShowBackButton(true);
@@ -297,7 +297,7 @@ function AppRoutes() {
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/payment/:type/:id" element={<Payment />} />
           <Route path="/payment/result" element={<Result />} />
-          <Route path="/cancel-payment" element={<CancelPayment />} />
+          <Route path="/cancel-payment/:payment_id" element={<CancelPayment />} />
           <Route path="/delete-account" element={<DeleteAccount />} />
           <Route path="/inquiry" element={<CustomerInquiry />} />
           <Route

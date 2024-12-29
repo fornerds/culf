@@ -21,6 +21,13 @@ export function HistoryListItem({
   paymentDate,
   status,
 }: HistoryProps) {
+
+  console.log('Status in HistoryListItem:', status);
+  
+  const showCancelButton = () => {
+    return status === 'SUCCESS'; // true 또는 false를 반환하도록 수정
+  };
+
   return (
     <div className={styles.historyItem}>
       <div className={`font-text-4 ${styles.historyRow}`}>
@@ -45,8 +52,12 @@ export function HistoryListItem({
       </div>
       <div className={styles.historyBottom}>
         <Tag {...getBillingTag(status as BillingType)} />
-        {status === 'SUCCESS' && (
-          <Link to="/cancel-payment" className={styles.cancelButton}>
+        {showCancelButton() && (
+          <Link 
+            to={`/cancel-payment/${id}`} 
+            className={styles.cancelButton}
+            aria-label="결제 취소 요청하기"
+          >
             <div className={styles.cancelButtonText}>취소요청</div>
             <div className={styles.button}>
               <RightIcon />
