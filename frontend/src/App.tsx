@@ -81,21 +81,45 @@ export const PrivateOutlet = () => {
   const { setAuth } = useAuthStore();
   const accessToken = tokenService.getAccessToken();
   const { getUserInfo, isLoading } = useUser();
+  const location = useLocation();
 
   useEffect(() => {
     let isActive = true;
 
     const validateAuth = async () => {
       try {
-        if (!accessToken) {
-          // Try to refresh token if no access token
+        // Terms 페이지이면서 SNS 로그인 진행 중인 경우 검증 절차 건너뛰기
+        const loginStatus = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
+          ?.split('=')[1];
+
+        if (location.pathname === '/terms' && loginStatus === 'continue') {
+          setIsChecking(false);
+          return;
+        }
+
+        // 리프레시 토큰 쿠키 확인
+        const hasRefreshToken = document.cookie
+          .split('; ')
+          .some(row => row.startsWith('refresh_token='));
+
+        if (!hasRefreshToken) {
+          // 리프레시 토큰이 없으면 로그인 필요
+          setAuth(false, null);
+          setIsChecking(false);
+          return;
+        }
+
+        if (!accessToken && hasRefreshToken) {
+          // 액세스 토큰이 없고 리프레시 토큰이 있는 경우에만 토큰 갱신 시도
           const response = await auth.refreshToken();
           if (response.data.access_token && isActive) {
             tokenService.setAccessToken(response.data.access_token);
             await getUserInfo.refetch();
           }
-        } else {
-          // Token exists, just validate it
+        } else if (accessToken && hasRefreshToken) {
+          // 액세스 토큰과 리프레시 토큰이 모두 있는 경우 유저 정보 확인
           await getUserInfo.refetch();
         }
       } catch (error) {
@@ -115,7 +139,7 @@ export const PrivateOutlet = () => {
     return () => {
       isActive = false;
     };
-  }, []);  // 의존성 배열을 비움
+  }, [location.pathname]); // pathname이 변경될 때마다 검증 수행
 
   if (isChecking || isLoading) {
     return (
@@ -131,8 +155,22 @@ export const PrivateOutlet = () => {
       </div>
     );
   }
+  
+  const loginStatus = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
+    ?.split('=')[1];
 
-  return accessToken ? <Outlet /> : <Navigate to="/login" replace />;
+  if (location.pathname === '/terms' && loginStatus === 'continue') {
+    return <Outlet />;
+  }
+
+  // 리프레시 토큰 유무에 따른 처리
+  const hasRefreshToken = document.cookie
+    .split('; ')
+    .some(row => row.startsWith('refresh_token='));
+
+  return (hasRefreshToken && accessToken) ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
 function AppRoutes() {

@@ -1,4 +1,3 @@
-// hooks/useUser.ts
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { user as userApi, token } from '../../api';
 import { useAuthStore } from '../../state/client/authStore';
@@ -39,7 +38,6 @@ interface ChangePasswordData {
   new_password_confirm: string;
 }
 
-
 interface TokenInfo {
   total_tokens: number;
   used_tokens: number;
@@ -47,28 +45,45 @@ interface TokenInfo {
 }
 
 export const useUser = () => {
-  const { setAuth } = useAuthStore();
+  const { setAuth, registrationInProgress, hasRefreshToken } = useAuthStore();
 
   const getUserInfoQuery = useQuery<UserInfo, Error>({
     queryKey: ['userInfo'],
     queryFn: async () => {
-      const response = await userApi.getMyInfo();
-      
-      // setAuth를 queryFn 내에서 직접 호출하지 않음
-      return response.data;
+      // SNS 회원가입 진행중이거나 리프레시 토큰이 없는 경우 API 호출 스킵
+      if (registrationInProgress || !hasRefreshToken()) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Skipping user info fetch:', { 
+            registrationInProgress, 
+            hasRefreshToken: hasRefreshToken() 
+          });
+        }
+        return null;
+      }
+
+      try {
+        const response = await userApi.getMyInfo();
+        return response.data;
+      } catch (error) {
+        console.error('Failed to fetch user info:', error);
+        setAuth(false, null);
+        return null;
+      }
     },
+    enabled: !registrationInProgress && hasRefreshToken(),
     onSuccess: (data) => {
-      // 성공 시 setAuth 호출
-      setAuth(true, {
-        id: data.user_id,
-        email: data.email,
-        nickname: data.nickname
-      });
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.group('🔍 User Info Fetch Success');
-        console.log('User Data:', data);
-        console.groupEnd();
+      if (data) {
+        setAuth(true, {
+          id: data.user_id,
+          email: data.email,
+          nickname: data.nickname
+        });
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.group('🔍 User Info Fetch Success');
+          console.log('User Data:', data);
+          console.groupEnd();
+        }
       }
     },
     staleTime: 5 * 60 * 1000, // 5분
@@ -113,10 +128,22 @@ export const useUser = () => {
   const getTokenInfoQuery = useQuery<TokenInfo, Error>({
     queryKey: ['tokenInfo'],
     queryFn: async () => {
-      const response = await token.getMyTokenInfo();
-      return response.data;
+      // SNS 회원가입 진행중이거나 리프레시 토큰이 없는 경우 API 호출 스킵
+      if (registrationInProgress || !hasRefreshToken()) {
+        return null;
+      }
+
+      try {
+        const response = await token.getMyTokenInfo();
+        return response.data;
+      } catch (error) {
+        console.error('Failed to fetch token info:', error);
+        return null;
+      }
     },
+    enabled: !registrationInProgress && hasRefreshToken(),
     staleTime: 5 * 60 * 1000, // 5분
+    retry: false
   });
 
   const updateUserInfo = async (userData: UpdateUserData) => {
@@ -163,14 +190,19 @@ export const useUser = () => {
       console.log('Status:', getUserInfoQuery.status);
       console.log('Data:', getUserInfoQuery.data);
       console.log('Is Loading:', getUserInfoQuery.isLoading);
+      console.log('Registration in Progress:', registrationInProgress);
+      console.log('Has Refresh Token:', hasRefreshToken());
       console.groupEnd();
     }
-  }, [getUserInfoQuery.status]);
+  }, [getUserInfoQuery.status, registrationInProgress]);
 
   return {
-    isLoading: getUserInfoQuery.isLoading || updateUserInfoMutation.isLoading || 
-               deleteAccountMutation.isLoading || verifyPasswordMutation.isLoading || 
-               changePasswordMutation.isLoading,
+    isLoading: getUserInfoQuery.isLoading || 
+               updateUserInfoMutation.isLoading || 
+               deleteAccountMutation.isLoading || 
+               verifyPasswordMutation.isLoading || 
+               changePasswordMutation.isLoading ||
+               getTokenInfoQuery.isLoading,
     getUserInfo: getUserInfoQuery,
     updateUserInfo,
     deleteAccount,
