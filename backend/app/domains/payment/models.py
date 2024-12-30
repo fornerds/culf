@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import JSON, Column, Integer, String, Float, Enum, TIMESTAMP, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -82,11 +82,16 @@ class PaymentCache(Base):
     __tablename__ = "payment_cache"
 
     cache_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
-    tid = Column(String(64), nullable=False, unique=True)
-    cid = Column(String(64), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    cid = Column(String(50), nullable=False)
+    tid = Column(String(50), nullable=False, unique=True)
     partner_order_id = Column(String(100), nullable=False)
     partner_user_id = Column(String(100), nullable=False)
+    subscription_id = Column(Integer, ForeignKey("user_subscriptions.subscription_id"), nullable=True)
+    environment = Column(String(20), nullable=True)
     data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
-    updated_at = Column(TIMESTAMP, nullable=False, default=datetime.now, onupdate=datetime.now)
+    expires_at = Column(TIMESTAMP, nullable=False, default=datetime.now() + timedelta(hours=1))
+
+    user = relationship("User", back_populates="payment_caches")
+    subscription = relationship("UserSubscription", back_populates="payment_caches")

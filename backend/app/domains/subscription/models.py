@@ -31,3 +31,5 @@ class UserSubscription(Base):
     status = Column(Enum('ACTIVE', 'CANCELLED', name='subscription_status_enum'), nullable=False, default='ACTIVE')
     subscription_number = Column(String(20), unique=True, nullable=True)
     subscriptions_method = Column(String(50), nullable=False)
+
+    payment_caches = relationship("PaymentCache", back_populates="subscription", cascade="all, delete-orphan")

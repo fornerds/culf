@@ -38,6 +38,7 @@ class User(Base):
     notice_reads = relationship("UserNoticeRead", back_populates="user")
     payments = relationship("Payment", back_populates="user")
     inquiries = relationship("Inquiry", back_populates="user")
+    payment_caches = relationship("PaymentCache", back_populates="user", cascade="all, delete-orphan")
 
 # class model for UserProvider that refer User
 class UserProvider(Base):
