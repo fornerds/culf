@@ -126,7 +126,7 @@ def confirm_password(
     current_user: user_schemas.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if not user_services.verify_password(plain_password=password_check.current_password, hashed_password=current_user.hashed_password):
+    if not user_services.verify_password(plain_password=password_check.current_password, hashed_password=current_user.password):
         raise HTTPException(status_code=400, detail="incorrect_password")
     return {"message": "비밀번호가 확인됐습니다."}
 

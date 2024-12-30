@@ -92,7 +92,7 @@ class TokenInfo(BaseModel):
 
 class UserInDBBase(UserBase):
     user_id: UUID
-    hashed_password:str
+    password:str
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime]
