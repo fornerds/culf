@@ -1,22 +1,59 @@
-import { NoticeList } from "@/components/molecule";
-import styles from "./Notice.module.css" 
+import React from 'react';
+import { useNotification } from '@/hooks/notice/useNotice';
+import styles from './Notice.module.css';
 
-export function Notice () {
-    const notices = [
-        {
-          id: '2',
-          title: '[공지사항] 2024년 9월 2일에 업데이트가 진행될 예정입니다. 서비스 이용에 불편한 일이 발생하지 않도록 주의해주시기 바랍니다.',
-          content: '여러분 안녕하세요! 컬프의 다양한 큐레이터를 소개합니다.',
-          date: '2024. 8. 23'
-        },
-        {
-          id: '1',
-          title: '[공지사항] 컬프에서 새로운 큐레이터의 출시를 알립니다.',
-          content: '안녕하세요 여러분! 버킷트레블입니다 :) 오늘은 공지사항에 새로운 큐레이터를 소개하려고 합니다. 이번에 새로 출시되는 큐레이터는 레미입니다.',
-          date: '2024. 8. 22'
-        }
-      ];
+interface NotificationListProps {
+  page?: number;
+  limit?: number;
+}
 
-      
-    return <NoticeList notices={notices} />
+export function Notice({ page = 1, limit = 10 }: NotificationListProps) {
+  const { getNotifications } = useNotification();
+  const { data, isLoading, error } = getNotifications({ page, limit });
+
+  console.log(data?.notifications);
+  
+
+  if (isLoading) {
+    return <div className={styles.container}>Loading notifications...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className={styles.container}>알림을 불러오는데 실패했습니다.</div>
+    );
+  }
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.notificationList}>
+        {data?.notifications.map((notification) => (
+          <div
+            key={notification.notification_id}
+            className={`${styles.notificationItem} ${notification.is_read ? styles.read : ''}`}
+          >
+            <div className={styles.notificationContent}>
+              <div>
+                <p className={styles.message}>{notification.message}</p>
+                <p className={styles.date}>
+                  {new Date(notification.created_at).toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </p>
+              </div>
+              {!notification.is_read && (
+                <span className={styles.badge}>새로운 알림</span>
+              )}
+            </div>
+          </div>
+        ))}
+        
+        {(!data?.notifications.length || data.total_count === 0) && (
+          <div className={`${styles.empty} font-button-2`}>알림이 없습니다.</div>
+        )}
+      </div>
+    </div>
+  );
 }
