@@ -45,12 +45,16 @@ export function Terms() {
   );
 
   const goSignUpPage = () => {
+    // 디버깅 로그 추가
+    console.log('Terms - Final marketing state:', selectedValues.includes('4'));
     navigate('/signup');
   };
 
   useEffect(() => {
     setIsAllSelected(selectedValues.length === checkboxList.length);
     setIsMarketingAgreed(selectedValues.includes('4'));
+    // 디버깅 로그 추가
+    console.log('Terms - Marketing agreed:', selectedValues.includes('4'));
   }, [selectedValues]);
 
   return (

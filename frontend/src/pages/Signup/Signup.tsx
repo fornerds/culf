@@ -39,13 +39,13 @@ export function Signup() {
   const [isLoading, setIsLoading] = useState(false);
 
   const formatBirthDate = (value: string) => {
-    // Remove any non-digit characters
+    // 숫자가 아닌 문자 제거
     const numbers = value.replace(/\D/g, '');
 
-    // Don't allow more than 8 digits
+    // 8자리를 넘지 않도록
     if (numbers.length > 8) return form.birthDate;
 
-    // Format as YYYY-MM-DD
+    // YYYY-MM-DD 형식으로 포맷
     if (numbers.length >= 4 && numbers.length < 6) {
       return `${numbers.slice(0, 4)}-${numbers.slice(4)}`;
     } else if (numbers.length >= 6) {
@@ -120,7 +120,7 @@ export function Signup() {
       return;
     }
 
-    // Format birthDate input
+    // 생년월일 입력 포맷팅
     if (id === 'birthDate') {
       value = formatBirthDate(value);
     }
@@ -166,16 +166,21 @@ export function Signup() {
 
     try {
       setIsLoading(true);
-      const res = await auth.register({
+
+      const requestData = {
         email: form.email,
         nickname: form.nickname,
         phone_number: form.phoneNumber,
-        birthdate: form.birthDate,
+        birthdate: form.birthDate,        // birthDate -> birthdate로 변경
         gender: form.gender,
         password: form.password,
-        password_confirmation: form.passwordConfirmation,
-        marketing_agreed: isMarketingAgreed,
-      });
+        password_confirmation: form.passwordConfirmation,  // passwordConfirmation -> password_confirmation으로 변경
+        marketing_agreed: isMarketingAgreed
+      };
+
+      console.log('Register request data:', requestData);  // 디버깅용 로그
+
+      const res = await auth.register(requestData);
 
       if (res.status === 200) {
         await refreshToken.mutateAsync();
