@@ -24,6 +24,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   useEffect(() => {
     if (isOpen && process.env.NODE_ENV === 'development') {
       console.log('SideMenu opened');
+      console.log(userInfo);
     }
   }, [isOpen]);
 
@@ -36,7 +37,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
         <header>
           <div className={styles.sideMenuHeader}>
             <div className={styles.sideMenuHeaderTitle}>
-              <h3 className="font-title-3">{user?.nickname || '사용자'}</h3>
+              <h3 className="font-title-3">{userInfo?.nickname || '사용자'}</h3>
               <p className="font-text-1">님</p>
             </div>
             <button className={styles.closeButton} onClick={onClose}>
