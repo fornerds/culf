@@ -3,6 +3,13 @@ import axios, { AxiosInstance } from 'axios';
 import { tokenService } from '@/utils/tokenService';
 import { useAuthStore } from '../state/client/authStore';
 
+interface PaymentData {
+  plan_id: number;  // token_plan_id 또는 subscription plan_id
+  quantity: number;
+  environment: string;
+  coupon_code?: string;
+}
+
 export const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
 
 const api: AxiosInstance = axios.create({
@@ -33,10 +40,20 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // pathname이 '/'인 경우에는 401 에러를 무시하고 진행
+    if (window.location.pathname === '/' && error.response?.status === 401) {
+      return Promise.reject(error);
+    }
+
+    // 401 에러이고 토큰 갱신 시도를 하지 않은 경우에만 갱신 시도
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
+        // 기존 상태 초기화
+        tokenService.removeAccessToken();
+        useAuthStore.getState().setAuth(false, null);
+        
         const res = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
@@ -45,18 +62,25 @@ api.interceptors.response.use(
           },
         );
 
-        if (res.status === 200) {
+        if (res.status === 200 && res.data.access_token) {
+          // 새로운 토큰으로 갱신
           tokenService.setAccessToken(res.data.access_token);
-          originalRequest.headers['Authorization'] =
-            `Bearer ${res.data.access_token}`;
+          originalRequest.headers['Authorization'] = `Bearer ${res.data.access_token}`;
+          
+          // 새로운 토큰으로 원래 요청 재시도
           return api(originalRequest);
         }
       } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        // 토큰 갱신 실패 시 로그인 페이지로 리다이렉트 (홈페이지 제외)
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
         useAuthStore.getState().resetSnsAuth?.();
-        window.location.href = '/beta/login';
-        return Promise.reject(error);
+        
+        // 현재 URL이 로그인 페이지나 홈페이지가 아닌 경우에만 리다이렉트
+        if (!window.location.pathname.includes('/login') && window.location.pathname !== '/') {
+          window.location.href = '/beta/login';
+        }
       }
     }
 
@@ -66,10 +90,24 @@ api.interceptors.response.use(
 
 // Auth API
 export const auth = {
-  login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }),
+  login: (email: string, password: string) => {
+    // 로그인 전에 기존 토큰과 상태 초기화
+    tokenService.removeAccessToken();
+    useAuthStore.getState().setAuth(false, null);
+    
+    return api.post('/auth/login', { email, password });
+  },
 
-  logout: () => api.post('/auth/logout'),
+  logout: async () => {
+    try {
+      await api.post('/logout');
+    } finally {
+      // 로그아웃 API 호출 결과와 관계없이 클라이언트 상태 초기화
+      tokenService.removeAccessToken();
+      useAuthStore.getState().setAuth(false, null);
+      useAuthStore.getState().resetSnsAuth?.();
+    }
+  },
 
   register: (userData: any) => {
     const providerInfo = document.cookie
@@ -87,7 +125,20 @@ export const auth = {
     });
   },
 
-  refreshToken: () => api.post('/auth/refresh', {}, { withCredentials: true }),
+  refreshToken: async () => {
+    // 기존 토큰 제거
+    tokenService.removeAccessToken();
+    
+    const response = await api.post('/auth/refresh', {}, { 
+      withCredentials: true 
+    });
+    
+    if (response.data.access_token) {
+      tokenService.setAccessToken(response.data.access_token);
+    }
+    
+    return response;
+  },
 
   loginSNS: (provider: string, accessToken: string) =>
     api.post(`/auth/login/${provider}`, { access_token: accessToken }),
@@ -147,19 +198,21 @@ export const auth = {
 
 // User API
 export const user = {
-  register: (userData: any) => api.post('/users', userData),
-  getMyInfo: () => api.get('/users/me'),
+  getMyInfo: () => api.post('/users/me'),
   updateMyInfo: (userData: any) => api.put('/users/me', userData),
   deleteAccount: (reason?: string, feedback?: string) =>
     api.delete('/users/me', { data: { reason, feedback } }),
-  verifyPassword: (currentPassword: string) =>
-    api.post('/users/me/password', { current_password: currentPassword }),
-  changePassword: (currentPassword: string, newPassword: string) =>
+  verifyPassword: (current_password: string) =>
+    api.post('/users/me/password', { 
+      current_password: current_password 
+    }),
+  changePassword: (new_password: string, new_password_confirm: string) =>
     api.put('/users/me/password', {
-      current_password: currentPassword,
-      new_password: newPassword,
+      new_password,
+      new_password_confirm
     }),
 };
+
 
 // Chat API
 export const chat = {
@@ -325,26 +378,66 @@ export const chat = {
 
 // Token API
 export const token = {
-  getMyTokenInfo: () => api.get('/users/me/tokens'),
+  getMyTokenInfo: () => api.get('/me/tokens'),
 };
 
 // Payment API
 export const payment = {
   getProducts: () => api.get('/payments/products'),
-  getProductById: (productId: string) =>
-    api.get(`/payments/products/${productId}`),
-  validateCoupon: (couponCode: string, productId: string) =>
+  getProductById: (productId: string, productType: 'subscription' | 'token') =>
+    api.get(`/payments/products/${productId}`, {
+      params: { product_type: productType }
+    }),
+    validateCoupon: (couponCode: string) =>
     api.post('/payments/coupons/validate', {
-      coupon_code: couponCode,
-      product_id: productId,
+      coupon_code: couponCode
     }),
   createPayment: (paymentData: any) => api.post('/payments', paymentData),
+  createSinglePayment: (paymentData: PaymentData) => {
+    const cleanedData = {
+      plan_id: Number(paymentData.plan_id),
+      quantity: Math.max(1, paymentData.quantity),
+      environment: paymentData.environment.toLowerCase(),
+      coupon_code: paymentData.coupon_code || undefined
+    };
+
+    const token = tokenService.getAccessToken();
+    console.log('Payment request token:', token);
+    console.log('Sending single payment request:', cleanedData);
+
+    return api.post('/pay', cleanedData);
+  },
+
+  createSubscription: (subscriptionData: PaymentData) => {
+    const cleanedData = {
+      plan_id: Number(subscriptionData.plan_id),
+      quantity: Math.max(1, subscriptionData.quantity),
+      environment: subscriptionData.environment.toLowerCase(),
+      coupon_code: subscriptionData.coupon_code || undefined
+    };
+
+    return api.post('/subscription', cleanedData);
+  },
   getMyPayments: (page: number = 1, limit: number = 10) =>
     api.get('/users/me/payments', { params: { page, limit } }),
   getPaymentById: (paymentId: string) =>
     api.get(`/users/me/payments/${paymentId}`),
-  cancelPayment: (paymentId: string, cancellationData: any) =>
-    api.post(`/users/me/payments/${paymentId}/cancel`, cancellationData),
+  uploadImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/upload-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  cancelPayment: (paymentId: string, data: {
+    title: string;
+    email: string;
+    contact: string;
+    content: string;
+    attachment: string;
+  }) => api.post(`/users/me/payments/${paymentId}/cancel`, data),
 };
 
 // Subscription API

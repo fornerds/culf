@@ -19,6 +19,7 @@ class SubscriptionPlanSchema(BaseModel):
 
     class Config:
         orm_mode = True
+        from_attributes = True  # 추가
 
 class TokenPlanSchema(BaseModel):
     token_plan_id: int
@@ -32,6 +33,7 @@ class TokenPlanSchema(BaseModel):
 
     class Config:
         orm_mode = True
+        from_attributes = True  # 추가
 
 # 결제 
 class PaymentBase(BaseModel):
@@ -70,8 +72,8 @@ class PaycancelBase(BaseModel):
     status: Optional[str] = 'PENDING'
 
 class PaycancelResponse(BaseModel):
-    inquiry_id: int  # inquiry_id 추가
-    refund_id: int  # refund_id 추가
+    inquiry_id: int
+    refund_id: int
     payment_number: str
     status: str
     message: str
@@ -81,7 +83,7 @@ class PaycancelRequest(BaseModel):
     email: str
     contact: str
     content: str
-    attachment: Optional[str] = None  # 첨부 파일은 선택 사항
+    attachment: Optional[str] = None
 
 # 쿠폰
 class CouponCreate(BaseModel):
@@ -116,6 +118,7 @@ class CouponValidationRequest(BaseModel):
     coupon_code: str
 
 class CouponValidationResponse(BaseModel):
+    discount_value: int
     is_valid: bool
     reason: Optional[str] = None
 
@@ -157,7 +160,7 @@ class SequentialPaymentMethod(BaseModel):
     payment_priority: int
     sid: str
     payment_method_type: str
-    card_info: Optional[CardInfo] = None  # 선택 사항, 카드 결제일 경우
+    card_info: Optional[CardInfo] = None
 
 class KakaoPayApproval(BaseModel):
     tid: str
@@ -175,42 +178,47 @@ class KakaoPayApproval(BaseModel):
     created_at: datetime
     approved_at: datetime
 
+class KakaoPayFailureExtras(BaseModel):
+    method_result_code: Optional[str] = Field(None, description="카카오페이 실패 상세 코드")
+    method_result_message: Optional[str] = Field(None, description="카카오페이 실패 상세 메시지")
+
+class KakaoPayFailureResponse(BaseModel):
+    error_code: int = Field(..., description="카카오페이 실패 코드")
+    error_message: str = Field(..., description="카카오페이 실패 메시지")
+    extras: Optional[KakaoPayFailureExtras] = Field(None, description="추가 실패 정보")
+
 # admin 
+class AdminPaymentCreate(BaseModel):
+    user_id: UUID
+    subscription_id: Optional[int] = None
+    token_plan_id: Optional[int] = None
+    payment_method: str = "manual"
+    manual_payment_reason: str
+
 class PaymentAdminResponse(BaseModel):
     payment_id: UUID
-    payment_number: str
+    user_id: UUID
+    subscription_id: Optional[int]
+    token_plan_id: Optional[int]
+    payment_method: str
+    manual_payment_reason: Optional[str]
     amount: float
     status: str
     payment_date: datetime
-    payment_method: str
-    nickname: Optional[str]
-    has_refund_request: bool
-    refund_status: Optional[str]
 
     class Config:
         orm_mode = True
-
-class AdminPaymentCreate(BaseModel):
-    user_id: UUID
-    amount: float
-    payment_method: str
-    manual_payment_reason: Optional[str]
-
-class RefundRequest(BaseModel):
-    amount: float
-    reason: Optional[str]
 
 class AdminRefundResponse(BaseModel):
     refund_id: int
     payment_id: UUID
     user_id: UUID
+    inquiry_id: int
     amount: float
-    reason: Optional[str]
+    reason: str
     status: str
     processed_at: Optional[datetime]
-    processed_by: Optional[int]
     created_at: datetime
-    updated_at: datetime
 
     class Config:
         orm_mode = True
@@ -261,9 +269,8 @@ class PaymentDetailResponse(BaseModel):
     payment_date: datetime
     payment_method: str
     user_nickname: Optional[str]
-    refund: Optional[RefundResponse]  # 환불 정보 포함
-    inquiries: Optional[List[InquiryResponse]]  # 문의 내역 포함
+    refund: Optional[RefundResponse]
+    inquiries: Optional[List[InquiryResponse]]
 
     class Config:
         orm_mode = True
-

@@ -6,16 +6,25 @@ import UserIcon from '@/assets/icons/user.svg?react';
 import NotificationIcon from '@/assets/icons/notification.svg?react';
 import InquiryIcon from '@/assets/icons/inquiry.svg?react';
 import LinkIcon from '@/assets/icons/link.svg?react';
+import { useUser } from '@/hooks/user/useUser';
+import { useAuthStore } from '@/state/client/authStore';
 
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  remainingTokens: number;
 }
 
-export function SideMenu({ isOpen, onClose, remainingTokens }: SideMenuProps) {
+export function SideMenu({ isOpen, onClose }: SideMenuProps) {
+  const { getUserInfo } = useUser();
+  const { user } = useAuthStore();
+
+  const userInfo = getUserInfo.data;
+  const remainingTokens = userInfo?.total_tokens ?? 0;
+
   useEffect(() => {
-    console.log('SideMenu isOpen changed to:', isOpen);
+    if (isOpen && process.env.NODE_ENV === 'development') {
+      console.log('SideMenu opened');
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -27,7 +36,7 @@ export function SideMenu({ isOpen, onClose, remainingTokens }: SideMenuProps) {
         <header>
           <div className={styles.sideMenuHeader}>
             <div className={styles.sideMenuHeaderTitle}>
-              <h3 className="font-title-3">컬프랜드</h3>
+              <h3 className="font-title-3">{user?.nickname || '사용자'}</h3>
               <p className="font-text-1">님</p>
             </div>
             <button className={styles.closeButton} onClick={onClose}>

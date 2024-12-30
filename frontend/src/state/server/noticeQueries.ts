@@ -1,42 +1,31 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import { notice } from '../../api';
+import { notification } from '@/api';
 import { AxiosError } from 'axios';
+import { Notification, NotificationListResponse } from '@/hooks/notice/useNotice';
 
-interface Notice {
-  notice_id: number;
-  title: string;
-  content: string;
-  created_at: string;
-  is_important: boolean;
-  is_read: boolean;
-}
-
-interface NoticesResponse {
-  notices: Notice[];
-  total_count: number;
-}
-
-interface NoticesQueryParams {
+interface NotificationsQueryParams {
   page?: number;
   limit?: number;
 }
 
-export const useGetNotices = (
-  params: NoticesQueryParams = {},
-): UseQueryResult<NoticesResponse, AxiosError> =>
+export const useGetNotifications = (
+  params: NotificationsQueryParams = {},
+): UseQueryResult<NotificationListResponse, AxiosError> =>
   useQuery({
-    queryKey: ['notices', params],
+    queryKey: ['notifications', params],
     queryFn: () =>
-      notice
-        .getNotices(params.page, params.limit)
+      notification
+        .getMyNotifications(params.page, params.limit)
         .then((response) => response.data),
   });
 
-export const useGetNoticeById = (
-  noticeId: number,
-): UseQueryResult<Notice, AxiosError> =>
+export const useGetNotificationById = (
+  notificationId: number,
+): UseQueryResult<Notification, AxiosError> =>
   useQuery({
-    queryKey: ['notice', noticeId],
+    queryKey: ['notification', notificationId],
     queryFn: () =>
-      notice.getNoticeById(noticeId).then((response) => response.data),
+      notification
+        .getNotificationById(notificationId)
+        .then((response) => response.data),
   });

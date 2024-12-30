@@ -3,3 +3,7 @@ export { Header } from './Header';
 export { Cards } from './Cards';
 export { ChatList } from './ChatList';
 export { Account } from './Account';
+export { Subscription } from './Subscription';
+export { PaymentHistory } from './PaymentHistory';
+export { Notice } from "./Notice"
+export { MyNotice } from "./MyNotice"

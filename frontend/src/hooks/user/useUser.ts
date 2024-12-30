@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useQuery, useMutation, UseQueryResult } from '@tanstack/react-query';
-import { user, token } from '../../api';
-import { AxiosResponse } from 'axios';
+// hooks/useUser.ts
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { user as userApi, token } from '../../api';
+import { useAuthStore } from '../../state/client/authStore';
+import { useEffect } from 'react';
 
 interface UserInfo {
   user_id: string;
@@ -19,6 +20,9 @@ interface UserInfo {
     next_billing_date: string;
     status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
   };
+  notifications: any[];
+  notification_settings: any[];
+  notice_reads: any[];
 }
 
 interface UpdateUserData {
@@ -26,21 +30,15 @@ interface UpdateUserData {
   phone_number?: string;
 }
 
-interface ChangePasswordData {
+interface VerifyPasswordData {
   current_password: string;
-  new_password: string;
-}
-
-interface TokenInfo {
-  total_tokens: number;
-  used_tokens: number;
-  last_charged_at: string;
 }
 
 interface ChangePasswordData {
-  current_password: string;
   new_password: string;
+  new_password_confirm: string;
 }
+
 
 interface TokenInfo {
   total_tokens: number;
@@ -49,43 +47,66 @@ interface TokenInfo {
 }
 
 export const useUser = () => {
-  const [isLoading, setIsLoading] = useState(false);
+  const { setAuth } = useAuthStore();
 
   const getUserInfoQuery = useQuery<UserInfo, Error>({
     queryKey: ['userInfo'],
     queryFn: async () => {
-      const response = await user.getMyInfo();
+      const response = await userApi.getMyInfo();
+      
+      // setAuth를 queryFn 내에서 직접 호출하지 않음
       return response.data;
     },
+    onSuccess: (data) => {
+      // 성공 시 setAuth 호출
+      setAuth(true, {
+        id: data.user_id,
+        email: data.email,
+        nickname: data.nickname
+      });
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.group('🔍 User Info Fetch Success');
+        console.log('User Data:', data);
+        console.groupEnd();
+      }
+    },
+    staleTime: 5 * 60 * 1000, // 5분
+    cacheTime: 10 * 60 * 1000, // 10분
+    retry: false
   });
 
   const updateUserInfoMutation = useMutation<UserInfo, Error, UpdateUserData>({
     mutationFn: async (userData) => {
-      const response = await user.updateMyInfo(userData);
+      const response = await userApi.updateMyInfo(userData);
       return response.data;
     },
+    onSuccess: () => {
+      getUserInfoQuery.refetch(); // 사용자 정보 업데이트 후 리페치
+    }
   });
 
-  const deleteAccountMutation = useMutation<
-    void,
-    Error,
-    { reason?: string; feedback?: string }
-  >({
+  const deleteAccountMutation = useMutation<void, Error, { reason?: string; feedback?: string }>({
     mutationFn: async ({ reason, feedback }) => {
-      await user.deleteAccount(reason, feedback);
+      await userApi.deleteAccount(reason, feedback);
+      setAuth(false, null); // 계정 삭제 후 인증 상태 리셋
     },
   });
 
-  const verifyPasswordMutation = useMutation<boolean, Error, string>({
-    mutationFn: async (currentPassword) => {
-      const response = await user.verifyPassword(currentPassword);
-      return response.data;
+  const verifyPasswordMutation = useMutation<string, Error, VerifyPasswordData>({
+    mutationFn: async ({ current_password }) => {
+      const response = await userApi.verifyPassword(current_password);
+      return response.data.message;
     },
   });
 
-  const changePasswordMutation = useMutation<void, Error, ChangePasswordData>({
-    mutationFn: async ({ current_password, new_password }) => {
-      await user.changePassword(current_password, new_password);
+  const changePasswordMutation = useMutation<string, Error, ChangePasswordData>({
+    mutationFn: async ({ new_password, new_password_confirm }) => {
+      const response = await userApi.changePassword(
+        new_password,
+        new_password_confirm
+      );
+      return response.data.message;
     },
   });
 
@@ -95,60 +116,68 @@ export const useUser = () => {
       const response = await token.getMyTokenInfo();
       return response.data;
     },
+    staleTime: 5 * 60 * 1000, // 5분
   });
 
   const updateUserInfo = async (userData: UpdateUserData) => {
-    setIsLoading(true);
     try {
       const response = await updateUserInfoMutation.mutateAsync(userData);
       return response;
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      throw error;
     }
   };
 
   const deleteAccount = async (reason?: string, feedback?: string) => {
-    setIsLoading(true);
     try {
       await deleteAccountMutation.mutateAsync({ reason, feedback });
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      throw error;
     }
   };
 
   const verifyPassword = async (currentPassword: string) => {
-    setIsLoading(true);
     try {
-      const response =
-        await verifyPasswordMutation.mutateAsync(currentPassword);
-      return response;
-    } finally {
-      setIsLoading(false);
+      return await verifyPasswordMutation.mutateAsync({
+        current_password: currentPassword
+      });
+    } catch (error) {
+      throw error;
     }
   };
 
-  const changePassword = async (
-    current_password: string,
-    new_password: string,
-  ) => {
-    setIsLoading(true);
+  const changePassword = async ({ new_password, new_password_confirm }: ChangePasswordData) => {
     try {
-      await changePasswordMutation.mutateAsync({
-        current_password,
+      return await changePasswordMutation.mutateAsync({
         new_password,
+        new_password_confirm
       });
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      throw error;
     }
   };
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && getUserInfoQuery.data) {
+      console.group('👤 User State Updated');
+      console.log('Status:', getUserInfoQuery.status);
+      console.log('Data:', getUserInfoQuery.data);
+      console.log('Is Loading:', getUserInfoQuery.isLoading);
+      console.groupEnd();
+    }
+  }, [getUserInfoQuery.status]);
 
   return {
-    isLoading,
+    isLoading: getUserInfoQuery.isLoading || updateUserInfoMutation.isLoading || 
+               deleteAccountMutation.isLoading || verifyPasswordMutation.isLoading || 
+               changePasswordMutation.isLoading,
     getUserInfo: getUserInfoQuery,
     updateUserInfo,
     deleteAccount,
     verifyPassword,
     changePassword,
     getTokenInfo: getTokenInfoQuery,
+    refetchUser: getUserInfoQuery.refetch,
+    refetchTokens: getTokenInfoQuery.refetch
   };
 };

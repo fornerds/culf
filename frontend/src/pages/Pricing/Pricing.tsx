@@ -1,115 +1,104 @@
 import React, { useState } from 'react';
-import { PriceCard } from '@/components/molecule';
-import styles from './Pricing.module.css';
-import EditIcon from '@/assets/icons/edit.svg?react';
 import { useNavigate } from 'react-router-dom';
+import { PriceCard } from '@/components/molecule';
+import { usePayment } from '@/hooks/payment/usePayment';
+import EditIcon from '@/assets/icons/edit.svg?react';
+import styles from './Pricing.module.css';
 
-interface PriceOption {
+interface SelectedPlan {
   type: 'subscription' | 'token';
-  title: string;
-  subtitle?: string;
-  originalPrice: number;
-  discountPercentage: number;
-  finalPrice: number;
+  id: number;
 }
 
 export function Pricing() {
-  const [selectedOption, setSelectedOption] = useState<PriceOption | null>(
-    null,
-  );
-
+  const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
   const navigate = useNavigate();
+  const { getProducts, isLoading } = usePayment();
+  const { data: products } = getProducts;
 
-  function getSubscriptionOption(): PriceOption {
-    return {
-      type: 'subscription',
-      title: '정기 구독',
-      subtitle: '정기구독에 관한 설명을 첨부합니다.',
-      originalPrice: 20000,
-      discountPercentage: 25,
-      finalPrice: 15000,
-    };
-  }
-
-  function getTokenOptions(): PriceOption[] {
-    return [
-      {
-        type: 'token',
-        title: '토큰 50개',
-        originalPrice: 5000,
-        discountPercentage: 20,
-        finalPrice: 4000,
-      },
-      {
-        type: 'token',
-        title: '토큰 100개',
-        originalPrice: 10000,
-        discountPercentage: 25,
-        finalPrice: 7500,
-      },
-      {
-        type: 'token',
-        title: '토큰 200개',
-        originalPrice: 20000,
-        discountPercentage: 40,
-        finalPrice: 12000,
-      },
-    ];
-  }
-
-  function handleSelect(option: PriceOption): void {
-    if (selectedOption?.title === option.title) {
-      setSelectedOption(null);
+  function handleSelect(type: 'subscription' | 'token', id: number) {
+    if (selectedPlan?.id === id && selectedPlan?.type === type) {
+      setSelectedPlan(null);
     } else {
-      setSelectedOption(option);
+      setSelectedPlan({ type, id });
     }
   }
 
-  function handlePayment(): void {
-    if (selectedOption) {
-      // 결제 처리 로직
-      console.log('Selected option:', selectedOption);
-    }
+  function handlePayment() {
+    if (!selectedPlan) return;
+    const paymentPath = `/payment/${selectedPlan.type}/${selectedPlan.id}`;
+    navigate(paymentPath);
   }
 
-  function renderSubscriptionSection() {
-    const subscriptionOption = getSubscriptionOption();
-    return (
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-96">로딩중...</div>;
+  }
+
+  return (
+    <div className={styles.container}>
+      <h2 className={`${styles.sectionTitle} font-title-2`}>
+        <p>토큰🪙을 구매해</p>
+        <p>AI큐레이터들과 대화해보세요.</p>
+      </h2>
+
       <div className={styles.section}>
         <h3 className="font-card-title-2">구독 결제</h3>
-        <PriceCard
-          {...subscriptionOption}
-          isSelected={selectedOption?.title === subscriptionOption.title}
-          onClick={() => handleSelect(subscriptionOption)}
-        />
+        {products?.subscription_plans.map((plan) => (
+          <PriceCard
+            key={plan.plan_id}
+            type="subscription"
+            title={plan.plan_name}
+            subtitle={plan.description}
+            originalPrice={Number(plan.price)}
+            finalPrice={Number(plan.discounted_price)}
+            discountPercentage={
+              ((Number(plan.price) - Number(plan.discounted_price)) /
+                Number(plan.price)) *
+              100
+            }
+            isSelected={
+              selectedPlan?.type === 'subscription' &&
+              selectedPlan?.id === plan.plan_id
+            }
+            onClick={() => handleSelect('subscription', plan.plan_id)}
+          />
+        ))}
       </div>
-    );
-  }
 
-  function renderTokenSection() {
-    const tokenOptions = getTokenOptions();
-    return (
       <div className={styles.section}>
         <div className={styles.tokenHeader}>
           <h3 className="font-card-title-2">토큰 결제</h3>
           <span className={styles.tokenCount}>보유 토큰 12개</span>
         </div>
         <div className={styles.cardGrid}>
-          {tokenOptions.map((option) => (
+          {products?.token_plans.map((plan) => (
             <PriceCard
-              key={option.title}
-              {...option}
-              isSelected={selectedOption?.title === option.title}
-              onClick={() => handleSelect(option)}
+              key={plan.token_plan_id}
+              type="token"
+              title={`토큰 ${plan.tokens}개`}
+              originalPrice={Number(plan.price)}
+              finalPrice={Number(plan.discounted_price)}
+              discountPercentage={Number(plan.discount_rate)}
+              isSelected={
+                selectedPlan?.type === 'token' &&
+                selectedPlan?.id === plan.token_plan_id
+              }
+              onClick={() => handleSelect('token', plan.token_plan_id)}
             />
           ))}
         </div>
       </div>
-    );
-  }
 
-  function renderInquirySection() {
-    return (
+      <button
+        className={`${styles.button} ${
+          selectedPlan ? styles.buttonEnabled : styles.buttonDisabled
+        } font-button-1`}
+        disabled={!selectedPlan}
+        onClick={handlePayment}
+      >
+        결제하기
+      </button>
+
       <div className={styles.inquirySection}>
         <h3 className="font-hero-banner-2">
           기업이신가요?
@@ -125,30 +114,6 @@ export function Pricing() {
           <span>문의하기</span>
         </button>
       </div>
-    );
-  }
-
-  return (
-    <div className={styles.container}>
-      <h2 className={`${styles.sectionTitle} font-title-2`}>
-        <p>토큰🪙을 구매해</p>
-        <p>AI큐레이터들과 대화해보세요.</p>
-      </h2>
-
-      {renderSubscriptionSection()}
-      {renderTokenSection()}
-
-      <button
-        className={`${styles.button} ${
-          selectedOption ? styles.buttonEnabled : styles.buttonDisabled
-        } font-button-1`}
-        disabled={!selectedOption}
-        onClick={() => navigate('/payment')}
-      >
-        결제하기
-      </button>
-
-      {renderInquirySection()}
     </div>
   );
 }

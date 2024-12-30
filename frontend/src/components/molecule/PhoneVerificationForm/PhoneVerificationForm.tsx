@@ -24,43 +24,69 @@ export function PhoneVerificationForm({
   const [verificationCode, setVerificationCode] = useState('');
   const [isCodeSent, setIsCodeSent] = useState(false);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [phoneValidationMessage, setPhoneValidationMessage] = useState('');
+
+  const validatePhoneNumber = (value: string) => {
+    const numericValue = value.replace(/[^0-9]/g, '');
+    if (numericValue !== value) {
+      setPhoneValidationMessage('숫자만 입력 가능합니다.');
+    } else if (value && value.length !== 11) {
+      setPhoneValidationMessage('휴대폰 번호 11자리를 입력해주세요.');
+    } else {
+      setPhoneValidationMessage('');
+    }
+    return numericValue;
+  };
+
+  const handlePhoneNumberChange = (id: string, value: string) => {
+    const validatedValue = validatePhoneNumber(value);
+    // 새로운 번호 입력 시 에러 메시지 초기화
+    if (phoneValidationMessage === '이미 사용 중인 휴대폰 번호입니다.') {
+      setPhoneValidationMessage('');
+    }
+    if (onChangeObj) {
+      onChangeObj(id, validatedValue);
+    }
+  };
 
   const handleBlur = () => {
     setShowError(true);
   };
 
   const handleRequestPhoneVerification = async () => {
-    try {
-      const res = await auth.requestPhoneVerification(
-        phoneNumber.replace(/-/g, ''),
-        findPw,
-      );
-      if (res.status === 200) {
-        // alert('인증번호가 발송되었습니다.');
-        setIsButtonDisabled(true);
+    if (phoneNumber.length !== 11) {
+      setPhoneValidationMessage('휴대폰 번호 11자리를 입력해주세요.');
+      return;
+    }
 
+    try {
+      setIsButtonDisabled(true);
+      const res = await auth.requestPhoneVerification(phoneNumber, findPw);
+      if (res.status === 200) {
         setTimeout(() => {
           setIsCodeSent(true);
-          setCountdown(60); // 1분 동안 인증번호 재요청 불가
+          setIsButtonDisabled(false);
         }, 1000);
       }
-    } catch (e) {
-      alert('인증번호 발송을 실패했습니다.');
-      setIsCodeSent(true);
+    } catch (error: any) {
+      // 에러 응답의 상태 코드가 400인 경우 이미 사용 중인 번호로 처리
+      if (error.response?.status === 400) {
+        setPhoneValidationMessage('이미 사용 중인 휴대폰 번호입니다.');
+      } else {
+        alert('인증번호 발송을 실패했습니다.');
+      }
+      setIsButtonDisabled(false);
     }
   };
 
   const handleVerificationCodeChange = (value: string) => {
-    setVerificationCode(value);
+    const numericValue = value.replace(/[^0-9]/g, '');
+    setVerificationCode(numericValue);
   };
 
   const handleVerifyPhone = async () => {
     try {
-      const res = await auth.verifyPhone(
-        phoneNumber.replace(/-/g, ''),
-        verificationCode,
-      );
+      const res = await auth.verifyPhone(phoneNumber, verificationCode);
       if (res.status === 200) {
         onVerificationSuccess();
       }
@@ -69,39 +95,37 @@ export function PhoneVerificationForm({
     }
   };
 
-  useEffect(() => {
-    if (countdown === 0) {
-      setIsButtonDisabled(false); // 1분 후 버튼 활성화
-      return;
-    }
-    const timer = setInterval(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [countdown]);
+  const displayValidationMessage = showError ? phoneValidationMessage || validationMessage : '';
 
   return (
     <div>
       <InputBox
         id="phoneNumber"
         label="휴대폰 번호"
-        placeholder="휴대폰 번호를 입력하세요"
+        placeholder="휴대폰 번호를 입력하세요 ('-' 없이 숫자만 입력)"
         value={phoneNumber}
-        {...(showError && { validationMessage })}
+        validationMessage={displayValidationMessage}
         validationMessageType="error"
         inputDisabled={isVerified}
         buttonSize="size4"
         buttonVariant={
-          !phoneNumber || !!validationMessage || isButtonDisabled || isVerified
+          !phoneNumber || 
+          phoneNumber.length !== 11 || 
+          !!phoneValidationMessage || 
+          isButtonDisabled || 
+          isVerified
             ? 'disable'
             : 'default'
         }
         buttonDisabled={
-          !phoneNumber || !!validationMessage || isButtonDisabled || isVerified
+          !phoneNumber || 
+          phoneNumber.length !== 11 || 
+          !!phoneValidationMessage || 
+          isButtonDisabled || 
+          isVerified
         }
         buttonText="인증번호 발송"
-        onChangeObj={onChangeObj}
+        onChangeObj={handlePhoneNumberChange}
         onClick={handleRequestPhoneVerification}
         onBlur={handleBlur}
       />
@@ -119,6 +143,7 @@ export function PhoneVerificationForm({
           buttonText="인증하기"
           onChange={handleVerificationCodeChange}
           onClick={handleVerifyPhone}
+          placeholder="인증번호 6자리 입력"
         />
       </div>
     </div>

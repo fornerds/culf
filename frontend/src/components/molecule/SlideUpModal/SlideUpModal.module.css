@@ -1,0 +1,71 @@
+/* SlideUpModal.module.css */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    z-index: 1000;
+  }
+  
+  .modalContent {
+    background: white;
+    padding: 20px;
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 600px;
+    box-sizing: border-box;
+    position: relative;
+    transition: transform 0.3s ease-in-out;
+  }
+  
+  .slideUp {
+    transform: translateY(0);
+  }
+  
+  .slideDown {
+    transform: translateY(100%);
+  }
+  
+  .closeButton {
+    display: flex;
+        width: 100%;
+        justify-content: end;
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        color: #333;
+  }
+  
+  .title {
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  
+  .description {
+    margin-bottom: 40px;
+    text-align: center;
+  }
+  
+  .actionButton {
+    width: 100%;
+    padding: 15px;
+    background-color: #5E3AEE;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .actionButton:hover {
+    background-color: #4E2ADE;
+  }
