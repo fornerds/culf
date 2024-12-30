@@ -60,6 +60,7 @@ export function Terms() {
         <Checkbox
           key="all"
           id="all"
+          value="all"
           label="모두 동의"
           checked={isAllSelected}
           onChange={handleAllSelect}
@@ -69,6 +70,7 @@ export function Terms() {
             <Checkbox
               key={item.id}
               id={item.id}
+              value={item.id}
               label={item.label}
               checked={selectedValues.includes(item.id)}
               onChange={handleCheckboxChange}

@@ -3,7 +3,7 @@ import styles from './Checkbox.module.css';
 
 export interface CheckboxProps {
   id: string;
-  value: string;
+  value?: string;
   label: string;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   checked: boolean;
