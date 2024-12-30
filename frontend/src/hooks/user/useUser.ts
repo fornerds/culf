@@ -52,47 +52,68 @@ export const useUser = () => {
   const userInfoQuery = useQuery<UserInfo, Error>({
     queryKey: ['userInfo'],
     queryFn: async () => {
-      // SNS 회원가입 진행 중이거나 terms 페이지에서는 API 호출 스킵
+      // 현재 상태 디버깅
+      console.group('🔍 Fetching User Info');
+      console.log('Current State:', {
+        pathname: window.location.pathname,
+        accessToken: tokenService.getAccessToken(),
+        registrationInProgress
+      });
+      console.groupEnd();
+  
+      // Login Status 체크
       const loginStatus = document.cookie
         .split('; ')
         .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
         ?.split('=')[1];
-
-      if (loginStatus === 'continue' || registrationInProgress) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Skipping user info fetch - Registration in progress');
-        }
+  
+      // Skip API call if:
+      // 1. SNS registration is in progress
+      // 2. We're on the terms page
+      if (loginStatus === 'continue' || window.location.pathname === '/terms') {
+        console.log('Skipping user info fetch - SNS registration or terms page');
         return null;
       }
-
+  
       try {
+        // 실제 API 호출
         const response = await userApi.getMyInfo();
-        
-        // 기존 토큰이 있다면 유지
-        const currentToken = tokenService.getAccessToken();
-        
-        setAuth(true, {
-          id: response.data.user_id,
-          email: response.data.email,
-          nickname: response.data.nickname
-        }, currentToken);
-
-        return response.data;
+  
+        // API 응답 성공시 상태 업데이트
+        if (response.data) {
+          const currentToken = tokenService.getAccessToken();
+          setAuth(true, {
+            id: response.data.user_id,
+            email: response.data.email,
+            nickname: response.data.nickname
+          }, currentToken);
+  
+          return response.data;
+        }
+  
+        return null;
       } catch (error) {
         console.error('Failed to fetch user info:', error);
-        if (window.location.pathname !== '/terms') {
-          setAuth(false, null);
+        const currentToken = tokenService.getAccessToken();
+        
+        // 토큰이 있는 경우는 일단 에러를 무시
+        if (currentToken) {
+          return null;
         }
+        
+        setAuth(false, null);
         throw error;
       }
     },
-    enabled: !registrationInProgress && 
-             isInitialized && 
-             window.location.pathname !== '/terms' &&
-             !document.cookie.includes('OAUTH_LOGIN_STATUS=continue'),
-    staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
-    retry: false
+    enabled: // 쿼리 실행 조건
+      isInitialized && // 초기화 완료
+      !!tokenService.getAccessToken() && // 토큰 존재
+      !document.cookie.includes('OAUTH_LOGIN_STATUS=continue') && // SNS 로그인 진행 중 아님
+      window.location.pathname !== '/terms', // terms 페이지 아님
+    staleTime: 5 * 60 * 1000, // 5분
+    cacheTime: 10 * 60 * 1000, // 10분
+    retry: 1, // 한 번의 재시도 허용
+    retryDelay: 1000 // 1초 후 재시도
   });
 
   const tokenInfoQuery = useQuery<TokenInfo, Error>({
@@ -103,7 +124,7 @@ export const useUser = () => {
         .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
         ?.split('=')[1];
 
-      if (loginStatus === 'continue' || registrationInProgress) {
+      if (loginStatus === 'continue' || window.location.pathname === '/terms') {
         return null;
       }
 
@@ -115,10 +136,10 @@ export const useUser = () => {
         return null;
       }
     },
-    enabled: !registrationInProgress && 
-             isInitialized && 
+    enabled: isInitialized && 
+             !registrationInProgress && 
              userInfoQuery.isSuccess &&
-             window.location.pathname !== '/terms' &&
+             !!tokenService.getAccessToken() &&
              !document.cookie.includes('OAUTH_LOGIN_STATUS=continue'),
     staleTime: 5 * 60 * 1000,
     retry: false
@@ -188,11 +209,17 @@ export const useUser = () => {
     }
   };
 
-  const changePassword = async ({ new_password, new_password_confirm }: ChangePasswordData) => {
+  const changePassword = async (currentPassword: string, newPassword: string) => {
     try {
+      // 먼저 현재 비밀번호 검증
+      await verifyPasswordMutation.mutateAsync({
+        current_password: currentPassword
+      });
+      
+      // 검증 성공 후 새 비밀번호로 변경
       return await changePasswordMutation.mutateAsync({
-        new_password,
-        new_password_confirm
+        new_password: newPassword,
+        new_password_confirm: newPassword
       });
     } catch (error) {
       console.error('Failed to change password:', error);
@@ -200,7 +227,6 @@ export const useUser = () => {
     }
   };
 
-  // 컴포넌트 마운트 시 초기화
   useEffect(() => {
     setIsInitialized(true);
     return () => {
@@ -208,7 +234,6 @@ export const useUser = () => {
     };
   }, []);
 
-  // 개발 모드에서 상태 변화 로깅
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       console.group('👤 User State Updated');
