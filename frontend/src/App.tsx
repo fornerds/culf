@@ -1,4 +1,3 @@
-// App.tsx
 import { useState, useEffect, useCallback } from 'react';
 import {
   Routes,
@@ -60,22 +59,7 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
   return accessToken ? <Navigate to="/" replace /> : children;
 };
 
-const refreshAccessToken = async () => {
-  try {
-    const res = await axios.post(
-      `${API_BASE_URL}/refresh`,
-      {},
-      { withCredentials: true },
-    );
-    tokenService.setAccessToken(res.data.access_token);
-    return true;
-  } catch (error) {
-    console.error('Failed to refresh token:', error);
-    return false;
-  }
-};
-
-// 인증 보호 기능을 추가한 PrivateRoute 구성
+// 인증 보호 기능을 추가한 PrivateOutlet 구성
 export const PrivateOutlet = () => {
   const [isChecking, setIsChecking] = useState(true);
   const { setAuth } = useAuthStore();
@@ -88,39 +72,46 @@ export const PrivateOutlet = () => {
 
     const validateAuth = async () => {
       try {
-        // Terms 페이지이면서 SNS 로그인 진행 중인 경우 검증 절차 건너뛰기
+        // Terms 페이지이면서 SNS 로그인 진행 중인 경우 
         const loginStatus = document.cookie
           .split('; ')
           .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
           ?.split('=')[1];
 
-        if (location.pathname === '/terms' && loginStatus === 'continue') {
-          setIsChecking(false);
-          return;
-        }
-
-        // 리프레시 토큰 쿠키 확인
-        const hasRefreshToken = document.cookie
-          .split('; ')
-          .some(row => row.startsWith('refresh_token='));
-
-        if (!hasRefreshToken) {
-          // 리프레시 토큰이 없으면 로그인 필요
-          setAuth(false, null);
-          setIsChecking(false);
-          return;
-        }
-
-        if (!accessToken && hasRefreshToken) {
-          // 액세스 토큰이 없고 리프레시 토큰이 있는 경우에만 토큰 갱신 시도
-          const response = await auth.refreshToken();
-          if (response.data.access_token && isActive) {
-            tokenService.setAccessToken(response.data.access_token);
-            await getUserInfo.refetch();
+        // SNS 회원가입 진행 중이면 검증 절차 건너뛰기
+        if (loginStatus === 'continue') {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('SNS Registration in progress, skipping auth check');
           }
-        } else if (accessToken && hasRefreshToken) {
-          // 액세스 토큰과 리프레시 토큰이 모두 있는 경우 유저 정보 확인
-          await getUserInfo.refetch();
+          setIsChecking(false);
+          return;
+        }
+
+        // access token이 있으면 해당 토큰으로 인증 시도
+        if (accessToken) {
+          try {
+            await getUserInfo.refetch();
+            if (isActive) {
+              setAuth(true, getUserInfo.data || null);
+            }
+          } catch (error) {
+            console.error('Failed to validate user:', error);
+            if (isActive) {
+              setAuth(false, null);
+            }
+          }
+        } else {
+          // access token이 없는 경우
+          const hasRefreshToken = document.cookie
+            .split('; ')
+            .some(row => row.startsWith('refresh_token='));
+
+          if (!hasRefreshToken) {
+            // 리프레시 토큰도 없는 경우 인증 실패
+            if (isActive) {
+              setAuth(false, null);
+            }
+          }
         }
       } catch (error) {
         console.error('Auth validation failed:', error);
@@ -139,7 +130,7 @@ export const PrivateOutlet = () => {
     return () => {
       isActive = false;
     };
-  }, [location.pathname]); // pathname이 변경될 때마다 검증 수행
+  }, [location.pathname]);
 
   if (isChecking || isLoading) {
     return (
@@ -155,22 +146,19 @@ export const PrivateOutlet = () => {
       </div>
     );
   }
-  
+
   const loginStatus = document.cookie
     .split('; ')
     .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
     ?.split('=')[1];
 
-  if (location.pathname === '/terms' && loginStatus === 'continue') {
+  // SNS 회원가입 중이면 Terms 페이지 접근 허용
+  if (loginStatus === 'continue' && location.pathname === '/terms') {
     return <Outlet />;
   }
 
-  // 리프레시 토큰 유무에 따른 처리
-  const hasRefreshToken = document.cookie
-    .split('; ')
-    .some(row => row.startsWith('refresh_token='));
-
-  return (hasRefreshToken && accessToken) ? <Outlet /> : <Navigate to="/login" replace />;
+  // access token이 있거나 SNS 인증 성공 상태면 접근 허용
+  return (accessToken || loginStatus === 'success') ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
 function AppRoutes() {
@@ -324,6 +312,8 @@ function AppRoutes() {
         <Route path="/find-email" element={<FindEmail />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
+
+        {/* 인증이 필요한 라우트 */}
         <Route element={<PrivateOutlet />}>
           <Route
             path="/mypage"

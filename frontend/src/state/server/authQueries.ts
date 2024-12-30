@@ -71,8 +71,10 @@ export const useLogin = (): UseMutationResult<
     },
     onSuccess: (data) => {
       const { access_token, user } = data;
-      tokenService.setAccessToken(access_token);
-      setAuth(true, user);
+      if (access_token) {
+        tokenService.setAccessToken(access_token);
+        setAuth(true, user, access_token); // access_token도 함께 전달
+      }
     },
     onError: () => {
       tokenService.removeAccessToken();

@@ -72,12 +72,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         console.error('Failed to clear query cache:', error);
       }
     }
+
+    // access_token이 있으면 저장, 없으면 기존 토큰 유지
+    if (access_token) {
+      tokenService.setAccessToken(access_token);
+    }
+
+    // 인증 상태가 false로 변경될 때만 토큰 제거
+    if (!isAuthenticated) {
+      tokenService.removeAccessToken();
+    }
     
     if (process.env.NODE_ENV === 'development') {
       console.group('🔐 Auth State Update');
       console.log('Authenticated:', isAuthenticated);
       console.log('User:', user);
-      console.log('Access Token:', access_token ? 'Present' : 'None');
+      console.log('Access Token:', access_token || tokenService.getAccessToken() || 'None');
       console.log('Registration in progress:', get().registrationInProgress);
       console.groupEnd();
     }
@@ -89,12 +99,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
   
   hasRefreshToken: () => {
-    return document.cookie
+    const hasToken = document.cookie
       .split('; ')
       .some(row => row.startsWith('refresh_token='));
+    return hasToken;
   },
-  
+
   logout: () => {
+    tokenService.removeAccessToken(); // 토큰 제거를 먼저 수행
+    
     if (get().queryClient) {
       try {
         get().queryClient.clear();
@@ -102,9 +115,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         console.error('Failed to clear query cache during logout:', error);
       }
     }
-    
-    // 토큰 및 상태 초기화
-    tokenService.removeAccessToken();
     
     set({
       isAuthenticated: false,

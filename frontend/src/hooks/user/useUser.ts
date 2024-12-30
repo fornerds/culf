@@ -1,7 +1,8 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { user as userApi, token } from '../../api';
 import { useAuthStore } from '../../state/client/authStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { tokenService } from '@/utils/tokenService';
 
 interface UserInfo {
   user_id: string;
@@ -45,49 +46,81 @@ interface TokenInfo {
 }
 
 export const useUser = () => {
-  const { setAuth, registrationInProgress, hasRefreshToken } = useAuthStore();
+  const { setAuth, registrationInProgress } = useAuthStore();
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const getUserInfoQuery = useQuery<UserInfo, Error>({
+  const userInfoQuery = useQuery<UserInfo, Error>({
     queryKey: ['userInfo'],
     queryFn: async () => {
-      // SNS 회원가입 진행중이거나 리프레시 토큰이 없는 경우 API 호출 스킵
-      if (registrationInProgress || !hasRefreshToken()) {
+      // SNS 회원가입 진행 중이거나 terms 페이지에서는 API 호출 스킵
+      const loginStatus = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
+        ?.split('=')[1];
+
+      if (loginStatus === 'continue' || registrationInProgress) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('Skipping user info fetch:', { 
-            registrationInProgress, 
-            hasRefreshToken: hasRefreshToken() 
-          });
+          console.log('Skipping user info fetch - Registration in progress');
         }
         return null;
       }
 
       try {
         const response = await userApi.getMyInfo();
+        
+        // 기존 토큰이 있다면 유지
+        const currentToken = tokenService.getAccessToken();
+        
+        setAuth(true, {
+          id: response.data.user_id,
+          email: response.data.email,
+          nickname: response.data.nickname
+        }, currentToken);
+
         return response.data;
       } catch (error) {
         console.error('Failed to fetch user info:', error);
-        setAuth(false, null);
+        if (window.location.pathname !== '/terms') {
+          setAuth(false, null);
+        }
+        throw error;
+      }
+    },
+    enabled: !registrationInProgress && 
+             isInitialized && 
+             window.location.pathname !== '/terms' &&
+             !document.cookie.includes('OAUTH_LOGIN_STATUS=continue'),
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
+    retry: false
+  });
+
+  const tokenInfoQuery = useQuery<TokenInfo, Error>({
+    queryKey: ['tokenInfo'],
+    queryFn: async () => {
+      const loginStatus = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
+        ?.split('=')[1];
+
+      if (loginStatus === 'continue' || registrationInProgress) {
+        return null;
+      }
+
+      try {
+        const response = await token.getMyTokenInfo();
+        return response.data;
+      } catch (error) {
+        console.error('Failed to fetch token info:', error);
         return null;
       }
     },
-    enabled: !registrationInProgress && hasRefreshToken(),
-    onSuccess: (data) => {
-      if (data) {
-        setAuth(true, {
-          id: data.user_id,
-          email: data.email,
-          nickname: data.nickname
-        });
-        
-        if (process.env.NODE_ENV === 'development') {
-          console.group('🔍 User Info Fetch Success');
-          console.log('User Data:', data);
-          console.groupEnd();
-        }
-      }
-    },
-    staleTime: 5 * 60 * 1000, // 5분
-    cacheTime: 10 * 60 * 1000, // 10분
+    enabled: !registrationInProgress && 
+             isInitialized && 
+             userInfoQuery.isSuccess &&
+             window.location.pathname !== '/terms' &&
+             !document.cookie.includes('OAUTH_LOGIN_STATUS=continue'),
+    staleTime: 5 * 60 * 1000,
     retry: false
   });
 
@@ -97,14 +130,14 @@ export const useUser = () => {
       return response.data;
     },
     onSuccess: () => {
-      getUserInfoQuery.refetch(); // 사용자 정보 업데이트 후 리페치
+      userInfoQuery.refetch();
     }
   });
 
   const deleteAccountMutation = useMutation<void, Error, { reason?: string; feedback?: string }>({
     mutationFn: async ({ reason, feedback }) => {
       await userApi.deleteAccount(reason, feedback);
-      setAuth(false, null); // 계정 삭제 후 인증 상태 리셋
+      setAuth(false, null);
     },
   });
 
@@ -125,32 +158,12 @@ export const useUser = () => {
     },
   });
 
-  const getTokenInfoQuery = useQuery<TokenInfo, Error>({
-    queryKey: ['tokenInfo'],
-    queryFn: async () => {
-      // SNS 회원가입 진행중이거나 리프레시 토큰이 없는 경우 API 호출 스킵
-      if (registrationInProgress || !hasRefreshToken()) {
-        return null;
-      }
-
-      try {
-        const response = await token.getMyTokenInfo();
-        return response.data;
-      } catch (error) {
-        console.error('Failed to fetch token info:', error);
-        return null;
-      }
-    },
-    enabled: !registrationInProgress && hasRefreshToken(),
-    staleTime: 5 * 60 * 1000, // 5분
-    retry: false
-  });
-
   const updateUserInfo = async (userData: UpdateUserData) => {
     try {
       const response = await updateUserInfoMutation.mutateAsync(userData);
       return response;
     } catch (error) {
+      console.error('Failed to update user info:', error);
       throw error;
     }
   };
@@ -159,6 +172,7 @@ export const useUser = () => {
     try {
       await deleteAccountMutation.mutateAsync({ reason, feedback });
     } catch (error) {
+      console.error('Failed to delete account:', error);
       throw error;
     }
   };
@@ -169,6 +183,7 @@ export const useUser = () => {
         current_password: currentPassword
       });
     } catch (error) {
+      console.error('Failed to verify password:', error);
       throw error;
     }
   };
@@ -180,36 +195,49 @@ export const useUser = () => {
         new_password_confirm
       });
     } catch (error) {
+      console.error('Failed to change password:', error);
       throw error;
     }
   };
 
+  // 컴포넌트 마운트 시 초기화
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && getUserInfoQuery.data) {
+    setIsInitialized(true);
+    return () => {
+      setIsInitialized(false);
+    };
+  }, []);
+
+  // 개발 모드에서 상태 변화 로깅
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
       console.group('👤 User State Updated');
-      console.log('Status:', getUserInfoQuery.status);
-      console.log('Data:', getUserInfoQuery.data);
-      console.log('Is Loading:', getUserInfoQuery.isLoading);
+      console.log('Query Status:', userInfoQuery.status);
+      console.log('Is Initialized:', isInitialized);
       console.log('Registration in Progress:', registrationInProgress);
-      console.log('Has Refresh Token:', hasRefreshToken());
+      console.log('User Data:', userInfoQuery.data);
+      console.log('Access Token:', tokenService.getAccessToken());
       console.groupEnd();
     }
-  }, [getUserInfoQuery.status, registrationInProgress]);
+  }, [userInfoQuery.status, isInitialized, registrationInProgress]);
 
   return {
-    isLoading: getUserInfoQuery.isLoading || 
+    isLoading: userInfoQuery.isLoading || 
+               tokenInfoQuery.isLoading || 
                updateUserInfoMutation.isLoading || 
                deleteAccountMutation.isLoading || 
                verifyPasswordMutation.isLoading || 
-               changePasswordMutation.isLoading ||
-               getTokenInfoQuery.isLoading,
-    getUserInfo: getUserInfoQuery,
+               changePasswordMutation.isLoading,
+    isError: userInfoQuery.isError,
+    error: userInfoQuery.error,
+    isInitialized,
+    getUserInfo: userInfoQuery,
+    getTokenInfo: tokenInfoQuery,
     updateUserInfo,
     deleteAccount,
     verifyPassword,
     changePassword,
-    getTokenInfo: getTokenInfoQuery,
-    refetchUser: getUserInfoQuery.refetch,
-    refetchTokens: getTokenInfoQuery.refetch
+    refetchUser: userInfoQuery.refetch,
+    refetchTokens: tokenInfoQuery.refetch
   };
 };
