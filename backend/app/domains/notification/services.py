@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException
 import logging
+
 def get_user_notifications(db: Session, user_id: UUID, skip: int = 0, limit: int = 100) -> Tuple[List[models.Notification], int]:
     query = db.query(models.Notification).filter(models.Notification.user_id == user_id)
     total_count = query.count()
@@ -24,6 +25,13 @@ def mark_notification_as_read(db: Session, notification_id: int, user_id: UUID) 
         db.commit()
         db.refresh(notification)
     return notification
+
+def mark_all_notifications_as_read(db: Session, user_id: UUID):
+    db.query(models.Notification).filter(
+        models.Notification.user_id == user_id,
+        models.Notification.is_read == False
+    ).update({"is_read": True})
+    db.commit()
 
 def update_notification_settings(db: Session, user_id: UUID, settings: List[schemas.NotificationSettingUpdate]) -> List[models.UserNotificationSetting]:
     updated_settings = []
@@ -53,3 +61,26 @@ def update_notification_settings(db: Session, user_id: UUID, settings: List[sche
             raise HTTPException(status_code=500, detail="Database error occurred")
 
     return updated_settings
+
+def get_user_notification_settings(db: Session, user_id: UUID) -> List[models.UserNotificationSetting]:
+    return db.query(models.UserNotificationSetting).filter(
+        models.UserNotificationSetting.user_id == user_id
+    ).all()
+
+def create_notification(db: Session, user_id: UUID, type: str, message: str) -> models.Notification:
+    """새로운 알림을 생성합니다."""
+    notification = models.Notification(
+        user_id=user_id,
+        type=type,
+        message=message,
+        is_read=False
+    )
+    try:
+        db.add(notification)
+        db.commit()
+        db.refresh(notification)
+        return notification
+    except SQLAlchemyError as e:
+        db.rollback()
+        logging.error(f"Error creating notification: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create notification")

@@ -2,22 +2,26 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
+from app.domains.notification.models import NotificationType
 
 class NotificationBase(BaseModel):
-    type: str
+    type: NotificationType
     message: str
 
 class NotificationCreate(NotificationBase):
     user_id: UUID
 
-class Notification(NotificationBase):
+class NotificationResponse(NotificationBase):
     notification_id: int
     user_id: UUID
     is_read: bool
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+class Notification(NotificationResponse):
+    pass
 
 class NotificationList(BaseModel):
     notifications: List[Notification]
@@ -25,30 +29,34 @@ class NotificationList(BaseModel):
     page: int
     limit: int
 
-class NotificationSettingUpdate(BaseModel):
-    notification_type: str
+    class Config:
+        from_attributes = True
+
+class NotificationSettingBase(BaseModel):
+    notification_type: NotificationType
     is_enabled: bool
 
-class NotificationSetting(NotificationSettingUpdate):
+class NotificationSettingUpdate(NotificationSettingBase):
+    pass
+
+class NotificationSetting(NotificationSettingBase):
     setting_id: int
     user_id: UUID
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-class UserNotificationSettingBase(BaseModel):
-    notification_type: str
-    is_enabled: bool
-
-class UserNotificationSettingCreate(UserNotificationSettingBase):
+# 관리자용 스키마
+class AdminNotificationCreate(NotificationCreate):
+    """관리자가 알림을 생성할 때 사용하는 스키마"""
     pass
 
-class UserNotificationSettingUpdate(UserNotificationSettingBase):
-    pass
+class AdminNotificationUpdate(BaseModel):
+    """관리자가 알림을 수정할 때 사용하는 스키마"""
+    type: Optional[NotificationType] = None
+    message: Optional[str] = None
+    is_read: Optional[bool] = None
 
-class UserNotificationSetting(UserNotificationSettingBase):
-    setting_id: int
-    user_id: UUID
-
-    class Config:
-        orm_mode = True
+class AdminNotificationResponse(NotificationResponse):
+    """관리자가 알림을 조회할 때 사용하는 스키마"""
+    user_nickname: Optional[str] = None

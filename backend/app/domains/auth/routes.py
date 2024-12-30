@@ -204,7 +204,6 @@ def mask_email(email: str) -> str:
     else:
         masked_user = user
     return f"{masked_user}@{domain}"
-\
 
 @router.post("/auth/check-email", response_model=dict)
 def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depends(get_db)):

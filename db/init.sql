@@ -113,9 +113,6 @@ CREATE INDEX idx_chat_rooms_curator_id ON Chat_Rooms(curator_id);
 CREATE INDEX idx_conversations_room_id ON Conversations(room_id);
 CREATE INDEX idx_conversations_user_id ON Conversations(user_id);
 CREATE INDEX idx_conversations_question_time ON Conversations(question_time);
-CREATE INDEX idx_payment_cache_user_id ON Payment_Cache(user_id);
-CREATE INDEX idx_payment_cache_tid ON Payment_Cache(tid);
-CREATE INDEX idx_payment_cache_expires_at ON Payment_Cache(expires_at);
 
 -- updated_at을 자동으로 업데이트하기 위한 트리거
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -215,21 +212,6 @@ CREATE TABLE Payments (
     payment_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status payment_status NOT NULL DEFAULT 'FAILED',
     manual_payment_reason TEXT
-);
-
--- Payment Cache 테이블
-CREATE TABLE Payment_Cache (
-    cache_id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES Users(user_id) ON DELETE CASCADE,
-    cid VARCHAR(50) NOT NULL,
-    tid VARCHAR(50) NOT NULL UNIQUE,
-    partner_order_id VARCHAR(100) NOT NULL,
-    partner_user_id VARCHAR(100) NOT NULL,
-    subscription_id INTEGER REFERENCES User_Subscriptions(subscription_id),
-    environment VARCHAR(20),
-    data JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 hour')
 );
 
 -- User Coupons 테이블
@@ -462,17 +444,15 @@ INSERT INTO Notices (title, content, image_url, start_date, end_date, view_count
 ('추석 연휴 고객센터 운영 안내', '추석 연휴 기간 동안 고객센터 운영 시간이 단축됩니다. 자세한 내용은 공지사항을 확인해주세요.', 'holiday_notice.jpg', '2023-09-25', '2023-10-05', 80, true);
 
 -- Notifications 테이블 더미 데이터
-INSERT INTO Notifications (user_id, type, message, is_read, created_at) VALUES
-((SELECT user_id FROM Users WHERE email='dev@example.com'), 'NEW_CONVERSATION', '문화에 대한 새로운 대화가 시작되었습니다. 지금 참여해보세요!', false, NOW() - INTERVAL '2 days'),
-((SELECT user_id FROM Users WHERE email='dev@example.com'), 'TOKEN_UPDATE', '50개의 토큰이 충전되었습니다. 현재 잔액을 확인해보세요.', true, NOW() - INTERVAL '5 days'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 'CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', false, NOW() - INTERVAL '1 day'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 'PAYMENT_RECEIVED', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '3 days'),
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 'SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', false, NOW() - INTERVAL '12 hours'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 'NEW_CONVERSATION', '예술에 대한 새로운 대화가 시작되었습니다. 지금 참여해보세요!', false, NOW() - INTERVAL '6 hours'),
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 'TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', false, NOW() - INTERVAL '1 day'),
-((SELECT user_id FROM Users WHERE email='admin@example.com'), 'CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', true, NOW() - INTERVAL '4 days'),
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 'PAYMENT_RECEIVED', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '2 days'),
-((SELECT user_id FROM Users WHERE email='admin@example.com'), 'SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', false, NOW() - INTERVAL '8 hours');
+INSERT INTO notifications (user_id, type, message, is_read, created_at) VALUES
+((SELECT user_id FROM users WHERE email='dev@example.com'), 'TOKEN_UPDATE', '50개의 토큰이 충전되었습니다. 현재 잔액을 확인해보세요.', true, NOW() - INTERVAL '5 days'),
+((SELECT user_id FROM users WHERE email='user2@example.com'), 'CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', false, NOW() - INTERVAL '1 day'),
+((SELECT user_id FROM users WHERE email='user2@example.com'), 'PAYMENT_UPDATE', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '3 days'),
+((SELECT user_id FROM users WHERE email='user1@example.com'), 'SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', false, NOW() - INTERVAL '12 hours'),
+((SELECT user_id FROM users WHERE email='user1@example.com'), 'TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', false, NOW() - INTERVAL '1 day'),
+((SELECT user_id FROM users WHERE email='admin@example.com'), 'CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', true, NOW() - INTERVAL '4 days'),
+((SELECT user_id FROM users WHERE email='user1@example.com'), 'PAYMENT_UPDATE', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '2 days'),
+((SELECT user_id FROM users WHERE email='admin@example.com'), 'SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', false, NOW() - INTERVAL '8 hours');
 
 -- Token plans 테이블 mock 데이터
 INSERT INTO token_plans (tokens, price, discounted_price, discount_rate, is_promotion) VALUES
