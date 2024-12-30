@@ -335,10 +335,12 @@ def get_coupon(db: Session, coupon_id: int):
     return coupon
 
 class PaymentService:
-    def set_cache(db: Session, tid: str, user_id: UUID, cid: str, partner_order_id: str, partner_user_id: str, environment: str, data: dict):
+    def set_cache(self, db: Session, tid: str, user_id: UUID, cid: str, partner_order_id: str, partner_user_id: str, environment: str, data: dict):
         try:
+            # 기존 tid를 삭제
             db.query(PaymentCache).filter(PaymentCache.tid == tid).delete()
 
+            # 새로운 캐시 생성
             new_cache = PaymentCache(
                 user_id=user_id,
                 tid=tid,
@@ -375,12 +377,7 @@ class PaymentService:
             db.rollback()
             raise RuntimeError(f"Failed to delete cache: {str(e)}")
 
-    def initiate_payment(
-        self,
-        payment_request: payment_schemas.KakaoPayRequest,
-        db: Session,
-        current_user: User
-    ):
+    def initiate_payment(self, payment_request: payment_schemas.KakaoPayRequest, db: Session, current_user: User):
         headers = {
             "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
@@ -444,7 +441,7 @@ class PaymentService:
                 payment_method="카카오페이_단건결제",
                 payment_date=datetime.now(),
                 used_coupon_id=coupon.coupon_id if coupon else None,
-                status="PENDING"
+                status="FAILED"
             )
             db.add(payment)
             db.commit()
@@ -456,6 +453,7 @@ class PaymentService:
                 cid=settings.KAKAO_PAY_CID_ONE,
                 partner_order_id=partner_order_id,
                 partner_user_id=str(current_user.user_id),
+                environment=payment_request.environment,
                 data={"environment": payment_request.environment}
             )
 
@@ -603,9 +601,7 @@ class PaymentService:
             logger.error(f"Exception occurred during payment failure processing: {str(e)}")
             raise HTTPException(status_code=500, detail="An error occurred while processing the payment failure.")
 
-    def initiate_subscription(
-        self, subscription_request: payment_schemas.KakaoPaySubscriptionRequest, db: Session, current_user: User
-    ):
+    def initiate_subscription(self, subscription_request: payment_schemas.KakaoPaySubscriptionRequest, db: Session, current_user: User):
         headers = {
             "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
@@ -684,7 +680,7 @@ class PaymentService:
                     payment_method="카카오페이_정기결제시작",
                     payment_date=datetime.now(),
                     used_coupon_id=coupon.coupon_id if coupon else None,
-                    status="CANCELLED",
+                    status="FAILED",
                 )
                 db.add(payment)
                 db.commit()
