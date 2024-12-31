@@ -16,6 +16,9 @@ export function CustomerInquiry() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFormChange = (id: string, value: string) => {
     setForm({
@@ -25,15 +28,13 @@ export function CustomerInquiry() {
     setError('');
   };
 
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      setPreviewUrl(URL.createObjectURL(file));
+    const files = event.target.files;
+    if (files) {
+      const newImages = Array.from(files);
+      setSelectedImages(prev => [...prev, ...newImages]);
+      const newUrls = newImages.map(file => URL.createObjectURL(file));
+      setPreviewUrls(prev => [...prev, ...newUrls]);
     }
   };
 
@@ -41,9 +42,9 @@ export function CustomerInquiry() {
     inputRef.current?.click();
   };
 
-  const handleRemoveImage = () => {
-    setSelectedImage(null);
-    setPreviewUrl(null);
+  const handleRemoveImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
     if (inputRef.current) {
       inputRef.current.value = '';
     }
@@ -74,16 +75,15 @@ export function CustomerInquiry() {
       formData.append('contact', form.phoneNumber);
       formData.append('content', form.content);
       
-      if (selectedImage) {
-        formData.append('attachments', selectedImage);
-      }
+      selectedImages.forEach(image => {
+        formData.append('attachments', image);
+      });
 
       await inquiry.createInquiry(formData);
-      
       setSuccess(true);
       setForm({ title: '', email: '', phoneNumber: '', content: '' });
-      handleRemoveImage();
-      
+      setSelectedImages([]);
+      setPreviewUrls([]);
     } catch (err) {
       setError('문의 접수 중 오류가 발생했습니다. 다시 시도해주세요.');
       console.error('Inquiry submission error:', err);
@@ -160,6 +160,7 @@ export function CustomerInquiry() {
         type="file"
         accept="image/*"
         onChange={handleImageChange}
+        multiple
         style={{ display: 'none' }}
         ref={inputRef}
       />
@@ -172,21 +173,21 @@ export function CustomerInquiry() {
         사진 업로드
       </Button>
 
-      {previewUrl && (
-        <div className={styles.selectedImageWrapper}>
+      {previewUrls.map((url, index) => (
+        <div key={url} className={styles.selectedImageWrapper}>
           <img
-            src={previewUrl}
-            alt="Selected"
+            src={url}
+            alt={`Selected ${index + 1}`}
             className={styles.selectedImage}
           />
           <button 
-            onClick={handleRemoveImage}
+            onClick={() => handleRemoveImage(index)}
             className={styles.removeBtn}
           >
             <RemoveIcon />
           </button>
         </div>
-      )}
+      ))}
 
       {error && (
         <div className={styles.error}>{error}</div>

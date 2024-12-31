@@ -469,7 +469,13 @@ export const notice = {
 
 // Inquiry API
 export const inquiry = {
-  createInquiry: (inquiryData: any) => api.post('/inquiries', inquiryData),
+  createInquiry: (inquiryData: FormData) => {
+    return api.post('/inquiries', inquiryData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
 };
 
 // Terms API
