@@ -124,32 +124,39 @@ async def initiate_payment(
 @router.get("/pay/success")
 async def approve_payment(
     pg_token: str,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user)
+    partner_order_id: str,
+    db: Session = Depends(get_db)
 ):
+    logger.info(f"Received partner_order_id: {partner_order_id}")
     try:
-        payment_approval = payment_service.approve_payment(pg_token, db, current_user.user_id)
+        payment_service.approve_payment(pg_token, db, partner_order_id)
         redirect_url = f"{settings.PAYMENT_URL}?success"
+        logger.info(f"Redirecting to success URL: {redirect_url}")
         return RedirectResponse(url=redirect_url)
+
     except HTTPException as http_err:
         logger.error(f"HTTPException during payment approval: {http_err}")
         redirect_url = f"{settings.PAYMENT_URL}?fail&reason={http_err.detail}"
+        logger.error(f"Redirecting to failure URL: {redirect_url}")
         return RedirectResponse(url=redirect_url)
+
     except Exception as e:
         logger.error(f"Unexpected error during payment approval: {e}")
-        redirect_url = f"{settings.PAYMENT_URL}?fail&reason=unknown_error"
+        redirect_url = f"{settings.PAYMENT_URL}?fail&reason={str(e)}"
+        logger.error(f"Redirecting to unknown error URL: {redirect_url}")
         return RedirectResponse(url=redirect_url)
 
 @router.get("/pay/fail")
 async def payment_fail(
+    partner_order_id: str,
     error_code: Optional[int] = None,
     error_message: Optional[str] = None,
     method_result_code: Optional[str] = None,
     method_result_message: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Received partner_order_id: {partner_order_id}")
     try:
-        # 실패 응답 데이터 구성
         response_data = {
             "error_code": error_code,
             "error_message": error_message,
@@ -158,17 +165,9 @@ async def payment_fail(
                 "method_result_message": method_result_message,
             },
         }
-
-        # 실패 처리 서비스 호출
-        failure_data = payment_service.fail_payment(response_data, db)
-
-        # 리다이렉션 URL 생성
-        redirect_url = (
-            f"{settings.PAYMENT_URL}?fail"
-            f"&reason={failure_data['reason']}"
-            f"&details={failure_data['details']}"
-            f"&payment_id={failure_data['payment_id']}"
-        )
+        payment_service.fail_payment(response_data, db, partner_order_id=partner_order_id)
+        redirect_url = f"{settings.PAYMENT_URL}?fail&reason={response_data.get('error_message', 'unknown_error')}"
+        logger.info(f"Redirecting to failure URL: {redirect_url}")
         return RedirectResponse(url=redirect_url)
 
     except HTTPException as http_err:
@@ -180,6 +179,7 @@ async def payment_fail(
         logger.error(f"Unexpected error during payment failure: {e}")
         redirect_url = f"{settings.PAYMENT_URL}?fail&reason=unknown_error"
         return RedirectResponse(url=redirect_url)
+
 
 @router.get("/pay/cancel")
 async def payment_cancel():
