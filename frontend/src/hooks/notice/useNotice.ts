@@ -77,3 +77,13 @@ export const useNotifications = ({ page = 1, limit = 10 }: UseNotificationsParam
     }
   });
 };
+
+export const useNoticeDetail = (noticeId: number) => {
+  return useQuery({
+    queryKey: ['notice', noticeId],
+    queryFn: async () => {
+      const response = await notice.getNoticeById(noticeId);
+      return response.data;
+    }
+  });
+};
