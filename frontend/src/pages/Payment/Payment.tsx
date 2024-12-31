@@ -5,6 +5,8 @@ import styles from './Payment.module.css';
 import logoGray from '@/assets/images/culf_gray.png';
 import { Checkbox } from '@/components/atom/Checkbox';
 import { InputBox } from '@/components/molecule/InputBox';
+import { LoadingAnimation } from '@/components/atom';
+import logoimage from '@/assets/images/culf.png';
 
 interface PaymentInfo {
   productPrice: number;
@@ -197,7 +199,18 @@ export function Payment() {
   const isPaymentEnabled = isAgreed;
 
   if (isLoading) {
-    return <div className={styles.loading}>로딩중...</div>;
+    return (
+      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+        <LoadingAnimation
+          imageUrl={logoimage}
+          alt="Description"
+          width={58}
+          height={19}
+          duration={2200} 
+        />
+        <p className='font-tag-1' style={{color: "#a1a1a1"}}>로딩 중</p>
+      </div>
+    );
   }
 
   return (

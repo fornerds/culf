@@ -149,3 +149,8 @@
   border: 1px solid var(--line-less-highlight, #dadde0);
   background: var(--box-default, #fbfbfb);
 }
+
+.disabled {
+  background-color: #afafaf;
+  cursor: not-allowed;
+}
