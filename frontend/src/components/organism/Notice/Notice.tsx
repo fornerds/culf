@@ -9,6 +9,7 @@ interface NoticeListProps {
 }
 
 export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
+  const navigate = useNavigate();
   const { data, isLoading, error } = useNotices({ page, limit });
 
   if (isLoading) {
@@ -19,19 +20,17 @@ export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
     return <div className={styles.container}>Failed to load notices</div>;
   }
 
-  const sortedNotices = data?.notices.sort((a, b) => {
+  const sortedNotices = data?.notices?.sort((a, b) => {
     if (a.is_important !== b.is_important) {
       return b.is_important ? 1 : -1;
     }
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-
-  const navigate = useNavigate();
+  }) || [];
 
   return (
     <div className={styles.container}>
       <div className={styles.noticeList}>
-        {sortedNotices?.map((notice) => (
+        {sortedNotices.map((notice) => (
           <div
             key={notice.notice_id}
             className={`${styles.noticeItem} ${notice.is_important ? styles.important : ''}`}
@@ -55,7 +54,7 @@ export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
           </div>
         ))}
         
-        {(!data?.notices.length) && (
+        {(!sortedNotices.length) && (
           <div className={styles.empty}>
             <p className="font-button-2">등록된 공지사항이 없습니다.</p>
           </div>
