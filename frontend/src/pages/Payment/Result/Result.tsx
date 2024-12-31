@@ -17,13 +17,13 @@ export function Result() {
 
     if (isSuccess) {
         message = "결제가 성공적으로 완료되었습니다!";
-        buttonLink = "/mypage/payment";
+        buttonLink = "/";
     } else if (isFail) {
         message = `결제에 실패하였습니다. 실패 원인: ${reason || "알 수 없는 오류"}`;
         buttonLink = "/pricing";
     } else {
         message = "정상적으로 결제 취소를 요청했습니다.";
-        buttonLink = "/mypage/payment";
+        buttonLink = "/";
     }
 
     // 버튼 클릭 핸들러
@@ -39,7 +39,7 @@ export function Result() {
                 variant="default"
                 className={styles.button}
             >
-                {isFail ? "요금제 선택으로 다시 돌아가기" : "마이페이지로 이동하기"}
+                {isFail ? "요금제 선택으로 다시 돌아가기" : "홈으로 이동하기"}
             </Button>
         </main>
     );
