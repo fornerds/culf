@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PriceCard } from '@/components/molecule';
 import { usePayment } from '@/hooks/payment/usePayment';
+import { useUser } from '@/hooks/user/useUser';
 import EditIcon from '@/assets/icons/edit.svg?react';
 import styles from './Pricing.module.css';
 
@@ -14,7 +15,9 @@ export function Pricing() {
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
   const navigate = useNavigate();
   const { getProducts, isLoading } = usePayment();
+  const { getTokenInfo } = useUser();
   const { data: products } = getProducts;
+  const { data: tokenData } = getTokenInfo;
 
   function handleSelect(type: 'subscription' | 'token', id: number) {
     if (selectedPlan?.id === id && selectedPlan?.type === type) {
@@ -29,6 +32,8 @@ export function Pricing() {
     const paymentPath = `/payment/${selectedPlan.type}/${selectedPlan.id}`;
     navigate(paymentPath);
   }
+
+  const remainingTokens = tokenData?.total_tokens || 0;
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-96">로딩중...</div>;
@@ -68,7 +73,7 @@ export function Pricing() {
       <div className={styles.section}>
         <div className={styles.tokenHeader}>
           <h3 className="font-card-title-2">토큰 결제</h3>
-          <span className={styles.tokenCount}>보유 토큰 12개</span>
+          <span className={styles.tokenCount}>보유 토큰 {remainingTokens}개</span>
         </div>
         <div className={styles.cardGrid}>
           {products?.token_plans.map((plan) => (
