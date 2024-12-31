@@ -72,3 +72,7 @@
   cursor: pointer;
   color: var(--text-sub, #767676);
 }
+
+.emptyStateMessage {
+  margin: 20px 0;
+}
