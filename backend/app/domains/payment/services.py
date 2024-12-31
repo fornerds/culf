@@ -335,18 +335,17 @@ def get_coupon(db: Session, coupon_id: int):
     return coupon
 
 class PaymentService:
-    def set_cache(self, db: Session, tid: str, user_id: UUID, cid: str, partner_order_id: str, partner_user_id: str, environment: str, data: dict):
+    def set_cache(self, db: Session, tid: str, user_id: UUID, cid: str, partner_order_id: str, partner_user_id: str, subscription_id: int, environment: str, data: dict):
         try:
-            # 기존 tid를 삭제
             db.query(PaymentCache).filter(PaymentCache.tid == tid).delete()
-
-            # 새로운 캐시 생성
             new_cache = PaymentCache(
                 user_id=user_id,
                 tid=tid,
                 cid=cid,
                 partner_order_id=partner_order_id,
                 partner_user_id=partner_user_id,
+                subscription_id=subscription_id,
+                environment=environment,
                 data=data,
             )
             db.add(new_cache)
@@ -357,18 +356,19 @@ class PaymentService:
             db.rollback()
             raise RuntimeError(f"Failed to set cache: {str(e)}")
 
-    def get_cache(db: Session, tid: str):
+    def get_cache(self, db: Session, user_id: UUID):
         try:
-            cache = db.query(PaymentCache).filter(PaymentCache.tid == tid).first()
+
+            cache = db.query(PaymentCache).filter(PaymentCache.user_id == user_id).order_by(PaymentCache.created_at.desc()).first()
             if not cache:
                 raise HTTPException(status_code=404, detail="Cache not found")
             return cache
         except Exception as e:
             raise RuntimeError(f"Failed to get cache: {str(e)}")
 
-    def delete_cache(db: Session, tid: str):
+    def delete_cache(self, db: Session, user_id: UUID):
         try:
-            deleted_count = db.query(PaymentCache).filter(PaymentCache.tid == tid).delete()
+            deleted_count = db.query(PaymentCache).filter(PaymentCache.user_id == user_id).delete()
             db.commit()
             if deleted_count == 0:
                 raise HTTPException(status_code=404, detail="Cache not found")
@@ -453,6 +453,7 @@ class PaymentService:
                 cid=settings.KAKAO_PAY_CID_ONE,
                 partner_order_id=partner_order_id,
                 partner_user_id=str(current_user.user_id),
+                subscription_id=None,
                 environment=payment_request.environment,
                 data={"environment": payment_request.environment}
             )
@@ -476,36 +477,38 @@ class PaymentService:
             logger.error(f"Unexpected error during payment initiation: {str(e)}")
             raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
-    def approve_payment(self, pg_token: str, db: Session):
+    def approve_payment(self, pg_token: str, db: Session, user_id: UUID):
         headers = {
             "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
             "Content-Type": "application/json",
         }
 
-        payment_info = self.get_cache()
+        payment_info = self.get_cache(db, user_id)
         if not payment_info:
-            logger.error("Failed to retrieve payment information from cache.")
+            logger.error(f"Failed to retrieve payment information from cache for user_id: {user_id}.")
             raise HTTPException(status_code=400, detail="Payment information not found in cache.")
 
         try:
             data = {
-                "cid": payment_info["cid"],
-                "tid": payment_info["tid"],
-                "partner_order_id": payment_info["partner_order_id"],
-                "partner_user_id": payment_info["partner_user_id"],
+                "cid": payment_info.cid,
+                "tid": payment_info.tid,
+                "partner_order_id": payment_info.partner_order_id,
+                "partner_user_id": payment_info.partner_user_id,
                 "pg_token": pg_token,
             }
-
             response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/approve", headers=headers, json=data)
+
+            if response.status_code != 200:
+                logger.error(f"Payment approval failed: {response.text}")
+                raise HTTPException(status_code=400, detail="Failed to approve payment.")
+
             response_data = response.json()
+            if not response_data.get("aid"):
+                raise HTTPException(status_code=400, detail="Approval failed: Missing AID.")
 
-            if response.status_code != 200 or not response_data.get("aid"):
-                logger.error(f"Payment approval failed with response: {response_data}")
-                raise HTTPException(status_code=400, detail=response_data.get("msg", "Payment approval failed"))
-
-            payment = db.query(Payment).filter(Payment.payment_number == payment_info["tid"]).first()
+            payment = db.query(Payment).filter(Payment.payment_number == payment_info.tid).first()
             if not payment:
-                logger.error(f"Payment not found for tid: {payment_info['tid']}")
+                logger.error(f"Payment not found for tid: {payment_info.tid}")
                 raise HTTPException(status_code=404, detail="Payment not found")
 
             payment.status = "SUCCESS"
@@ -513,17 +516,18 @@ class PaymentService:
             payment.payment_date = response_data.get("approved_at")
             db.commit()
 
-            if payment_info["cid"] == settings.KAKAO_PAY_CID_SUB:
+            if payment_info.cid == settings.KAKAO_PAY_CID_SUB:
                 self._process_subscription(payment, response_data, db)
 
             self._process_tokens(payment, db)
 
-            logger.info(f"Payment approved successfully for user_id: {payment.user_id}")
+            logger.info(f"Payment approved successfully for user_id: {user_id}")
             return payment_schemas.KakaoPayApproval(**response_data)
 
         except Exception as e:
-            logger.error(f"Exception occurred during payment approval process: {str(e)}")
-            raise HTTPException(status_code=500, detail="An error occurred while processing the payment approval.")
+            db.rollback()
+            logger.error(f"Error during payment approval: {str(e)}")
+            raise HTTPException(status_code=500, detail="Payment approval process failed.")
 
     def _process_subscription(self, payment: Payment, response_data: dict, db: Session):
         user_subscription = db.query(UserSubscription).filter(
@@ -692,6 +696,7 @@ class PaymentService:
                     cid=settings.KAKAO_PAY_CID_SUB,
                     partner_order_id=partner_order_id,
                     partner_user_id=str(current_user.user_id),
+                    subscription_id=subscription.subscription_id,
                     environment=subscription_request.environment,
                     data={
                         "subscription_id": subscription.subscription_id,
