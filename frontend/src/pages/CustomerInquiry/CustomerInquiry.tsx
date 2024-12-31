@@ -75,9 +75,16 @@ export function CustomerInquiry() {
       formData.append('contact', form.phoneNumber);
       formData.append('content', form.content);
       
-      selectedImages.forEach(image => {
-        formData.append('attachments', image);
-      });
+      if (selectedImages.length > 0) {
+        const fileList = Array.from(selectedImages);
+        const attachmentsFiles = new Array(fileList.length)
+          .fill(null)
+          .map((_, index) => `attachments[${index}]`);
+        
+        fileList.forEach((file, index) => {
+          formData.append(attachmentsFiles[index], file);
+        });
+      }
 
       await inquiry.createInquiry(formData);
       setSuccess(true);

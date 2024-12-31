@@ -2,11 +2,27 @@ import React from 'react';
 import { useNotifications } from '@/hooks/notice/useNotice';
 import { NoticeList } from '@/components/molecule';
 import styles from './MyNotice.module.css';
+import { LoadingAnimation } from '@/components/atom';
+import logoimage from '@/assets/images/culf.png';
 
 export function MyNotice() {
   const { data, isLoading, error } = useNotifications({});
 
-  if (isLoading) return <div className={styles.loading}>Loading...</div>;
+  if (isLoading) {
+    return (
+      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+        <LoadingAnimation
+          imageUrl={logoimage}
+          alt="Description"
+          width={58}
+          height={19}
+          duration={2200} 
+        />
+        <p className='font-tag-1' style={{color: "#a1a1a1"}}>로딩 중</p>
+      </div>
+    );
+  }
+  
   if (error) return <div className={styles.error}>Failed to load notifications</div>;
 
   const formattedNotices = data?.notifications.map(notification => ({
