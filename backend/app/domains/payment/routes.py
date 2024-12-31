@@ -125,9 +125,10 @@ async def initiate_payment(
 async def approve_payment(
     pg_token: str,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user)
 ):
     try:
-        payment_approval = payment_service.approve_payment(pg_token, db)
+        payment_approval = payment_service.approve_payment(pg_token, db, current_user.user_id)
         redirect_url = f"{settings.PAYMENT_URL}?success"
         return RedirectResponse(url=redirect_url)
     except HTTPException as http_err:
