@@ -13,7 +13,11 @@ import logging
 from datetime import datetime, date
 import uuid
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(
+   tokenUrl=f"{settings.API_V1_STR}/form/login",
+   scheme_name="Email & Password",
+   description="Use your email and password to login"
+)
 
 async def get_current_user(
     db: Session = Depends(get_db),

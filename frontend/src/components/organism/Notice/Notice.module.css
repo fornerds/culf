@@ -1,3 +1,59 @@
+.container {
+    width: 100%;
+  }
+  
+  .noticeList {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .noticeItem {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  
+  .noticeItem:hover {
+    background-color: #f8f8f8;
+  }
+  
+  .basicListContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  
+  .title {
+    color: var(--text-default, #35313C);
+    margin-bottom: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .important .title {
+    color: var(--keycolor-2, #6314e4);
+  }
+  
+  .date {
+    color: var(--text-guidetext, #C5CCD8);
+  }
+  
+  .content {
+    color: var(--text-sub, #707687);
+    margin-bottom: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   
   .empty {
     margin: 20px;

@@ -1,32 +1,40 @@
 import { Post } from "@/components/molecule";
-import styles from "./NoticeDetail.module.css"
+import { useParams } from 'react-router-dom';
+import { useNoticeDetail } from '@/hooks/notice/useNotice';
+import { LoadingAnimation } from '@/components/atom';
+import logoimage from '@/assets/images/culf.png';
 
-interface PostProps {
-    title: string;
-    author: {
-      profileImage?: string;
-      name: string;
-    };
-    date: string;
-    content: string;
+export function NoticeDetail() {
+  const { notice_id } = useParams();
+  const { data: notice, isLoading, error } = useNoticeDetail(Number(notice_id));
+
+  if (isLoading) {
+    return (
+      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+        <LoadingAnimation
+          imageUrl={logoimage}
+          alt="Description"
+          width={58}
+          height={19}
+          duration={2200} 
+        />
+        <p className='font-tag-1' style={{color: "#a1a1a1"}}>로딩 중</p>
+      </div>
+    );
   }
 
-export function NoticeDetail () {
-    const postData = {
-        title: "[공지사항] 컬프에서 새로운 큐레이터의 출시를 알립니다!",
-        author: {
-          name: "버킷트레블",
-        },
-        date: "08:19 PM",
-        content: `안녕하세요 여러분! 버킷트레블입니다 :)
+  if (error || !notice) {
+    return <div>공지사항을 불러오는데 실패했습니다.</div>;
+  }
 
-오늘은 공지사항에 관련해서 말씀드릴건데요!
+  const postData = {
+    title: notice.title,
+    author: {
+      name: "컬프",
+    },
+    date: new Date(notice.created_at).toLocaleString('ko-KR'),
+    content: notice.content
+  };
 
-공지사항은 공지사항일 뿐, 크게 의미는 없지만 아무 말이라도 적기 위해서 공지사항을 작성했답니다. 글이 좀 길어야 되거든요 조금 더 쓸게요!
-
-그렇게 공지사항을 확인하시면, 다시 돌아가시면 됩니다. 앞으로도 더 열심히 하는 컬프가 되겠습니다.
-
-감사합니다!`};
-
-    return <Post {...postData} />;
+  return <Post {...postData} />;
 }

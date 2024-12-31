@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
 from app.core.config import settings
 from app.domains.user import routes as user_routes
 from app.domains.conversation import routes as conversation_routes
@@ -15,6 +16,8 @@ from app.domains.auth import routes as auth_routes
 from app.domains.admin import routes as admin_routes
 from app.domains.subscription import routes as subscription_routes
 from app.domains.payment import routes as payment_routes
+from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
+from fastapi.security import OAuth2
 import logging
 
 # 로깅 설정
