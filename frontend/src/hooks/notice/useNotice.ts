@@ -1,5 +1,6 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { notification } from '@/api';
+import { notice } from '@/api';
 import { AxiosError } from 'axios';
 
 export interface Notification {
@@ -23,44 +24,56 @@ interface NotificationQueryParams {
   limit?: number;
 }
 
-export const useNotification = () => {
-  const getNotificationsQuery = (
-    params: NotificationQueryParams = {},
-  ): UseQueryResult<NotificationListResponse, AxiosError> =>
-    useQuery({
-      queryKey: ['notifications', params],
-      queryFn: async () => {
-        const response = await notification.getMyNotifications(params.page, params.limit);
-        return response.data;
-      },
-    });
+interface UseNoticesParams {
+  page?: number;
+  limit?: number;
+}
 
-  const getNotificationByIdQuery = (
-    notificationId: number,
-  ): UseQueryResult<Notification, AxiosError> =>
-    useQuery({
-      queryKey: ['notification', notificationId],
-      queryFn: async () => {
-        const response = await notification.getNotificationById(notificationId);
-        return response.data;
-      },
-    });
+interface Notice {
+  notice_id: number;
+  title: string;
+  content: string;
+  image_url?: string;
+  start_date?: string;
+  end_date?: string;
+  is_public: boolean;
+  is_important: boolean;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+  is_read: boolean;
+}
 
-  const markNotificationAsRead = (
-    notificationId: number,
-  ): UseQueryResult<void, AxiosError> =>
-    useQuery({
-      queryKey: ['notification', notificationId, 'read'],
-      queryFn: async () => {
-        const response = await notification.markNotificationAsRead(notificationId);
-        return response.data;
-      },
-      enabled: false, // 자동으로 실행되지 않도록 설정
-    });
+interface NoticeListResponse {
+  notices: Notice[];
+  total_count: number;
+  page: number;
+  limit: number;
+}
 
-  return {
-    getNotifications: getNotificationsQuery,
-    getNotificationById: getNotificationByIdQuery,
-    markAsRead: markNotificationAsRead,
-  };
+interface NotificationResponse {
+  notifications: Notification[];
+  total_count: number;
+  page: number;
+  limit: number;
+}
+
+export const useNotices = ({ page = 1, limit = 10 }: UseNoticesParams = {}) => {
+  return useQuery<NoticeListResponse>({
+    queryKey: ['notices', { page, limit }],
+    queryFn: async () => {
+      const response = await notice.getNotices(page, limit);
+      return response.data;
+    }
+  });
+};
+
+export const useNotifications = ({ page = 1, limit = 10 }: UseNotificationsParams = {}) => {
+  return useQuery<NotificationResponse>({
+    queryKey: ['notifications', { page, limit }],
+    queryFn: async () => {
+      const response = await notification.getMyNotifications(page, limit);
+      return response.data;
+    }
+  });
 };

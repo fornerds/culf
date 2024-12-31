@@ -108,11 +108,11 @@ export function Account() {
       setPasswordMessage('먼저 현재 비밀번호를 확인해주세요.');
       return;
     }
-
+  
     if (!validateNewPassword()) {
       return;
     }
-
+  
     setIsChangingPassword(true);
     try {
       await changePassword(form.currentPassword, form.newPassword);
@@ -125,8 +125,11 @@ export function Account() {
         newPasswordConfirm: ''
       }));
       setIsPasswordValid(false);
-    } catch (error) {
-      setPasswordMessage('비밀번호 변경에 실패했습니다.');
+      setPasswordMessage('');
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail?.message || '비밀번호 변경에 실패했습니다.';
+      setPasswordMessage(errorMessage);
+      setIsPasswordValid(false);
     } finally {
       setIsChangingPassword(false);
     }
@@ -209,6 +212,7 @@ export function Account() {
             isVerified={isPhoneVerified}
             onVerificationSuccess={() => setIsPhoneVerified(true)}
             onChangeObj={handleFormChange}
+            isAccountPage={true}
           />
           <section className={styles.passwordSection}>
             <InputBox
@@ -223,7 +227,7 @@ export function Account() {
               buttonDisabled={isVerifyingPassword}
               onChangeObj={handleFormChange}
               onClick={handlePasswordVerification}
-              validationMessage={passwordMessage}
+              validationMessage={isPasswordValid ? '비밀번호가 확인되었습니다.' : passwordMessage}
               validationMessageType={isPasswordValid ? "success" : "error"}
             />
             {isPasswordValid && (
@@ -243,6 +247,8 @@ export function Account() {
                   placeholder="새 비밀번호를 다시 입력해주세요"
                   value={form.newPasswordConfirm}
                   onChangeObj={handleFormChange}
+                  validationMessage={!isPasswordValid ? '' : passwordMessage}
+                  validationMessageType="error"
                 />
                 <div className={styles.changePasswordButtonWrapper}>
                   <Button 
@@ -284,7 +290,6 @@ export function Account() {
         </div>
       </main>
 
-      {/* 비밀번호 오류 팝업 */}
       <Popup
         type="confirm"
         isOpen={isPasswordErrorPopupOpen}
@@ -295,15 +300,13 @@ export function Account() {
         cancelText="다시 입력"
       />
 
-      {/* 로그아웃 완료 팝업 */}
       <Popup
         type="alert"
         isOpen={isLogoutPopupOpen}
-        onClose={() => setIsLogoutPopupOpen(false)}
+        onClose={handleLogoutConfirm}
         content="로그아웃 되었습니다."
       />
 
-      {/* 회원정보 수정 완료 팝업 */}
       <Popup
         type="alert"
         isOpen={isUpdateSuccessPopupOpen}

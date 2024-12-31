@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { InputBox } from '@/components/molecule/InputBox';
 import styles from './PhoneVerificationForm.module.css';
-import { auth } from '@/api';
+import api, { auth } from '@/api';
 
 interface PhoneVerificationFormProps {
   phoneNumber: string;
@@ -10,6 +10,7 @@ interface PhoneVerificationFormProps {
   onVerificationSuccess: () => void;
   validationMessage?: string;
   onChangeObj?: (id: string, value: string) => void;
+  isAccountPage?: boolean; // Account 페이지인지 여부를 확인하는 prop 추가
 }
 
 export function PhoneVerificationForm({
@@ -19,6 +20,7 @@ export function PhoneVerificationForm({
   onVerificationSuccess,
   validationMessage,
   onChangeObj,
+  isAccountPage = false, // 기본값은 false (회원가입 페이지)
 }: PhoneVerificationFormProps) {
   const [showError, setShowError] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
@@ -40,7 +42,6 @@ export function PhoneVerificationForm({
 
   const handlePhoneNumberChange = (id: string, value: string) => {
     const validatedValue = validatePhoneNumber(value);
-    // 새로운 번호 입력 시 에러 메시지 초기화
     if (phoneValidationMessage === '이미 사용 중인 휴대폰 번호입니다.') {
       setPhoneValidationMessage('');
     }
@@ -61,7 +62,18 @@ export function PhoneVerificationForm({
 
     try {
       setIsButtonDisabled(true);
-      const res = await auth.requestPhoneVerification(phoneNumber, findPw);
+      let res;
+      
+      if (isAccountPage) {
+        // Account 페이지용 엔드포인트
+        res = await api.post('/users/me/phone-verification/request', {
+          phone_number: phoneNumber
+        });
+      } else {
+        // 회원가입용 엔드포인트
+        res = await auth.requestPhoneVerification(phoneNumber, findPw);
+      }
+
       if (res.status === 200) {
         setTimeout(() => {
           setIsCodeSent(true);
@@ -69,11 +81,14 @@ export function PhoneVerificationForm({
         }, 1000);
       }
     } catch (error: any) {
-      // 에러 응답의 상태 코드가 400인 경우 이미 사용 중인 번호로 처리
       if (error.response?.status === 400) {
-        setPhoneValidationMessage('이미 사용 중인 휴대폰 번호입니다.');
+        if (isAccountPage) {
+          setPhoneValidationMessage(error.response?.data?.detail?.message || '인증번호 발송을 실패했습니다.');
+        } else {
+          setPhoneValidationMessage('이미 사용 중인 휴대폰 번호입니다.');
+        }
       } else {
-        alert('인증번호 발송을 실패했습니다.');
+        setPhoneValidationMessage('인증번호 발송을 실패했습니다.');
       }
       setIsButtonDisabled(false);
     }
@@ -86,11 +101,23 @@ export function PhoneVerificationForm({
 
   const handleVerifyPhone = async () => {
     try {
-      const res = await auth.verifyPhone(phoneNumber, verificationCode);
+      let res;
+      
+      if (isAccountPage) {
+        // Account 페이지용 엔드포인트
+        res = await api.post('/users/me/phone-verification/verify', {
+          verification_code: verificationCode,
+          phone_number: phoneNumber
+        });
+      } else {
+        // 회원가입용 엔드포인트
+        res = await auth.verifyPhone(phoneNumber, verificationCode);
+      }
+
       if (res.status === 200) {
         onVerificationSuccess();
       }
-    } catch (e) {
+    } catch (error: any) {
       alert('인증번호가 올바르지 않습니다. 다시 시도해주세요.');
     }
   };
