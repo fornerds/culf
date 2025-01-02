@@ -269,7 +269,6 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
         logger.error(f"❌ Gemini API 오류: {str(e)}")
         raise
 
-
 @router.post(
     "/chat",
     response_model=schemas.ConversationResponse,
@@ -387,6 +386,8 @@ async def create_chat(
         if settings.USE_GEMINI:
             # Gemini 사용
             logger.info("Gemini API 사용")
+
+            image_url = image_urls[0]["file_url"] if image_urls else None
             answer, tokens_used = await get_gemini_response(question, image_url)
             if not answer:
                 raise HTTPException(status_code=500, detail="Gemini 응답 생성 실패")
@@ -398,7 +399,17 @@ async def create_chat(
                 소개: {curator.introduction}
                 전문 분야: {curator.category}
 
-                {PROMPT}"""
+                {PROMPT}
+                                
+                모든 답변 뒤에는 반드시 아래 형식으로 연관된 추천 질문을 정확히 3개 제시해야 합니다:
+                
+                [추천 질문]
+                1. 첫번째 추천 질문
+                2. 두번째 추천 질문
+                3. 세번째 추천 질문
+                
+                추천 질문은 반드시 3개를 생성해야 하며, 각 질문은 이전 답변과 관련된 내용이어야 합니다."""
+
 
             # GPT 사용
             logger.info("GPT API 사용")
@@ -409,10 +420,11 @@ async def create_chat(
             recent_messages = await get_recent_chat_history(str(current_user.user_id))
             if recent_messages:
                 for msg in recent_messages:
-                    messages.append({
-                        "role": msg["role"],
-                        "content": msg["content"]
-                    })
+                    if msg.get("role") and msg.get("content"):
+                        messages.append({
+                            "role": msg["role"],
+                            "content": msg["content"]
+                        })
 
             current_message = {"role": "user", "content": question}
             if image_urls:
@@ -425,15 +437,52 @@ async def create_chat(
                         "type": "image_url",
                         "image_url": {"url": image_info["file_url"]}
                     })
-            messages.append(current_message)
+            if question:
+                messages.append({
+                    "role": "user",
+                    "content": question
+                })
 
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages
             )
 
-            answer = response.choices[0].message.content
+            raw_answer = response.choices[0].message.content
+            if not raw_answer:
+                raise HTTPException(status_code=500, detail="응답 생성에 실패했습니다")
             tokens_used = response.usage.total_tokens
+
+        # 답변에서 추천 질문 추출
+        try:
+            # 추천 질문이 3개 미만인 경우 기본 질문으로 보충
+            if "[추천 질문]" in raw_answer:
+                main_answer, questions_section = raw_answer.split("[추천 질문]")
+                cleaned_answer = main_answer.strip()
+
+                import re
+                questions = re.findall(r'\d\.\s*(.+?)(?=\d\.|$)', questions_section)
+                recommended_questions = [q.strip() for q in questions if q.strip()]
+
+                # 질문이 3개 미만인 경우 기본 질문으로 보충
+                while len(recommended_questions) < 3:
+                    if len(recommended_questions) == 0:
+                        recommended_questions.append("이 주제에 대해 더 자세히 알고 싶어요.")
+                    elif len(recommended_questions) == 1:
+                        recommended_questions.append("다른 관점에서는 어떻게 볼 수 있을까요?")
+                    elif len(recommended_questions) == 2:
+                        recommended_questions.append("실제 사례나 예시를 들어주실 수 있나요?")
+            else:
+                cleaned_answer = raw_answer.strip()
+                recommended_questions = [
+                    "이 주제에 대해 더 자세히 알고 싶어요.",
+                    "다른 관점에서는 어떻게 볼 수 있을까요?",
+                    "실제 사례나 예시를 들어주실 수 있나요?"
+                ]
+        except Exception as e:
+            logging.error(f"추천 질문 추출 오류: {str(e)}")
+            cleaned_answer = raw_answer.strip()
+            recommended_questions = []
 
         # 대화 저장
         chat = schemas.ConversationCreate(
@@ -441,7 +490,7 @@ async def create_chat(
             question_images={"files": image_urls} if image_urls else None,
             room_id=room_id
         )
-        conversation = services.create_conversation(db, chat, current_user.user_id, answer, tokens_used)
+        conversation = services.create_conversation(db, chat, current_user.user_id, cleaned_answer, tokens_used)
 
         # MongoDB 저장
         chat_data = {
@@ -478,7 +527,8 @@ async def create_chat(
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,
             answer=conversation.answer,
-            tokens_used=conversation.tokens_used
+            tokens_used=conversation.tokens_used,
+            recommended_questions=recommended_questions
         )
 
     except Exception as e:

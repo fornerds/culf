@@ -9,6 +9,24 @@ from app.domains.curator import services as curator_services
 from app.domains.conversation.models import ChatRoom, Conversation
 from app.domains.curator.models import Curator
 
+def extract_summary_from_answer(answer: str) -> str:
+    # 문장 단위로 분리
+    sentences = answer.split('.')
+    # 첫 문장 추출 (마침표 포함)
+    first_sentence = sentences[0].strip() + ('.' if sentences[0].strip() else '')
+    # 30자로 제한, 필요시 말줄임표 추가
+    return first_sentence[:30] + ('...' if len(first_sentence) > 30 else '')
+
+def update_chat_room_title(db: Session, room_id: UUID, summary: str) -> None:
+    db_chat_room = (
+        db.query(models.ChatRoom)
+        .filter(models.ChatRoom.room_id == room_id)
+        .first()
+    )
+    if db_chat_room:
+        db_chat_room.title = summary
+        db.commit()
+
 def create_conversation(
     db: Session,
     chat: schemas.ConversationCreate,
@@ -22,7 +40,8 @@ def create_conversation(
     question_summary = first_line[:20] + "..." if len(first_line) > 20 else first_line
 
     # 답변 요약 생성 (첫 50글자)
-    answer_summary = answer[:50] + "..." if len(answer) > 50 else answer
+    answer_summary = extract_summary_from_answer(answer)
+    update_chat_room_title(db, chat.room_id, answer_summary)
 
     # 대화 저장
     db_conversation = models.Conversation(
@@ -30,7 +49,7 @@ def create_conversation(
         room_id=chat.room_id,
         question=chat.question or "",  # 이미지만 있는 경우 빈 문자열 사용
         question_summary=question_summary,
-        question_image=chat.question_image,
+        question_image=chat.question_images["files"][0]["file_url"] if chat.question_images and chat.question_images.get("files") else None,
         answer=answer,
         answer_summary=answer_summary,
         question_time=datetime.now(),

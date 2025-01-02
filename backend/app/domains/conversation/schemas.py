@@ -80,6 +80,11 @@ class ConversationResponse(BaseModel):
     conversation_id: UUID
     answer: str
     tokens_used: int
+    recommended_questions: List[str] = Field(
+        default_factory=list,
+        max_items=3,
+        description="3 recommended follow-up questions"
+    )
 
 class ConversationSummary(BaseModel):
     """대화 요약 정보를 위한 스키마"""
