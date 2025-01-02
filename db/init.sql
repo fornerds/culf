@@ -97,7 +97,7 @@ CREATE TABLE Conversations (
     user_id UUID REFERENCES Users(user_id),
     question TEXT,
     question_summary TEXT,
-    question_image VARCHAR(255),
+    question_image JSONB,
     answer TEXT NOT NULL,
     answer_summary TEXT,
     question_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

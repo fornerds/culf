@@ -50,15 +50,28 @@ class ChatRoomDetail(BaseModel):
 
 class ConversationCreate(BaseModel):
     question: Optional[str] = None
-    question_image: Optional[str] = None
+    question_images: Optional[Dict[str, List[Dict[str, str]]]] = None
     room_id: Optional[UUID] = None
 
     class Config:
         allow_population_by_field_name = True
         schema_extra = {
             "example": {
-                "question": "What's in this image?",
-                "question_image": "/v1/images/example.png",
+                "question": "What's in these images?",
+                "question_images": {
+                    "files": [
+                        {
+                            "file_name": "image1.jpg",
+                            "file_type": "image/jpeg",
+                            "file_url": "/v1/images/example1.png"
+                        },
+                        {
+                            "file_name": "image2.jpg",
+                            "file_type": "image/jpeg",
+                            "file_url": "/v1/images/example2.png"
+                        }
+                    ]
+                },
                 "room_id": None
             }
         }

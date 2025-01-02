@@ -321,10 +321,7 @@ async def create_chat(
             None,
             description="채팅방 ID (선택, UUID 형식)"
         ),
-        image_file: Optional[Union[UploadFile, None]] = File(
-            None,
-            description="이미지 파일 (선택, 최대 10MB)",
-        ),
+        image_files: List[UploadFile] = File(None, description="이미지 파일들 (선택, 각 최대 10MB)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -367,14 +364,21 @@ async def create_chat(
             curator = chat_room.curator
 
         # 이미지 처리 로직
-        image_url = None
-        if image_file and not isinstance(image_file, str):
-            file_extension = image_file.filename.split('.')[-1]
-            object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
-            s3_url = upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name)
-            if not s3_url:
-                raise HTTPException(status_code=500, detail="이미지 업로드 실패")
-            image_url = get_cloudfront_url(object_name)
+        image_urls = []
+        if image_files:
+            for image_file in image_files:
+                if not isinstance(image_file, str):
+                    file_extension = image_file.filename.split('.')[-1]
+                    object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
+                    s3_url = upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name)
+                    if not s3_url:
+                        raise HTTPException(status_code=500, detail="이미지 업로드 실패")
+
+                    image_urls.append({
+                        "file_name": image_file.filename,
+                        "file_type": image_file.content_type,
+                        "file_url": get_cloudfront_url(object_name)
+                    })
 
         answer = None
         tokens_used = 0
@@ -411,11 +415,16 @@ async def create_chat(
                     })
 
             current_message = {"role": "user", "content": question}
-            if image_url:
+            if image_urls:
                 current_message["content"] = [
-                    {"type": "text", "text": question},
-                    {"type": "image_url", "image_url": {"url": image_url}}
+                    {"type": "text", "text": question}
                 ]
+                # 각 이미지 URL을 메시지에 추가
+                for image_info in image_urls:
+                    current_message["content"].append({
+                        "type": "image_url",
+                        "image_url": {"url": image_info["file_url"]}
+                    })
             messages.append(current_message)
 
             response = client.chat.completions.create(
@@ -427,7 +436,11 @@ async def create_chat(
             tokens_used = response.usage.total_tokens
 
         # 대화 저장
-        chat = schemas.ConversationCreate(question=question, question_image=image_url, room_id=room_id)
+        chat = schemas.ConversationCreate(
+            question=question,
+            question_images={"files": image_urls} if image_urls else None,
+            room_id=room_id
+        )
         conversation = services.create_conversation(db, chat, current_user.user_id, answer, tokens_used)
 
         # MongoDB 저장
