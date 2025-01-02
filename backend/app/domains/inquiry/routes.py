@@ -21,17 +21,67 @@ async def create_inquiry(
         email: str = Form(..., description="연락받을 이메일"),
         contact: str = Form(..., description="연락처"),
         content: str = Form(..., description="문의 내용"),
-        attachments: List[UploadFile] = File(None, description="첨부파일 (선택)"),
-        db: Session = Depends(get_db),
-        current_user: user_schemas.User = Depends(get_current_active_user)
+        attachments: List[UploadFile] = File(None, description="첨부파일 (여러 개 가능)"),
+        db: Session = Depends(get_db)
 ):
-    """문의사항 생성"""
+    """
+    문의사항 생성 API
+
+    - attachments: 여러 개의 이미지 파일을 전송할 수 있습니다.
+    - 지원 형식: jpg, jpeg, png, gif
+    - 각 파일 최대 크기: 10MB
+
+    반환 예시:
+    ```json
+    {
+        "inquiry_id": 123,
+        "status": "PENDING",
+        "message": "문의가 접수되었습니다. 답변은 입력하신 이메일로 발송됩니다.",
+        "attachments": {
+            "files": [
+                {
+                    "file_name": "image1.jpg",
+                    "file_type": "image/jpeg",
+                    "file_url": "https://example.com/files/image1.jpg"
+                },
+                {
+                    "file_name": "image2.png",
+                    "file_type": "image/png",
+                    "file_url": "https://example.com/files/image2.png"
+                }
+            ]
+        }
+    }
+    ```
+    """
     try:
+        # 파일 크기 및 형식 검증
+        if attachments:
+            for file in attachments:
+                if file.size > 10 * 1024 * 1024:  # 10MB 제한
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "file_too_large",
+                            "message": f"파일 크기는 10MB를 초과할 수 없습니다. ({file.filename})"
+                        }
+                    )
+
+                content_type = file.content_type.lower()
+                if content_type not in ["image/jpeg", "image/jpg", "image/png", "image/gif"]:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "invalid_file_type",
+                            "message": f"지원하지 않는 파일 형식입니다. ({file.filename})"
+                        }
+                    )
+
         # 첨부파일 처리
         attachment_info = []
         if attachments:
             for file in attachments:
-                file_extension = file.filename.split('.')[-1]
+                file_extension = file.filename.split('.')[-1].lower()
                 object_name = f"inquiries/{uuid.uuid4()}.{file_extension}"
 
                 if upload_file_to_s3(file.file, settings.S3_BUCKET_NAME, object_name):
@@ -52,12 +102,13 @@ async def create_inquiry(
         )
 
         # 문의사항 저장
-        inquiry = services.create_inquiry(db, inquiry_data, current_user.user_id)
+        inquiry = services.create_inquiry(db, inquiry_data)
 
         return {
             "inquiry_id": inquiry.inquiry_id,
             "status": "PENDING",
-            "message": "문의가 접수되었습니다. 답변은 입력하신 이메일로 발송됩니다."
+            "message": "문의가 접수되었습니다. 답변은 입력하신 이메일로 발송됩니다.",
+            "attachments": inquiry.attachments
         }
 
     except ValueError as ve:
