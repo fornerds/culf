@@ -214,6 +214,21 @@ CREATE TABLE Payments (
     manual_payment_reason TEXT
 );
 
+-- Payment Cache 테이블
+CREATE TABLE Payment_Cache (
+    cache_id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES Users(user_id) ON DELETE CASCADE,
+    cid VARCHAR(50) NOT NULL,
+    tid VARCHAR(50) NOT NULL UNIQUE,
+    partner_order_id VARCHAR(100) NOT NULL,
+    partner_user_id VARCHAR(100) NOT NULL,
+    subscription_id INTEGER REFERENCES User_Subscriptions(subscription_id),
+    environment VARCHAR(20),
+    data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 hour')
+);
+
 -- User Coupons 테이블
 CREATE TABLE User_Coupons (
     user_id UUID REFERENCES Users(user_id),
