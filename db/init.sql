@@ -97,7 +97,7 @@ CREATE TABLE Conversations (
     user_id UUID REFERENCES Users(user_id),
     question TEXT,
     question_summary TEXT,
-    question_image VARCHAR(255),
+    question_image JSONB,
     answer TEXT NOT NULL,
     answer_summary TEXT,
     question_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -267,13 +267,13 @@ CREATE TABLE User_Notification_Settings (
 -- Inquiries 테이블
 CREATE TABLE Inquiries (
     inquiry_id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES Users(user_id),
+    user_id UUID REFERENCES Users(user_id) NULL,
     type VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     contact VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
-    attachments VARCHAR(255),
+    attachments JSONB,
     status inquiry_status NOT NULL DEFAULT 'PENDING',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
