@@ -195,7 +195,7 @@ function AppRoutes() {
       setUseHeader(true);
       setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
       setShowBackButton(false);
-      setShowMenuButton(!!tokenService.getAccessToken());
+      setShowMenuButton(true);
     } else if (matchPath('/login', pathname)) {
       setUseHeader(true);
       setTitle(<img src={logoimage} alt="로고" width="54" height="19" />);
@@ -312,6 +312,7 @@ function AppRoutes() {
         <Route path="/find-email" element={<FindEmail />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
+        <Route path="/inquiry" element={<CustomerInquiry />} />
 
         {/* 인증이 필요한 라우트 */}
         <Route element={<PrivateOutlet />}>
@@ -327,7 +328,6 @@ function AppRoutes() {
           <Route path="/payment/result" element={<Result />} />
           <Route path="/cancel-payment/:payment_id" element={<CancelPayment />} />
           <Route path="/delete-account" element={<DeleteAccount />} />
-          <Route path="/inquiry" element={<CustomerInquiry />} />
           <Route
             path="/notification"
             element={<Navigate to="/notification/notice" replace />}
