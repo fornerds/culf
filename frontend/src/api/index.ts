@@ -198,7 +198,7 @@ export const auth = {
 
 // User API
 export const user = {
-  getMyInfo: () => api.post('/users/me'),
+  getMyInfo: () => api.get('/users/me'),
   updateMyInfo: (userData: any) => api.put('/users/me', userData),
   deleteAccount: (reason?: string, feedback?: string) =>
     api.delete('/users/me', { data: { reason, feedback } }),

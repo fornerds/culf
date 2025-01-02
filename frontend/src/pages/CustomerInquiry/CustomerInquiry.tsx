@@ -30,10 +30,22 @@ export function CustomerInquiry() {
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
-      const newImages = Array.from(files);
-      setSelectedImages(prev => [...prev, ...newImages]);
-      const newUrls = newImages.map(file => URL.createObjectURL(file));
+    if (!files) return;
+
+    const newImages = Array.from(files);
+    const validImages = newImages.filter(file => {
+      const isValidType = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'].includes(file.type);
+      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB
+      return isValidType && isValidSize;
+    });
+
+    if (validImages.length !== newImages.length) {
+      setError('일부 파일이 지원되지 않는 형식이거나 10MB를 초과합니다.');
+    }
+
+    if (validImages.length > 0) {
+      setSelectedImages(prev => [...prev, ...validImages]);
+      const newUrls = validImages.map(file => URL.createObjectURL(file));
       setPreviewUrls(prev => [...prev, ...newUrls]);
     }
   };
@@ -43,6 +55,7 @@ export function CustomerInquiry() {
   };
 
   const handleRemoveImage = (index: number) => {
+    URL.revokeObjectURL(previewUrls[index]);
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
     setPreviewUrls(prev => prev.filter((_, i) => i !== index));
     if (inputRef.current) {
@@ -75,21 +88,15 @@ export function CustomerInquiry() {
       formData.append('contact', form.phoneNumber);
       formData.append('content', form.content);
       
-      if (selectedImages.length > 0) {
-        const fileList = Array.from(selectedImages);
-        const attachmentsFiles = new Array(fileList.length)
-          .fill(null)
-          .map((_, index) => `attachments[${index}]`);
-        
-        fileList.forEach((file, index) => {
-          formData.append(attachmentsFiles[index], file);
-        });
-      }
+      selectedImages.forEach((file, index) => {
+        formData.append('attachments', file);
+      });
 
-      await inquiry.createInquiry(formData);
+      const response = await inquiry.createInquiry(formData);
       setSuccess(true);
       setForm({ title: '', email: '', phoneNumber: '', content: '' });
       setSelectedImages([]);
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
       setPreviewUrls([]);
     } catch (err) {
       setError('문의 접수 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -161,11 +168,13 @@ export function CustomerInquiry() {
 
       <div className="font-text-2">
         사진을 첨부해주시면, 더욱 빠르고 정확한 도움을 드릴 수 있습니다.
+        <br />
+        (지원형식: jpg, jpeg, png, gif / 파일당 최대 10MB)
       </div>
 
       <input
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png,image/gif"
         onChange={handleImageChange}
         multiple
         style={{ display: 'none' }}
