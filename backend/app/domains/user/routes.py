@@ -53,6 +53,29 @@ async def get_users(
         "users": users,
         "total_count": len(users)
     }
+@router.get("/users/me", response_model=user_schemas.UserInfo)
+def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = user_services.get_user(db, user_id=current_user.user_id)
+    
+    # Check user status
+    if user.status == 'WITHDRAWN':
+        raise HTTPException(status_code=403, detail={
+            "error": "user_withdrawn",
+            "message": "탈퇴한 회원입니다."
+        })
+
+    tokens = token_services.get_user_tokens(db, current_user.user_id)
+    subscription = user_services.get_user_subscription(db, current_user.user_id)
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "nickname": user.nickname,
+        "phone_number": user.phone_number,
+        "total_tokens": tokens.total_tokens,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "subscription": subscription
+    }
 
 @router.post("/users/me", response_model=user_schemas.UserInfo)
 def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
