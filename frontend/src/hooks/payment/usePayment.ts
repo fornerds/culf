@@ -194,14 +194,14 @@ export const usePayment = () => {
     }
   };
 
-  // 단건 결제 처리
   const processSinglePayment = async (paymentData: PaymentData) => {
     setIsLoading(true);
     try {
-      console.log('Processing single payment:', paymentData);
       const response = await processSinglePaymentMutation.mutateAsync(paymentData);
       
-      if (response.redirect_url) {
+      if (typeof response === 'string') {
+        window.location.href = response;
+      } else if (response.redirect_url) {
         window.location.href = response.redirect_url;
       } else {
         throw new Error('결제 페이지 URL을 받지 못했습니다.');
@@ -216,14 +216,14 @@ export const usePayment = () => {
     }
   };
 
-  // 구독 결제 처리
   const processSubscription = async (subscriptionData: PaymentData) => {
     setIsLoading(true);
     try {
-      console.log('Processing subscription:', subscriptionData);
       const response = await processSubscriptionMutation.mutateAsync(subscriptionData);
       
-      if (response.redirect_url) {
+      if (typeof response === 'string') {
+        window.location.href = response;
+      } else if (response.redirect_url) {
         window.location.href = response.redirect_url;
       } else {
         throw new Error('결제 페이지 URL을 받지 못했습니다.');

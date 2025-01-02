@@ -398,14 +398,15 @@ export const payment = {
       plan_id: Number(paymentData.plan_id),
       quantity: Math.max(1, paymentData.quantity),
       environment: paymentData.environment.toLowerCase(),
-      coupon_code: paymentData.coupon_code || undefined
+      coupon_code: paymentData.coupon_code || null
     };
 
-    const token = tokenService.getAccessToken();
-    console.log('Payment request token:', token);
-    console.log('Sending single payment request:', cleanedData);
-
-    return api.post('/pay', cleanedData);
+    return api.post('/pay', cleanedData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokenService.getAccessToken()}`
+      }
+    });
   },
 
   createSubscription: (subscriptionData: PaymentData) => {
@@ -413,10 +414,15 @@ export const payment = {
       plan_id: Number(subscriptionData.plan_id),
       quantity: Math.max(1, subscriptionData.quantity),
       environment: subscriptionData.environment.toLowerCase(),
-      coupon_code: subscriptionData.coupon_code || undefined
+      coupon_code: subscriptionData.coupon_code || null
     };
 
-    return api.post('/subscription', cleanedData);
+    return api.post('/subscription', cleanedData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokenService.getAccessToken()}`
+      }
+    });
   },
   getMyPayments: (page: number = 1, limit: number = 10) =>
     api.get('/users/me/payments', { params: { page, limit } }),
