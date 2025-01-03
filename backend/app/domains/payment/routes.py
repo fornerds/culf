@@ -1,17 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+from typing import List, Optional, Union
+from datetime import datetime
+import logging
+from uuid import UUID
+import uuid
+
 from app.domains.user.models import User
 from app.domains.user import schemas as user_schemas
 from app.domains.payment import schemas, services
 from app.domains.payment.services import PaymentService
+from app.domains.inquiry import schemas as inquiry_schemas
 from app.db.session import get_db
 from app.core.deps import get_current_active_user
 from app.core.config import settings
-from typing import List, Optional, Union
-from uuid import UUID
-from datetime import datetime
-import logging
+from app.utils.s3_client import upload_file_to_s3
+from app.utils.cloudfront_utils import get_cloudfront_url
 
 logger = logging.getLogger("app")
 
@@ -64,24 +69,71 @@ async def get_payment_detail(
     return payment
 
 @router.post("/users/me/payments/{payment_id}/cancel", response_model=schemas.PaycancelResponse)
-def inquiry_refund(
+async def cancel_payment(
     payment_id: UUID,
-    refund_request: schemas.PaycancelRequest,
+    title: str = Form(..., description="문의 제목"),
+    email: str = Form(..., description="연락받을 이메일"),
+    contact: str = Form(..., description="연락처"),
+    content: str = Form(..., description="문의 내용"),
+    attachments: List[UploadFile] = File(None, description="첨부파일 (선택)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: user_schemas.User = Depends(get_current_active_user),
 ):
-    # 환불 문의 및 환불 데이터 생성
-    result = services.inquiry_payment(db, payment_id, current_user.user_id, refund_request)
-    if not result:
-        raise HTTPException(status_code=404, detail="Payment not found.")
-    
-    return {
-        "inquiry_id": result["inquiry"].inquiry_id,
-        "refund_id": result["refund"].refund_id,
-        "payment_number": str(payment_id),
-        "status": "CANCELLATION_REQUESTED",
-        "message": "환불 문의와 요청이 성공적으로 접수되었습니다."
-    }
+    try:
+        # 첨부파일 처리
+        attachment_info = []
+        if attachments:
+            for file in attachments:
+                file_extension = file.filename.split('.')[-1]
+                object_name = f"inquiries/{uuid.uuid4()}.{file_extension}"
+
+                if upload_file_to_s3(file.file, settings.S3_BUCKET_NAME, object_name):
+                    image_url = get_cloudfront_url(object_name)
+                    attachment_info.append({
+                        "file_name": file.filename,
+                        "file_type": file.content_type,
+                        "file_url": image_url
+                    })
+
+        # 문의사항 데이터 생성
+        inquiry_data = inquiry_schemas.InquiryCreate(
+            title=title,
+            email=email,
+            contact=contact,
+            content=content,
+            attachments={"files": attachment_info} if attachment_info else None,
+        )
+
+        # 결제 취소 및 문의 생성
+        result = services.cancel_payment_with_inquiry(db, payment_id, current_user.user_id, inquiry_data)
+        if not result:
+            raise HTTPException(status_code=404, detail="Payment not found.")
+
+        return {
+            "inquiry_id": result["inquiry"].inquiry_id,
+            "refund_id": result["refund"].refund_id,
+            "payment_number": str(payment_id),
+            "status": "CANCELLATION_REQUESTED",
+            "message": "환불 요청과 문의가 성공적으로 접수되었습니다.",
+        }
+
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "validation_error",
+                "message": str(ve),
+            }
+        )
+    except Exception as e:
+        logging.error(f"Payment cancellation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "payment_cancellation_failed",
+                "message": "결제 취소 요청에 실패했습니다. 잠시 후 다시 시도해주세요.",
+            }
+        )
 
 # 쿠폰 유효성 검사
 @router.post("/payments/coupons/validate", response_model=schemas.CouponValidationResponse)

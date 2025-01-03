@@ -78,12 +78,23 @@ class PaycancelResponse(BaseModel):
     status: str
     message: str
 
-class PaycancelRequest(BaseModel):
-    title: str
-    email: str
-    contact: str
-    content: str
-    attachment: Optional[str] = None
+class PaycancelResponse(BaseModel):
+    inquiry_id: int = Field(..., description="문의 ID")
+    refund_id: int = Field(..., description="환불 ID")
+    payment_number: str = Field(..., description="결제 번호")
+    status: str = Field(..., description="환불 상태")
+    message: str = Field(..., description="응답 메시지")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "inquiry_id": 123,
+                "refund_id": 456,
+                "payment_number": "T7767de...",
+                "status": "CANCELLATION_REQUESTED",
+                "message": "환불 요청과 문의가 성공적으로 접수되었습니다."
+            }
+        }
 
 # 쿠폰
 class CouponCreate(BaseModel):
