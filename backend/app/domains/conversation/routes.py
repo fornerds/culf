@@ -269,6 +269,7 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
         logger.error(f"❌ Gemini API 오류: {str(e)}")
         raise
 
+
 @router.post(
     "/chat",
     response_model=schemas.ConversationResponse,
@@ -359,7 +360,13 @@ async def create_chat(
         if room_id:
             chat_room = services.get_chat_room(db, room_id, current_user.user_id)
             if not chat_room:
-                raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "error": "chat_room_not_found",
+                        "message": "채팅방을 찾을 수 없습니다"
+                    }
+                )
             curator = chat_room.curator
 
         # 이미지 처리 로직
@@ -400,16 +407,15 @@ async def create_chat(
                 전문 분야: {curator.category}
 
                 {PROMPT}
-                                
+
                 모든 답변 뒤에는 반드시 아래 형식으로 연관된 추천 질문을 정확히 3개 제시해야 합니다:
-                
+
                 [추천 질문]
                 1. 첫번째 추천 질문
                 2. 두번째 추천 질문
                 3. 세번째 추천 질문
-                
-                추천 질문은 반드시 3개를 생성해야 하며, 각 질문은 이전 답변과 관련된 내용이어야 합니다."""
 
+                추천 질문은 반드시 3개를 생성해야 하며, 각 질문은 이전 답변과 관련된 내용이어야 합니다."""
 
             # GPT 사용
             logger.info("GPT API 사용")
@@ -479,6 +485,7 @@ async def create_chat(
                     "다른 관점에서는 어떻게 볼 수 있을까요?",
                     "실제 사례나 예시를 들어주실 수 있나요?"
                 ]
+
         except Exception as e:
             logging.error(f"추천 질문 추출 오류: {str(e)}")
             cleaned_answer = raw_answer.strip()
@@ -531,6 +538,11 @@ async def create_chat(
             recommended_questions=recommended_questions
         )
 
+    except HTTPException as e:
+        # HTTP 예외는 그대로 전달
+        logging.error(f"채팅 생성 중 오류 발생: {str(e)}")
+        db.rollback()
+        raise e
     except Exception as e:
         logging.error(f"채팅 생성 중 오류 발생: {str(e)}", exc_info=True)
         db.rollback()
