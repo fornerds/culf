@@ -437,13 +437,13 @@ export const payment = {
       }
     });
   },
-  cancelPayment: (paymentId: string, data: {
-    title: string;
-    email: string;
-    contact: string;
-    content: string;
-    attachment: string;
-  }) => api.post(`/users/me/payments/${paymentId}/cancel`, data),
+  cancelPayment: (paymentId: string, formData: FormData) => {
+    return api.post(`/users/me/payments/${paymentId}/cancel`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
 };
 
 // Subscription API

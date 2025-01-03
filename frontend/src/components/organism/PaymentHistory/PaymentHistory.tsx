@@ -195,7 +195,7 @@ export function PaymentHistory() {
         filteredData.map((payment: PaymentHistoryItem) => (
           <HistoryListItem
             key={payment.payment_id}
-            id={payment.payment_number}
+            id={payment.payment_id}
             productName={getProductName(payment)}
             paymentMethod={formatPaymentMethod(payment.payment_method)}
             paymentAmount={formatAmount(payment.amount)}

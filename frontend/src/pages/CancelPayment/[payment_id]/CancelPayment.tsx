@@ -6,13 +6,13 @@ import { Button, Label } from '@/components/atom';
 import RemoveIcon from '@/assets/icons/remove.svg?react';
 import styles from './CancelPayment.module.css';
 import { payment } from '@/api';
+import { Popup } from '@/components/molecule';
 
 interface CancelPaymentForm {
   title: string;
   email: string;
   contact: string;
   content: string;
-  attachment: string | null
 }
 
 interface CancelResponse {
@@ -28,22 +28,22 @@ export function CancelPayment() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>('');
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [form, setForm] = useState<CancelPaymentForm>({
     title: '',
     email: '',
     contact: '',
     content: '',
-    attachment: null,
   });
 
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const cancelPaymentMutation = useMutation<
-    CancelResponse, // 성공 응답 타입
-    Error,         // 에러 타입
-    { paymentId: string; formData: FormData; }
+    CancelResponse,
+    Error,
+    { paymentId: string; formData: FormData }
   >({
     mutationFn: async ({ paymentId, formData }) => {
       try {
@@ -51,16 +51,7 @@ export function CancelPayment() {
           throw new Error('결제 ID가 없습니다.');
         }
 
-        const jsonData = {
-          title: formData.get('title') as string,
-          email: formData.get('email') as string,
-          contact: formData.get('contact') as string,
-          content: formData.get('content') as string,
-          attachment: formData.get('attachment') as string || null
-        };
-
-        console.log('Sending cancel payment request:', jsonData);
-        const response = await payment.cancelPayment(paymentId, jsonData);
+        const response = await payment.cancelPayment(paymentId, formData);
         return response.data;
       } catch (error: any) {
         console.error('Cancel payment error:', error);
@@ -68,9 +59,14 @@ export function CancelPayment() {
       }
     },
     onSuccess: () => {
-      navigate('/mypage/payments');
+      setShowSuccessPopup(true);
     },
   });
+
+  const handleSuccessPopupClose = () => {
+    setShowSuccessPopup(false);
+    navigate('/');
+  };
 
   const handleFormChange = (id: string, value: string) => {
     setForm(prev => ({
@@ -81,34 +77,33 @@ export function CancelPayment() {
   };
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Validate file size (e.g., 5MB limit)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('파일 크기는 5MB 이하여야 합니다.');
-        return;
-      }
+    const files = event.target.files;
+    if (!files) return;
 
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setError('이미지 파일만 업로드 가능합니다.');
-        return;
-      }
+    const newImages = Array.from(files);
+    const validImages = newImages.filter(file => {
+      const isValidType = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'].includes(file.type);
+      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB
+      return isValidType && isValidSize;
+    });
 
-      setSelectedImage(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setError('');
+    if (validImages.length !== newImages.length) {
+      setError('일부 파일이 지원되지 않는 형식이거나 10MB를 초과합니다.');
+    }
+
+    if (validImages.length > 0) {
+      setSelectedImages(prev => [...prev, ...validImages]);
+      const newUrls = validImages.map(file => URL.createObjectURL(file));
+      setPreviewUrls(prev => [...prev, ...newUrls]);
     }
   };
 
-  const handleRemoveImage = () => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setSelectedImage(null);
-    setPreviewUrl(null);
+  const handleRemoveImage = (index: number) => {
+    URL.revokeObjectURL(previewUrls[index]);
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
     if (inputRef.current) {
-      inputRef.current.value = null;
+      inputRef.current.value = '';
     }
   };
 
@@ -140,30 +135,15 @@ export function CancelPayment() {
     setIsSubmitting(true);
 
     try {
-      let attachmentUrl = '';
-
-      if (selectedImage) {
-        try {
-          const imageFormData = new FormData();
-          imageFormData.append('file', selectedImage);
-          
-          const uploadResponse = await payment.uploadImage(selectedImage);
-          attachmentUrl = uploadResponse.data.url;
-        } catch (error) {
-          console.error('Image upload failed:', error);
-          setError('이미지 업로드에 실패했습니다.');
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      // FormData 생성
       const formData = new FormData();
       formData.append('title', form.title);
       formData.append('email', form.email);
       formData.append('contact', form.contact);
       formData.append('content', form.content);
-      formData.append('attachment', attachmentUrl);
+      
+      selectedImages.forEach((file, index) => {
+        formData.append('attachments', file);
+      });
 
       await cancelPaymentMutation.mutateAsync({
         paymentId: payment_id,
@@ -218,21 +198,18 @@ export function CancelPayment() {
           {form.content.length}/1000
         </div>
       </div>
-      
-      {error && (
-        <div className={`${styles.errorMessage} font-guidetext`}>
-          {error}
-        </div>
-      )}
 
       <div className="font-text-2">
         사진을 첨부해주시면, 더욱 빠르고 정확한 도움을 드릴 수 있습니다.
+        <br />
+        (지원형식: jpg, jpeg, png, gif / 파일당 최대 10MB)
       </div>
 
       <input
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png,image/gif"
         onChange={handleImageChange}
+        multiple
         style={{ display: 'none' }}
         ref={inputRef}
       />
@@ -245,21 +222,27 @@ export function CancelPayment() {
         사진 업로드
       </Button>
 
-      {previewUrl && (
-        <div className={styles.selectedImageWrapper}>
+      {previewUrls.map((url, index) => (
+        <div key={url} className={styles.selectedImageWrapper}>
           <img
-            src={previewUrl}
-            alt="Selected"
+            src={url}
+            alt={`Selected ${index + 1}`}
             className={styles.selectedImage}
           />
           <button 
-            onClick={handleRemoveImage} 
+            onClick={() => handleRemoveImage(index)} 
             className={styles.removeBtn}
             type="button"
             aria-label="이미지 제거"
           >
             <RemoveIcon />
           </button>
+        </div>
+      ))}
+
+      {error && (
+        <div className={`${styles.errorMessage} font-guidetext`}>
+          {error}
         </div>
       )}
 
@@ -270,6 +253,14 @@ export function CancelPayment() {
       >
         {isSubmitting ? '처리중...' : '접수하기'}
       </Button>
+
+      <Popup
+        type="alert"
+        isOpen={showSuccessPopup}
+        onClose={handleSuccessPopupClose}
+        content="해당 결제가 정상적으로 취소 요청되었습니다. 빠른 시일 내에 확인 후 이메일로 답변을 전달하도록 하겠습니다."
+        confirmText="확인"
+      />
     </main>
   );
 }
