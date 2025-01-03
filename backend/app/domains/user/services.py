@@ -82,6 +82,7 @@ def get_user_subscription(db: Session, user_id: UUID) -> Optional[UserSubscripti
     return  (db.query(UserSubscription)
             .filter(UserSubscription.user_id == user_id)
             .order_by(UserSubscription.start_date.desc())
+            .order_by(UserSubscription.status.asc())
             .first())
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[models.User]:
