@@ -1,21 +1,25 @@
 from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import extract, or_
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime, timedelta
+from uuid import UUID
+import requests
+import uuid
+import logging
+
 from app.domains.payment import schemas as payment_schemas
 from app.domains.payment.models import Payment, Refund, Coupon, UserCoupon, PaymentCache
 from app.domains.token.models import Token, TokenPlan 
 from app.domains.user.models import User
 from app.domains.subscription.models import SubscriptionPlan, UserSubscription
 from app.domains.inquiry.models import Inquiry
+from app.domains.inquiry import schemas as inquiry_schemas
 from app.core.config import settings
-from uuid import UUID
-import requests
-import uuid
-import logging
+
 
 logger = logging.getLogger("app")
 
@@ -45,40 +49,49 @@ def get_me_payments(db: Session, user_id: int, page: int = 1, limit: int = 10, y
 def get_payment_detail(db: Session, payment_id: int):
     return db.query(Payment).filter(Payment.payment_id == payment_id).first()
 
-def inquiry_payment(db: Session, payment_id: UUID, user_id: str, refund_request: payment_schemas.PaycancelRequest):
-    payment = db.query(Payment).filter(Payment.payment_id == payment_id, Payment.user_id == user_id).first()
+def cancel_payment_with_inquiry(db: Session, payment_id: UUID, user_id: UUID, inquiry_data: inquiry_schemas.InquiryCreate):
+    payment = db.query(Payment).filter(
+        Payment.payment_id == payment_id,
+        Payment.user_id == user_id,
+    ).first()
+
     if not payment:
         return None
 
-    inquiry = Inquiry(
-        user_id=user_id,
-        type="payment",
-        title=refund_request.title,
-        email=refund_request.email,
-        contact=refund_request.contact,
-        content=refund_request.content,
-        attachment=refund_request.attachment,
-        status="PENDING",
-        created_at=datetime.now()
-    )
-    db.add(inquiry)
-    db.commit()
-    db.refresh(inquiry)
+    try:
+        inquiry = Inquiry(
+            user_id=user_id,
+            type="PAYMENT",
+            title=inquiry_data.title,
+            email=inquiry_data.email,
+            contact=inquiry_data.contact,
+            content=inquiry_data.content,
+            attachments=jsonable_encoder(inquiry_data.attachments) if inquiry_data.attachments else None,
+            status="PENDING",
+            created_at=datetime.now(),
+        )
+        db.add(inquiry)
+        db.commit()
+        db.refresh(inquiry)
 
-    refund = Refund(
-        payment_id=payment.payment_id,
-        user_id=user_id,
-        inquiry_id=inquiry.inquiry_id,
-        amount=payment.amount,
-        reason=refund_request.content,
-        status="PENDING",
-        created_at=datetime.now()
-    )
-    db.add(refund)
-    db.commit()
-    db.refresh(refund)
+        # 환불 데이터 생성
+        refund = Refund(
+            payment_id=payment.payment_id,
+            user_id=user_id,
+            inquiry_id=inquiry.inquiry_id,
+            amount=payment.amount,
+            reason=inquiry_data.content,
+            status="PENDING",
+            created_at=datetime.now(),
+        )
+        db.add(refund)
+        db.commit()
+        db.refresh(refund)
 
-    return {"inquiry": inquiry, "refund": refund}
+        return {"inquiry": inquiry, "refund": refund}
+    except Exception as e:
+        db.rollback()
+        raise ValueError(f"Failed to create payment cancellation inquiry: {str(e)}")
 
 def get_refund_detail(db: Session, refund_id: int):
     return db.query(Refund).filter(Refund.refund_id == refund_id).first()
@@ -723,12 +736,8 @@ class PaymentService:
             logger.error(f"Unexpected error during subscription initiation: {str(e)}")
             raise HTTPException(status_code=400, detail=str(e))
 
-    def process_subscription(self, user_id: UUID, db: Session):
-        headers = {
-            "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_SECRET_KEY}",
-            "Content-Type": "application/json",
-        }
-
+    @classmethod
+    def process_subscription(cls, user_id: UUID, db: Session):
         subscription = db.query(UserSubscription).filter(
             UserSubscription.user_id == user_id,
             UserSubscription.status == "ACTIVE"
@@ -759,7 +768,7 @@ class PaymentService:
         }
 
         try:
-            response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/subscription", headers=headers, json=data)
+            response = requests.post(f"{settings.KAKAO_PAY_BASE_URL}/subscription", json=data)
             response_data = response.json()
 
             if response.status_code == 200:
@@ -778,36 +787,22 @@ class PaymentService:
                 )
                 db.add(payment)
 
-                subscription.next_billing_date = subscription.next_billing_date + timedelta(days=subscription_plan.billing_cycle)
+                # 고정 주기 사용 (예: 30일)
+                subscription.next_billing_date = subscription.next_billing_date + timedelta(days=30)
                 db.commit()
 
                 return {"status": "SUCCESS", "message": "Payment successful"}
-
             else:
                 error_message = response_data.get("msg", "Unknown error")
                 logger.error(f"Subscription payment failed for user_id: {user_id}, reason: {error_message}")
-
-                payment = Payment(
-                    payment_id=f"order_{uuid.uuid4()}",
-                    user_id=user_id,
-                    subscription_id=subscription.subscription_id,
-                    amount=float(subscription_plan.price),
-                    payment_method="카카오페이_정기결제",
-                    payment_date=datetime.now(),
-                    status="FAILED",
-                    transaction_number=None,
-                )
-                db.add(payment)
-                db.commit()
-
-                return {"status": "FAILED", "message": error_message}
-
+                raise HTTPException(status_code=400, detail=error_message)
         except Exception as e:
-            logger.error(f"Exception occurred during subscription payment for user_id: {user_id}: {str(e)}")
+            logger.error(f"Exception occurred: {str(e)}")
             db.rollback()
-            raise HTTPException(status_code=500, detail="An error occurred during subscription payment.")
+            raise HTTPException(status_code=500, detail="Subscription payment failed.")
 
-    def process_all_subscriptions(self, db: Session):
+    @classmethod
+    def process_all_subscriptions(cls, db: Session):
         today = datetime.now().date()
         active_subscriptions = db.query(UserSubscription).filter(
             UserSubscription.next_billing_date == today,
@@ -823,7 +818,7 @@ class PaymentService:
         results = []
         for subscription in active_subscriptions:
             try:
-                result = self.process_subscription(subscription.user_id, db)
+                result = cls.process_subscription(subscription.user_id, db)
                 results.append({"user_id": subscription.user_id, "result": result})
             except HTTPException as e:
                 logger.error(f"Failed to process subscription for user_id: {subscription.user_id}, error: {str(e)}")
