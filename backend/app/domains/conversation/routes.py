@@ -280,7 +280,7 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
             "content": {
                 "application/json": {
                     "example": {
-                        "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "conversation_id": "b39190ce-a097-4965-bf20-13100cb0420d",
                         "answer": "안녕하세요! 무엇을 도와드릴까요?",
                         "tokens_used": 150
                     }
@@ -314,14 +314,13 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
 async def create_chat(
         question: Optional[str] = Form(
             None,
-            description="질문 내용 (선택)",
-            example="오늘 날씨는 어떤가요?"
+            description="질문 내용 (선택)"
         ),
         room_id: Optional[UUID] = Form(
             None,
             description="채팅방 ID (선택, UUID 형식)"
         ),
-        image_files: List[UploadFile] = File(None, description="이미지 파일들 (선택, 각 최대 10MB)"),
+        image_files: Optional[List[Union[UploadFile]]] = File(None, description="이미지 파일들 (선택, 각 최대 10MB)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -332,7 +331,7 @@ async def create_chat(
     ----------
     - question: 질문 내용 (선택)
     - room_id: 채팅방 ID (선택)
-    - image_file: 이미지 파일 (선택, 최대 10MB)
+    - image_files: 이미지 파일 (선택, 최대 10MB)
 
     Returns
     -------
@@ -369,11 +368,32 @@ async def create_chat(
                 )
             curator = chat_room.curator
 
+        # 입력값 유효성 검사
+        if (not question or question.strip() == "") and (not image_files or len(image_files) == 0):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "invalid_input",
+                    "message": "질문 또는 이미지 중 하나는 필수입니다."
+                }
+            )
+
         # 이미지 처리 로직
         image_urls = []
         if image_files:
             for image_file in image_files:
                 if not isinstance(image_file, str):
+                    # 파일 타입 검사
+                    content_type = image_file.content_type
+                    if not content_type or not content_type.startswith('image/'):
+                        raise HTTPException(
+                            status_code=400,
+                            detail={
+                                "error": "invalid_file_type",
+                                "message": "허용되지 않는 파일 형식입니다. 이미지 파일만 업로드 가능합니다."
+                            }
+                        )
+
                     file_extension = image_file.filename.split('.')[-1]
                     object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
                     s3_url = upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name)
@@ -432,22 +452,29 @@ async def create_chat(
                             "content": msg["content"]
                         })
 
-            current_message = {"role": "user", "content": question}
+            current_message = {
+                "role": "user",
+                "content": []
+            }
+
+            # 텍스트 질문 추가
+            if question:
+                current_message["content"].append({
+                    "type": "text",
+                    "text": question
+                })
+
+            # 이미지 추가
             if image_urls:
-                current_message["content"] = [
-                    {"type": "text", "text": question}
-                ]
-                # 각 이미지 URL을 메시지에 추가
                 for image_info in image_urls:
                     current_message["content"].append({
                         "type": "image_url",
-                        "image_url": {"url": image_info["file_url"]}
+                        "image_url": {
+                            "url": image_info["file_url"]
+                        }
                     })
-            if question:
-                messages.append({
-                    "role": "user",
-                    "content": question
-                })
+
+            messages.append(current_message)
 
             response = client.chat.completions.create(
                 model="gpt-4o",
@@ -494,7 +521,7 @@ async def create_chat(
         # 대화 저장
         chat = schemas.ConversationCreate(
             question=question,
-            question_images={"files": image_urls} if image_urls else None,
+            question_images={"image_files": image_urls} if image_urls else None,
             room_id=room_id
         )
         conversation = services.create_conversation(db, chat, current_user.user_id, cleaned_answer, tokens_used)

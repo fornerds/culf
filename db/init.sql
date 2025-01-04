@@ -97,7 +97,7 @@ CREATE TABLE Conversations (
     user_id UUID REFERENCES Users(user_id),
     question TEXT,
     question_summary TEXT,
-    question_image JSONB,
+    question_images JSONB,
     answer TEXT NOT NULL,
     answer_summary TEXT,
     question_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -402,7 +402,7 @@ INSERT INTO Users (user_id, email, password, nickname, phone_number, birthdate, 
 
 INSERT INTO public.users
 (user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed)
-VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, true);
+VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'ADMIN'::public."role_enum", NULL, false, true);
 
 -- Curators 테이블 mock 데이터
 -- 새로운 태그 데이터 추가
@@ -486,3 +486,22 @@ VALUES('88e3d350-0e4c-4ecd-96ad-3fbf27671499'::uuid, 'betauser2@culf.com', '$2b$
 INSERT INTO public.users
 (user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed, "provider", provider_id)
 VALUES('5c44c876-4b74-4596-a24d-d1c9ab7ca638'::uuid, 'betauser3@culf.com', '$2b$12$OfPZQHO4Ie4thKAJmQfj4uqzwdnPRwLJ0zHh9zh3p0.yGfRxSIUSa', 'betatester3', '01065431098', '2024-11-18', 'M'::public."gender_enum", '2024-11-18 14:36:51.351', '2024-11-18 14:36:51.351', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, false, NULL, NULL);
+
+-- 고정 채팅방 생성
+INSERT INTO Chat_Rooms (
+    room_id,
+    user_id,
+    curator_id,
+    title,
+    is_active,
+    created_at,
+    updated_at
+) VALUES (
+    'b39190ce-a097-4965-bf20-13100cb0420d'::uuid,  -- 고정된 UUID
+    '1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid,  -- culftester의 user_id
+    3,  -- 두리 큐레이터의 ID (큐레이터 테이블 데이터 순서상 3번)
+    '두리와의 대화',
+    true,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+);

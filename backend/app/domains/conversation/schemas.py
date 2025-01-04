@@ -51,15 +51,17 @@ class ChatRoomDetail(BaseModel):
 class ConversationCreate(BaseModel):
     question: Optional[str] = None
     question_images: Optional[Dict[str, List[Dict[str, str]]]] = None
-    room_id: Optional[UUID] = None
-
+    room_id: Optional[UUID] = Field(
+        None,
+        example="b39190ce-a097-4965-bf20-13100cb0420d"
+    )
     class Config:
         allow_population_by_field_name = True
         schema_extra = {
             "example": {
                 "question": "What's in these images?",
                 "question_images": {
-                    "files": [
+                    "image_files": [
                         {
                             "file_name": "image1.jpg",
                             "file_type": "image/jpeg",
@@ -72,7 +74,7 @@ class ConversationCreate(BaseModel):
                         }
                     ]
                 },
-                "room_id": None
+                "room_id": "b39190ce-a097-4965-bf20-13100cb0420d"
             }
         }
 
