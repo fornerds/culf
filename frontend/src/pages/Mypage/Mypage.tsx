@@ -1,14 +1,19 @@
 import { Header } from '@/components/organism';
 import styles from './Mypage.module.css';
 import { Tab } from '@/modules';
-import { Account } from '@/components/organism';
-import { Subscription } from '@/components/organism/Subscription';
-import { PaymentHistory } from '@/components/organism/PaymentHistory';
+import { Account, Subscription, PaymentHistory } from '@/components/organism';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useUser } from '@/hooks/user/useUser';
 
 export function Mypage() {
   const { tab } = useParams();
   const navigate = useNavigate();
+  
+  // useUser 훅을 사용하여 사용자 정보와 토큰 정보 가져오기
+  const { 
+    getUserInfo: { data: userInfo, isLoading: isUserLoading },
+    getTokenInfo: { data: tokenInfo, isLoading: isTokenLoading }
+  } = useUser();
 
   const tabs = [
     {
@@ -28,15 +33,22 @@ export function Mypage() {
     },
   ];
 
+  // 로딩 중일 때 표시할 내용
+  if (isUserLoading || isTokenLoading) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <>
       <div className={styles.userInfo}>
         <div className="font-text-3">
-          <span className="font-title-3">컬프랜드</span> 님
+          <span className="font-title-3">{userInfo?.nickname || '사용자'}</span> 님
         </div>
         <div className="font-tag-1">
           잔여 토큰
-          <span className={`font-text-2 ${styles.userToken}`}>12</span>개
+          <span className={`font-text-2 ${styles.userToken}`}>
+            {tokenInfo?.total_tokens || 0}
+          </span>개
         </div>
       </div>
 

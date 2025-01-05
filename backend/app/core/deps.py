@@ -13,7 +13,11 @@ import logging
 from datetime import datetime, date
 import uuid
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(
+   tokenUrl=f"{settings.API_V1_STR}/form/login",
+   scheme_name="Email & Password",
+   description="Use your email and password to login"
+)
 
 async def get_current_user(
     db: Session = Depends(get_db),
@@ -21,18 +25,21 @@ async def get_current_user(
 ) -> user_schemas.User:
     if settings.DEV_MODE:
         logging.warning("Using dev mode authentication")
-        dev_user = user_services.get_user_by_email(db, email="dev@example.com")
+        dev_user = user_services.get_user_by_email(db, email="culftester@culf.com")
 
         if not dev_user:
+            # 만약 culftester가 없다면 생성
+            dev_user_id = uuid.UUID('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2')
             dev_user = user_services.create_user(db, user_schemas.UserCreate(
-                email="dev@example.com",
+                user_id=dev_user_id,
+                email="culftester@culf.com",
                 password="devpassword",
                 password_confirmation="devpassword",
-                nickname="DevUser",
+                nickname="culftestnick",
                 birthdate=date(1990, 1, 1),
-                gender="N",
-                phone_number="01012345678",
-                marketing_agreed=False
+                gender="M",
+                phone_number="01045678901",
+                marketing_agreed=True
             ))
             dev_user.role = 'ADMIN'
             db.commit()

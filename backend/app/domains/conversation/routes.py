@@ -280,7 +280,7 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
             "content": {
                 "application/json": {
                     "example": {
-                        "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "conversation_id": "b39190ce-a097-4965-bf20-13100cb0420d",
                         "answer": "안녕하세요! 무엇을 도와드릴까요?",
                         "tokens_used": 150
                     }
@@ -314,17 +314,13 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
 async def create_chat(
         question: Optional[str] = Form(
             None,
-            description="질문 내용 (선택)",
-            example="오늘 날씨는 어떤가요?"
+            description="질문 내용 (선택)"
         ),
         room_id: Optional[UUID] = Form(
             None,
             description="채팅방 ID (선택, UUID 형식)"
         ),
-        image_file: Optional[Union[UploadFile, None]] = File(
-            None,
-            description="이미지 파일 (선택, 최대 10MB)",
-        ),
+        image_files: Optional[List[Union[UploadFile]]] = File(None, description="이미지 파일들 (선택, 각 최대 10MB)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -335,7 +331,7 @@ async def create_chat(
     ----------
     - question: 질문 내용 (선택)
     - room_id: 채팅방 ID (선택)
-    - image_file: 이미지 파일 (선택, 최대 10MB)
+    - image_files: 이미지 파일 (선택, 최대 10MB)
 
     Returns
     -------
@@ -363,18 +359,52 @@ async def create_chat(
         if room_id:
             chat_room = services.get_chat_room(db, room_id, current_user.user_id)
             if not chat_room:
-                raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "error": "chat_room_not_found",
+                        "message": "채팅방을 찾을 수 없습니다"
+                    }
+                )
             curator = chat_room.curator
 
+        # 입력값 유효성 검사
+        if (not question or question.strip() == "") and (not image_files or len(image_files) == 0):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "invalid_input",
+                    "message": "질문 또는 이미지 중 하나는 필수입니다."
+                }
+            )
+
         # 이미지 처리 로직
-        image_url = None
-        if image_file and not isinstance(image_file, str):
-            file_extension = image_file.filename.split('.')[-1]
-            object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
-            s3_url = upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name)
-            if not s3_url:
-                raise HTTPException(status_code=500, detail="이미지 업로드 실패")
-            image_url = get_cloudfront_url(object_name)
+        image_urls = []
+        if image_files:
+            for image_file in image_files:
+                if not isinstance(image_file, str):
+                    # 파일 타입 검사
+                    content_type = image_file.content_type
+                    if not content_type or not content_type.startswith('image/'):
+                        raise HTTPException(
+                            status_code=400,
+                            detail={
+                                "error": "invalid_file_type",
+                                "message": "허용되지 않는 파일 형식입니다. 이미지 파일만 업로드 가능합니다."
+                            }
+                        )
+
+                    file_extension = image_file.filename.split('.')[-1]
+                    object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
+                    s3_url = upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name)
+                    if not s3_url:
+                        raise HTTPException(status_code=500, detail="이미지 업로드 실패")
+
+                    image_urls.append({
+                        "file_name": image_file.filename,
+                        "file_type": image_file.content_type,
+                        "file_url": get_cloudfront_url(object_name)
+                    })
 
         answer = None
         tokens_used = 0
@@ -383,6 +413,8 @@ async def create_chat(
         if settings.USE_GEMINI:
             # Gemini 사용
             logger.info("Gemini API 사용")
+
+            image_url = image_urls[0]["file_url"] if image_urls else None
             answer, tokens_used = await get_gemini_response(question, image_url)
             if not answer:
                 raise HTTPException(status_code=500, detail="Gemini 응답 생성 실패")
@@ -394,7 +426,16 @@ async def create_chat(
                 소개: {curator.introduction}
                 전문 분야: {curator.category}
 
-                {PROMPT}"""
+                {PROMPT}
+
+                모든 답변 뒤에는 반드시 아래 형식으로 연관된 추천 질문을 정확히 3개 제시해야 합니다:
+
+                [추천 질문]
+                1. 첫번째 추천 질문
+                2. 두번째 추천 질문
+                3. 세번째 추천 질문
+
+                추천 질문은 반드시 3개를 생성해야 하며, 각 질문은 이전 답변과 관련된 내용이어야 합니다."""
 
             # GPT 사용
             logger.info("GPT API 사용")
@@ -405,17 +446,34 @@ async def create_chat(
             recent_messages = await get_recent_chat_history(str(current_user.user_id))
             if recent_messages:
                 for msg in recent_messages:
-                    messages.append({
-                        "role": msg["role"],
-                        "content": msg["content"]
+                    if msg.get("role") and msg.get("content"):
+                        messages.append({
+                            "role": msg["role"],
+                            "content": msg["content"]
+                        })
+
+            current_message = {
+                "role": "user",
+                "content": []
+            }
+
+            # 텍스트 질문 추가
+            if question:
+                current_message["content"].append({
+                    "type": "text",
+                    "text": question
+                })
+
+            # 이미지 추가
+            if image_urls:
+                for image_info in image_urls:
+                    current_message["content"].append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": image_info["file_url"]
+                        }
                     })
 
-            current_message = {"role": "user", "content": question}
-            if image_url:
-                current_message["content"] = [
-                    {"type": "text", "text": question},
-                    {"type": "image_url", "image_url": {"url": image_url}}
-                ]
             messages.append(current_message)
 
             response = client.chat.completions.create(
@@ -423,12 +481,50 @@ async def create_chat(
                 messages=messages
             )
 
-            answer = response.choices[0].message.content
+            raw_answer = response.choices[0].message.content
+            if not raw_answer:
+                raise HTTPException(status_code=500, detail="응답 생성에 실패했습니다")
             tokens_used = response.usage.total_tokens
 
+        # 답변에서 추천 질문 추출
+        try:
+            # 추천 질문이 3개 미만인 경우 기본 질문으로 보충
+            if "[추천 질문]" in raw_answer:
+                main_answer, questions_section = raw_answer.split("[추천 질문]")
+                cleaned_answer = main_answer.strip()
+
+                import re
+                questions = re.findall(r'\d\.\s*(.+?)(?=\d\.|$)', questions_section)
+                recommended_questions = [q.strip() for q in questions if q.strip()]
+
+                # 질문이 3개 미만인 경우 기본 질문으로 보충
+                while len(recommended_questions) < 3:
+                    if len(recommended_questions) == 0:
+                        recommended_questions.append("이 주제에 대해 더 자세히 알고 싶어요.")
+                    elif len(recommended_questions) == 1:
+                        recommended_questions.append("다른 관점에서는 어떻게 볼 수 있을까요?")
+                    elif len(recommended_questions) == 2:
+                        recommended_questions.append("실제 사례나 예시를 들어주실 수 있나요?")
+            else:
+                cleaned_answer = raw_answer.strip()
+                recommended_questions = [
+                    "이 주제에 대해 더 자세히 알고 싶어요.",
+                    "다른 관점에서는 어떻게 볼 수 있을까요?",
+                    "실제 사례나 예시를 들어주실 수 있나요?"
+                ]
+
+        except Exception as e:
+            logging.error(f"추천 질문 추출 오류: {str(e)}")
+            cleaned_answer = raw_answer.strip()
+            recommended_questions = []
+
         # 대화 저장
-        chat = schemas.ConversationCreate(question=question, question_image=image_url, room_id=room_id)
-        conversation = services.create_conversation(db, chat, current_user.user_id, answer, tokens_used)
+        chat = schemas.ConversationCreate(
+            question=question,
+            question_images={"image_files": image_urls} if image_urls else None,
+            room_id=room_id
+        )
+        conversation = services.create_conversation(db, chat, current_user.user_id, cleaned_answer, tokens_used)
 
         # MongoDB 저장
         chat_data = {
@@ -465,9 +561,15 @@ async def create_chat(
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,
             answer=conversation.answer,
-            tokens_used=conversation.tokens_used
+            tokens_used=conversation.tokens_used,
+            recommended_questions=recommended_questions
         )
 
+    except HTTPException as e:
+        # HTTP 예외는 그대로 전달
+        logging.error(f"채팅 생성 중 오류 발생: {str(e)}")
+        db.rollback()
+        raise e
     except Exception as e:
         logging.error(f"채팅 생성 중 오류 발생: {str(e)}", exc_info=True)
         db.rollback()

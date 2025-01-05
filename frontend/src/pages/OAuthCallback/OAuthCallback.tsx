@@ -25,11 +25,17 @@ export function OAuthCallback() {
           navigate('/');
         } 
         else if (loginStatus === 'continue') {
-          navigate('/signup');
+          // continue 상태일 때는 토큰 관련 작업을 하지 않고 바로 약관 페이지로 이동
+          tokenService.removeAccessToken(); // 혹시 남아있을 수 있는 토큰 제거
+          setAuth(false, null); // 인증 상태 초기화
+          navigate('/terms');
+          return;
         }
       } catch (error) {
         console.error('OAuth callback processing failed:', error);
-        navigate('/beta/login');
+        tokenService.removeAccessToken();
+        setAuth(false, null);
+        navigate('/login');
       }
     };
 

@@ -50,16 +50,31 @@ class ChatRoomDetail(BaseModel):
 
 class ConversationCreate(BaseModel):
     question: Optional[str] = None
-    question_image: Optional[str] = None
-    room_id: Optional[UUID] = None
-
+    question_images: Optional[Dict[str, List[Dict[str, str]]]] = None
+    room_id: Optional[UUID] = Field(
+        None,
+        example="b39190ce-a097-4965-bf20-13100cb0420d"
+    )
     class Config:
         allow_population_by_field_name = True
         schema_extra = {
             "example": {
-                "question": "What's in this image?",
-                "question_image": "/v1/images/example.png",
-                "room_id": None
+                "question": "What's in these images?",
+                "question_images": {
+                    "image_files": [
+                        {
+                            "file_name": "image1.jpg",
+                            "file_type": "image/jpeg",
+                            "file_url": "/v1/images/example1.png"
+                        },
+                        {
+                            "file_name": "image2.jpg",
+                            "file_type": "image/jpeg",
+                            "file_url": "/v1/images/example2.png"
+                        }
+                    ]
+                },
+                "room_id": "b39190ce-a097-4965-bf20-13100cb0420d"
             }
         }
 
@@ -67,6 +82,11 @@ class ConversationResponse(BaseModel):
     conversation_id: UUID
     answer: str
     tokens_used: int
+    recommended_questions: List[str] = Field(
+        default_factory=list,
+        max_items=3,
+        description="3 recommended follow-up questions"
+    )
 
 class ConversationSummary(BaseModel):
     """대화 요약 정보를 위한 스키마"""

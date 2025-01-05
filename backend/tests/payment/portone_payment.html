@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>포트원 결제 테스트</title>
+    <script src="https://cdn.iamport.kr/v1/iamport.js"></script>
+</head>
+<body>
+    <h1>포트원 결제 테스트</h1>
+
+    <!-- 로그인 -->
+    <h2>로그인</h2>
+    <label for="email">이메일:</label>
+    <input type="email" id="email" value="betauser1@culf.com">
+    <br>
+    <label for="password">비밀번호:</label>
+    <input type="password" id="password" value="culftest123*">
+    <br><br>
+    <button id="loginButton">로그인</button>
+    <p id="loginStatus"></p>
+
+    <!-- 단건 결제 -->
+    <h2>단건 결제</h2>
+    <label for="singlePgSelect">결제 방식 (PG사):</label>
+    <select id="singlePgSelect">
+        <option value="kakaopay">카카오페이</option>
+        <option value="danal_tpay">다날 Tpay</option>
+        <option value="danal">다날 휴대폰 결제</option>
+    </select>
+    <br>
+    <div id="tpayOptions" style="display: none;">
+        <label for="tpayMethodSelect">다날 Tpay 결제 방식:</label>
+        <select id="tpayMethodSelect">
+            <option value="card">신용카드</option>
+            <option value="trans">실시간 계좌이체</option>
+            <option value="vbank">가상계좌</option>
+        </select>
+    </div>
+    <label for="singlePlanSelect">토큰 플랜 선택:</label>
+    <select id="singlePlanSelect">
+        <option value="1">50 토큰 - 5000원</option>
+        <option value="2">100 토큰 - 10000원</option>
+        <option value="3">200 토큰 - 20000원</option>
+    </select>
+    <br><br>
+    <button id="singlePayButton">단건 결제하기</button>
+    <p id="singlePaymentStatus"></p>
+
+    <!-- 구독 결제 -->
+    <h2>구독 결제</h2>
+    <label for="subscriptionPgSelect">결제 방식 (PG사):</label>
+    <select id="subscriptionPgSelect">
+        <option value="kakaopay_sub">카카오페이</option>
+    </select>
+    <br>
+    <label for="subscriptionPlanSelect">구독 플랜 선택:</label>
+    <select id="subscriptionPlanSelect">
+        <option value="1">정기 구독 플랜 - 20000원 (할인가: 15000원)</option>
+    </select>
+    <br><br>
+    <button id="subscriptionPayButton">구독 결제하기</button>
+    <p id="subscriptionPaymentStatus"></p>
+
+    <script>
+        const BASE_API_URL = "http://localhost:8000/v1";
+
+        let accessToken = null;
+
+        IMP.init('imp26980221');
+
+        document.getElementById("loginButton").onclick = async function () {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+
+            try {
+                const response = await fetch(`${BASE_API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    accessToken = data.access_token; // Access Token 저장
+                    document.getElementById("loginStatus").innerText = "로그인 성공";
+                } else {
+                    const errorData = await response.json();
+                    document.getElementById("loginStatus").innerText = `로그인 실패: ${errorData.detail}`;
+                }
+            } catch (error) {
+                console.error('로그인 요청 중 오류 발생:', error);
+                alert('로그인 요청 중 오류가 발생했습니다.');
+            }
+        };
+
+        // 결제 방식에 따른 옵션 표시
+        document.getElementById("singlePgSelect").onchange = function () {
+            const pg = document.getElementById("singlePgSelect").value;
+            document.getElementById("tpayOptions").style.display = (pg === "danal_tpay") ? "block" : "none";
+        };
+
+        // 결제 요청 및 결제창 호출 함수
+        async function initiatePayment(endpoint, planId, pg, additionalParams = {}) {
+            try {
+                const body = { plan_id: planId, pg, ...additionalParams };
+                const response = await fetch(`${BASE_API_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(`결제 API 요청 실패: ${data.detail}`);
+                    return;
+                }
+
+                // 결제 창 호출
+                IMP.request_pay(data.payment_data, function (rsp) {
+                    console.log(rsp); // 테스트용 로그
+                    if (rsp.success) {
+                        completePayment(rsp.imp_uid, rsp.merchant_uid);
+                    } else if (rsp.error_code) {
+                        alert(`결제 실패: ${rsp.error_msg}`);
+                    } else {
+                        alert("결제가 취소되었습니다.");
+                    }
+                });
+            } catch (error) {
+                console.error('결제 요청 중 오류 발생:', error);
+                alert('결제 요청 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 결제 완료 후 검증 요청
+        async function completePayment(imp_uid, merchant_uid) {
+            try {
+                const response = await fetch(`${BASE_API_URL}/payment-complete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ imp_uid, merchant_uid })
+                });
+
+                if (response.ok) {
+                    alert('결제가 성공적으로 완료되었습니다.');
+                    window.location.href = "/payment-success";
+                } else {
+                    const errorData = await response.json();
+                    alert(`결제 검증 실패: ${errorData.detail}`);
+                }
+            } catch (error) {
+                console.error('결제 검증 요청 중 오류 발생:', error);
+                alert('결제 검증 요청 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 단건 결제 버튼 클릭 이벤트
+        document.getElementById("singlePayButton").onclick = function () {
+            const planId = document.getElementById("singlePlanSelect").value;
+            const pg = document.getElementById("singlePgSelect").value;
+            const additionalParams = pg === "danal_tpay" ? { pay_method: document.getElementById("tpayMethodSelect").value } : {};
+            initiatePayment('/one-time', planId, pg, additionalParams);
+        };
+
+        // 구독 결제 버튼 클릭 이벤트
+        document.getElementById("subscriptionPayButton").onclick = function () {
+            const planId = document.getElementById("subscriptionPlanSelect").value;
+            const pg = document.getElementById("subscriptionPgSelect").value;
+            initiatePayment('/subscription', planId, pg);
+        };
+    </script>
+</body>
+</html>

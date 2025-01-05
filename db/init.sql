@@ -97,7 +97,7 @@ CREATE TABLE Conversations (
     user_id UUID REFERENCES Users(user_id),
     question TEXT,
     question_summary TEXT,
-    question_image VARCHAR(255),
+    question_images JSONB,
     answer TEXT NOT NULL,
     answer_summary TEXT,
     question_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -282,13 +282,13 @@ CREATE TABLE User_Notification_Settings (
 -- Inquiries 테이블
 CREATE TABLE Inquiries (
     inquiry_id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES Users(user_id),
+    user_id UUID REFERENCES Users(user_id) NULL,
     type VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     contact VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
-    attachments VARCHAR(255),
+    attachments JSONB,
     status inquiry_status NOT NULL DEFAULT 'PENDING',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -402,7 +402,7 @@ INSERT INTO Users (user_id, email, password, nickname, phone_number, birthdate, 
 
 INSERT INTO public.users
 (user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed)
-VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, true);
+VALUES('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'culftester@culf.com', '$2b$12$wkT5HXS4TIhQAgruaHz/cuoqY/RPYnkQL/ewDHhwKK1dUfoRqc8l6', 'culftestnick', '01045678901', '1990-01-01', 'M'::public."gender_enum", '2024-11-04 11:01:18.603', '2024-11-04 11:01:18.603', NULL, NULL, 'ACTIVE'::public."status_enum", 'ADMIN'::public."role_enum", NULL, false, true);
 
 -- Curators 테이블 mock 데이터
 -- 새로운 태그 데이터 추가
@@ -459,17 +459,15 @@ INSERT INTO Notices (title, content, image_url, start_date, end_date, view_count
 ('추석 연휴 고객센터 운영 안내', '추석 연휴 기간 동안 고객센터 운영 시간이 단축됩니다. 자세한 내용은 공지사항을 확인해주세요.', 'holiday_notice.jpg', '2023-09-25', '2023-10-05', 80, true);
 
 -- Notifications 테이블 더미 데이터
-INSERT INTO Notifications (user_id, type, message, is_read, created_at) VALUES
-((SELECT user_id FROM Users WHERE email='dev@example.com'), 'NEW_CONVERSATION', '문화에 대한 새로운 대화가 시작되었습니다. 지금 참여해보세요!', false, NOW() - INTERVAL '2 days'),
-((SELECT user_id FROM Users WHERE email='dev@example.com'), 'TOKEN_UPDATE', '50개의 토큰이 충전되었습니다. 현재 잔액을 확인해보세요.', true, NOW() - INTERVAL '5 days'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 'CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', false, NOW() - INTERVAL '1 day'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 'PAYMENT_RECEIVED', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '3 days'),
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 'SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', false, NOW() - INTERVAL '12 hours'),
-((SELECT user_id FROM Users WHERE email='user2@example.com'), 'NEW_CONVERSATION', '예술에 대한 새로운 대화가 시작되었습니다. 지금 참여해보세요!', false, NOW() - INTERVAL '6 hours'),
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 'TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', false, NOW() - INTERVAL '1 day'),
-((SELECT user_id FROM Users WHERE email='admin@example.com'), 'CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', true, NOW() - INTERVAL '4 days'),
-((SELECT user_id FROM Users WHERE email='user1@example.com'), 'PAYMENT_RECEIVED', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '2 days'),
-((SELECT user_id FROM Users WHERE email='admin@example.com'), 'SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', false, NOW() - INTERVAL '8 hours');
+INSERT INTO notifications (user_id, type, message, is_read, created_at) VALUES
+((SELECT user_id FROM users WHERE email='dev@example.com'), 'TOKEN_UPDATE', '50개의 토큰이 충전되었습니다. 현재 잔액을 확인해보세요.', true, NOW() - INTERVAL '5 days'),
+((SELECT user_id FROM users WHERE email='user2@example.com'), 'CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', false, NOW() - INTERVAL '1 day'),
+((SELECT user_id FROM users WHERE email='user2@example.com'), 'PAYMENT_UPDATE', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '3 days'),
+((SELECT user_id FROM users WHERE email='user1@example.com'), 'SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', false, NOW() - INTERVAL '12 hours'),
+((SELECT user_id FROM users WHERE email='user1@example.com'), 'TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', false, NOW() - INTERVAL '1 day'),
+((SELECT user_id FROM users WHERE email='admin@example.com'), 'CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', true, NOW() - INTERVAL '4 days'),
+((SELECT user_id FROM users WHERE email='user1@example.com'), 'PAYMENT_UPDATE', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '2 days'),
+((SELECT user_id FROM users WHERE email='admin@example.com'), 'SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', false, NOW() - INTERVAL '8 hours');
 
 -- Token plans 테이블 mock 데이터
 INSERT INTO token_plans (tokens, price, discounted_price, discount_rate, is_promotion) VALUES
@@ -488,3 +486,22 @@ VALUES('88e3d350-0e4c-4ecd-96ad-3fbf27671499'::uuid, 'betauser2@culf.com', '$2b$
 INSERT INTO public.users
 (user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed, "provider", provider_id)
 VALUES('5c44c876-4b74-4596-a24d-d1c9ab7ca638'::uuid, 'betauser3@culf.com', '$2b$12$OfPZQHO4Ie4thKAJmQfj4uqzwdnPRwLJ0zHh9zh3p0.yGfRxSIUSa', 'betatester3', '01065431098', '2024-11-18', 'M'::public."gender_enum", '2024-11-18 14:36:51.351', '2024-11-18 14:36:51.351', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, false, NULL, NULL);
+
+-- 고정 채팅방 생성
+INSERT INTO Chat_Rooms (
+    room_id,
+    user_id,
+    curator_id,
+    title,
+    is_active,
+    created_at,
+    updated_at
+) VALUES (
+    'b39190ce-a097-4965-bf20-13100cb0420d'::uuid,  -- 고정된 UUID
+    '1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid,  -- culftester의 user_id
+    3,  -- 두리 큐레이터의 ID (큐레이터 테이블 데이터 순서상 3번)
+    '두리와의 대화',
+    true,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+);

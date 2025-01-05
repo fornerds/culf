@@ -1,7 +1,7 @@
 import random
 import os
 from datetime import timedelta
-from fastapi import APIRouter, Body, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Request, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse, FileResponse
 from sqlalchemy.orm import Session
@@ -204,7 +204,6 @@ def mask_email(email: str) -> str:
     else:
         masked_user = user
     return f"{masked_user}@{domain}"
-\
 
 @router.post("/auth/check-email", response_model=dict)
 def check_email(email_check: auth_schemas.EmailCheckRequest, db: Session = Depends(get_db)):
@@ -426,3 +425,19 @@ def do_sns_login(request: Request):
     file_path = os.path.join(current_directory, "sns_login.html")
     # Return the FileResponse which serves the HTML file
     return FileResponse(path=file_path, media_type='text/html')
+
+@router.post("/form/login")
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    user = auth_services.authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token, refresh_token = auth_services.create_tokens(str(user.user_id))
+
+    return auth_services.get_json_response(access_token,refresh_token)

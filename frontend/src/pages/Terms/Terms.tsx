@@ -45,12 +45,16 @@ export function Terms() {
   );
 
   const goSignUpPage = () => {
+    // 디버깅 로그 추가
+    console.log('Terms - Final marketing state:', selectedValues.includes('4'));
     navigate('/signup');
   };
 
   useEffect(() => {
     setIsAllSelected(selectedValues.length === checkboxList.length);
     setIsMarketingAgreed(selectedValues.includes('4'));
+    // 디버깅 로그 추가
+    console.log('Terms - Marketing agreed:', selectedValues.includes('4'));
   }, [selectedValues]);
 
   return (
@@ -60,6 +64,7 @@ export function Terms() {
         <Checkbox
           key="all"
           id="all"
+          value="all"
           label="모두 동의"
           checked={isAllSelected}
           onChange={handleAllSelect}
@@ -69,6 +74,7 @@ export function Terms() {
             <Checkbox
               key={item.id}
               id={item.id}
+              value={item.id}
               label={item.label}
               checked={selectedValues.includes(item.id)}
               onChange={handleCheckboxChange}

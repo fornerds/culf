@@ -1,0 +1,1 @@
+export { MyNotice } from "./MyNotice"

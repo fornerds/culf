@@ -67,6 +67,7 @@ jobs:
           script: |
             cd ~/culf
             git pull origin main
+            sudo docker system prune -af
             
             # Frontend changes
             if [[ "${{ needs.check-changes.outputs.frontend }}" == "true" ]]; then

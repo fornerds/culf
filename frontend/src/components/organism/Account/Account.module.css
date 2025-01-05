@@ -1,3 +1,7 @@
+.accountContentWrap {
+  padding: 30px 20px 40px;
+}
+
 .accountContent {
   display: flex;
   flex-direction: column;

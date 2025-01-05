@@ -9,6 +9,24 @@ from app.domains.curator import services as curator_services
 from app.domains.conversation.models import ChatRoom, Conversation
 from app.domains.curator.models import Curator
 
+def extract_summary_from_answer(answer: str) -> str:
+    # 문장 단위로 분리
+    sentences = answer.split('.')
+    # 첫 문장 추출 (마침표 포함)
+    first_sentence = sentences[0].strip() + ('.' if sentences[0].strip() else '')
+    # 30자로 제한, 필요시 말줄임표 추가
+    return first_sentence[:30] + ('...' if len(first_sentence) > 30 else '')
+
+def update_chat_room_title(db: Session, room_id: UUID, summary: str) -> None:
+    db_chat_room = (
+        db.query(models.ChatRoom)
+        .filter(models.ChatRoom.room_id == room_id)
+        .first()
+    )
+    if db_chat_room:
+        db_chat_room.title = summary
+        db.commit()
+
 def create_conversation(
     db: Session,
     chat: schemas.ConversationCreate,
@@ -17,12 +35,37 @@ def create_conversation(
     tokens_used: int
 ) -> models.Conversation:
     # 질문 요약 생성 (첫 줄의 첫 20글자)
-    question_lines = chat.question.split('\n')
-    first_line = question_lines[0] if question_lines else chat.question
-    question_summary = first_line[:20] + "..." if len(first_line) > 20 else first_line
+    question_summary = ""
+    if chat.question:
+        question_lines = chat.question.split('\n')
+        first_line = question_lines[0] if question_lines else chat.question
+        question_summary = first_line[:20] + "..." if len(first_line) > 20 else first_line
 
     # 답변 요약 생성 (첫 50글자)
-    answer_summary = answer[:50] + "..." if len(answer) > 50 else answer
+    answer_summary = extract_summary_from_answer(answer)
+
+    if chat.room_id:
+        update_chat_room_title(db, chat.room_id, answer_summary)
+
+    # 이미지 URLs JSON 생성
+    question_images = None
+    if chat.question_images and chat.question_images.get("image_files"):
+        question_images = {
+            "images": [
+                {
+                    "url": img.get("file_url"),
+                    "file_name": img.get("file_name"),
+                    "file_type": img.get("file_type")
+                }
+                for img in chat.question_images["image_files"]
+                if img.get("file_url")
+            ]
+        }
+
+    # 질문 요약 보완 (이미지가 있는 경우)
+    if not question_summary and question_images:
+        image_count = len(question_images["images"])
+        question_summary = f"이미지 질문 ({image_count}장)"
 
     # 대화 저장
     db_conversation = models.Conversation(
@@ -30,17 +73,27 @@ def create_conversation(
         room_id=chat.room_id,
         question=chat.question or "",  # 이미지만 있는 경우 빈 문자열 사용
         question_summary=question_summary,
-        question_image=chat.question_image,
+        question_images=question_images,  # JSON 형태로 모든 이미지 정보 저장
         answer=answer,
         answer_summary=answer_summary,
         question_time=datetime.now(),
         answer_time=datetime.now(),
         tokens_used=tokens_used
     )
-    db.add(db_conversation)
-    db.commit()
-    db.refresh(db_conversation)
-    return db_conversation
+    try:
+        db.add(db_conversation)
+        db.commit()
+        db.refresh(db_conversation)
+        return db_conversation
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "database_error",
+                "message": f"대화 저장 중 오류가 발생했습니다: {str(e)}"
+            }
+        )
 
 def get_user_conversations(
         db: Session,

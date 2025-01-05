@@ -1,5 +1,44 @@
+.selectContainerWrap {
+  padding: 30px 20px 40px;
+}
+
 .selectContainer {
   margin-bottom: 20px;
   display: flex;
   gap: 12px;
+}
+
+.debugContainer {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+}
+
+.debugTitle {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.debugContent {
+  font-size: 0.75rem;
+}
+
+.debugSection {
+  margin-top: 0.5rem;
+}
+
+.errorMessage {
+  padding: 1rem;
+  color: #ef4444;
+}
+
+.loadingMessage {
+  padding: 1rem;
+  color: #6b7280;
+}
+
+.emptyMessage {
+  padding: 1rem;
+  color: #6b7280;
 }

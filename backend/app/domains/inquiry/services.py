@@ -22,10 +22,9 @@ def _process_attachments(attachments):
     return attachments
 
 
-def create_inquiry(db: Session, inquiry_data: schemas.InquiryCreate, user_id: UUID):
+def create_inquiry(db: Session, inquiry_data: schemas.InquiryCreate):
     """문의사항 생성"""
     db_inquiry = models.Inquiry(
-        user_id=user_id,
         type="GENERAL",
         title=inquiry_data.title,
         email=inquiry_data.email,

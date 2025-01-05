@@ -1,4 +1,3 @@
-// src/state/server/authQueries.ts
 import { useState } from 'react';
 import { useMutation, UseMutationResult } from '@tanstack/react-query';
 import { auth } from '../../api/index';
@@ -30,12 +29,24 @@ interface RegisterData {
 
 interface PhoneVerificationData {
   phone_number: string;
+  findpw?: boolean;
+}
+
+interface PhoneVerificationResponse {
+  success: boolean;
+  message: string;
+}
+
+interface VerifyPhoneData {
+  phone_number: string;
+  verification_code: string;
 }
 
 interface PasswordResetData {
   email: string;
+  phone_number: string;
   new_password: string;
-  new_password_confirmation: string;
+  new_password_confirm: string;
 }
 
 interface ProcessCallbackResponse {
@@ -43,119 +54,159 @@ interface ProcessCallbackResponse {
   access_token?: string;
   refresh_token?: string;
   email?: string;
-  user?: {
-    id: string;
-    email: string;
-    nickname: string;
-  };
+  user?: User;
 }
 
 export const useLogin = (): UseMutationResult<
   { access_token: string; user: User },
   AxiosError,
   LoginCredentials
-> =>
-  useMutation({
-    mutationFn: (credentials: LoginCredentials) =>
-      auth.login(credentials.email, credentials.password),
-    onSuccess: (response) => {
-      const { access_token, user } = response.data;
-      tokenService.setAccessToken(access_token);
-      useAuthStore.getState().setAuth(true, user);
-    },
-  });
+> => {
+  const { setAuth } = useAuthStore();
 
-export const useLogout = () =>
-  useMutation({
-    mutationFn: () => auth.logout(),
-    onSuccess: () => {
-      // 토큰 제거
-      tokenService.removeAccessToken();
-      // 상태 초기화
-      useAuthStore.getState().setAuth(false, null);
-      useAuthStore.getState().resetSnsAuth?.();
+  return useMutation({
+    mutationFn: async (credentials: LoginCredentials) => {
+      const response = await auth.login(credentials.email, credentials.password);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const { access_token, user } = data;
+      if (access_token) {
+        tokenService.setAccessToken(access_token);
+        setAuth(true, user, access_token); // access_token도 함께 전달
+      }
     },
     onError: () => {
-      // 에러가 발생하더라도 클라이언트 측 데이터는 정리
       tokenService.removeAccessToken();
-      useAuthStore.getState().setAuth(false, null);
-      useAuthStore.getState().resetSnsAuth?.();
+      setAuth(false, null);
     },
   });
+};
 
-export const useSNSLogin = () =>
-  useMutation({
-    mutationFn: ({ provider, token }: { provider: string; token: string }) =>
-      auth.loginSNS(provider, token),
-    onSuccess: (response) => {
-      const { access_token, user } = response.data;
+export const useLogout = () => {
+  const { logout } = useAuthStore();
+
+  return useMutation({
+    mutationFn: () => auth.logout(),
+    onSuccess: () => {
+      logout();
+    },
+    onError: () => {
+      logout();
+    },
+  });
+};
+
+export const useSNSLogin = () => {
+  const { setAuth, setSnsAuth } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async ({ provider, token }: { provider: string; token: string }) => {
+      const response = await auth.loginSNS(provider, token);
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      const { access_token, user } = data;
       tokenService.setAccessToken(access_token);
-      useAuthStore.getState().setAuth(true, user);
+      setAuth(true, user);
+      setSnsAuth(variables.provider, user.id);
+    },
+    onError: () => {
+      tokenService.removeAccessToken();
+      setAuth(false, null);
     },
   });
+};
 
-export const useRefreshToken = () =>
-  useMutation({
-    mutationFn: () => auth.refreshToken(),
-    onSuccess: (response) => {
-      const { access_token, user } = response.data;
+export const useRefreshToken = () => {
+  const { setAuth } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await auth.refreshToken();
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const { access_token, user } = data;
       tokenService.setAccessToken(access_token);
-      useAuthStore.getState().setAuth(true, user);
+      setAuth(true, user);
+    },
+    onError: () => {
+      tokenService.removeAccessToken();
+      setAuth(false, null);
     },
   });
+};
 
-export const useRegister = () =>
-  useMutation({
-    mutationFn: (data: RegisterData) => auth.register(data),
+export const useRegister = () => {
+  const { isMarketingAgreed } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: RegisterData) => {
+      const registerData = {
+        ...data,
+        marketing_agreed: isMarketingAgreed,
+      };
+      const response = await auth.register(registerData);
+      return response.data;
+    },
   });
+};
 
 export const useFindEmail = () =>
   useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       phoneNumber,
       birthdate,
     }: {
       phoneNumber: string;
       birthdate: string;
-    }) => auth.findEmail(phoneNumber, birthdate),
+    }) => {
+      const response = await auth.findEmail(phoneNumber, birthdate);
+      return response.data;
+    },
   });
 
 export const useRequestPhoneVerification = () =>
   useMutation({
-    mutationFn: (data: PhoneVerificationData) =>
-      auth.requestPhoneVerification(data.phone_number),
+    mutationFn: async ({ phone_number, findpw = false }: PhoneVerificationData) => {
+      const response = await auth.requestPhoneVerification(phone_number, findpw);
+      return response.data;
+    },
   });
 
 export const useVerifyPhone = () =>
   useMutation({
-    mutationFn: ({
-      phoneNumber,
-      verificationCode,
-    }: {
-      phoneNumber: string;
-      verificationCode: string;
-    }) => auth.verifyPhone(phoneNumber, verificationCode),
+    mutationFn: async ({ phoneNumber, verificationCode }: VerifyPhoneData) => {
+      const response = await auth.verifyPhone(phoneNumber, verificationCode);
+      return response.data;
+    },
   });
 
 export const useResetPassword = () =>
   useMutation({
-    mutationFn: (data: PasswordResetData) =>
-      auth.resetPassword(
+    mutationFn: async (data: PasswordResetData) => {
+      const response = await auth.resetPassword(
         data.email,
+        data.phone_number,
         data.new_password,
-        data.new_password_confirmation,
-      ),
+        data.new_password_confirm
+      );
+      return response.data;
+    },
   });
 
 export const useProcessCallback = (): UseMutationResult<
   ProcessCallbackResponse,
   AxiosError,
   { provider: string; code: string }
-> =>
-  useMutation({
+> => {
+  const { startRegistration, completeRegistration, setAuth } = useAuthStore();
+
+  return useMutation({
     mutationFn: async ({ provider, code }) => {
       const response = await auth.processCallback(provider, code);
-
+      
       const loginStatus = document.cookie
         .split('; ')
         .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
@@ -163,15 +214,21 @@ export const useProcessCallback = (): UseMutationResult<
 
       if (loginStatus === 'success') {
         const refreshResponse = await auth.refreshToken();
-        // refresh_token은 쿠키에 이미 설정되어 있음
+        completeRegistration();
+        
+        const { access_token, user } = refreshResponse.data;
+        tokenService.setAccessToken(access_token);
+        setAuth(true, user);
+        
         return {
           type: 'success',
-          access_token: refreshResponse.data.access_token,
-          user: refreshResponse.data.user,
+          access_token,
+          user,
         };
       }
 
       if (loginStatus === 'continue') {
+        startRegistration();
         const emailResponse = await auth.getProviderEmail();
         return {
           type: 'continue',
@@ -182,10 +239,16 @@ export const useProcessCallback = (): UseMutationResult<
       throw new Error('Invalid OAuth login status');
     },
   });
+};
 
 export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const { isAuthenticated, user } = useAuthStore();
+  const { 
+    isAuthenticated, 
+    user, 
+    hasRefreshToken,
+    registrationInProgress 
+  } = useAuthStore();
 
   const loginMutation = useLogin();
   const logoutMutation = useLogout();
@@ -234,35 +297,69 @@ export const useAuth = () => {
     }
   };
 
-  const findEmail = (phoneNumber: string, birthdate: string) =>
-    findEmailMutation.mutate({ phoneNumber, birthdate });
+  const findEmail = async (phoneNumber: string, birthdate: string) => {
+    setIsLoading(true);
+    try {
+      return await findEmailMutation.mutateAsync({ phoneNumber, birthdate });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const requestPhoneVerification = (phoneNumber: string) =>
-    requestPhoneVerificationMutation.mutate({ phone_number: phoneNumber });
+  const requestPhoneVerification = async (phoneNumber: string, findpw = false) => {
+    setIsLoading(true);
+    try {
+      return await requestPhoneVerificationMutation.mutateAsync({ 
+        phone_number: phoneNumber, 
+        findpw 
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const verifyPhone = (phoneNumber: string, verificationCode: string) =>
-    verifyPhoneMutation.mutate({ phoneNumber, verificationCode });
+  const verifyPhone = async (phoneNumber: string, verificationCode: string) => {
+    setIsLoading(true);
+    try {
+      return await verifyPhoneMutation.mutateAsync({ phoneNumber, verificationCode });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const resetPassword = (
-    email: string,
-    newPassword: string,
-    newPasswordConfirmation: string,
-  ) =>
-    resetPasswordMutation.mutate({
-      email,
-      new_password: newPassword,
-      new_password_confirmation: newPasswordConfirmation,
-    });
+  const resetPassword = async (data: PasswordResetData) => {
+    setIsLoading(true);
+    try {
+      return await resetPasswordMutation.mutateAsync(data);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const refreshToken = () => refreshTokenMutation.mutate();
+  const refreshToken = async () => {
+    setIsLoading(true);
+    try {
+      return await refreshTokenMutation.mutateAsync();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const processOAuthCallback = (provider: string, code: string) =>
-    processCallbackMutation.mutate({ provider, code });
+  const processOAuthCallback = async (provider: string, code: string) => {
+    setIsLoading(true);
+    try {
+      return await processCallbackMutation.mutateAsync({ provider, code });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return {
     isAuthenticated,
     user,
     isLoading,
+    hasRefreshToken,
+    registrationInProgress,
     login,
     register,
     logout,

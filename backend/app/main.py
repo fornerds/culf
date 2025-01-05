@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import JSONResponse
+
 from app.core.config import settings
 from app.domains.user import routes as user_routes
 from app.domains.conversation import routes as conversation_routes
@@ -15,6 +19,8 @@ from app.domains.auth import routes as auth_routes
 from app.domains.admin import routes as admin_routes
 from app.domains.subscription import routes as subscription_routes
 from app.domains.payment import routes as payment_routes
+from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
+from fastapi.security import OAuth2
 import logging
 
 # 로깅 설정
@@ -55,6 +61,46 @@ async def dev_mode_middleware(request: Request, call_next):
     response = await call_next(request)
     return response
 
+
+# 커스텀 예외 핸들러 추가
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    for error in errors:
+        # Handle empty file submissions
+        if (error["loc"][0] == "body" and
+                len(error["loc"]) >= 2 and
+                error["loc"][1] == "image_files"):
+
+            # Check if it's a string instead of a file
+            if error["type"] == "value_error" and "Expected UploadFile" in error["msg"]:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": "invalid_file_type",
+                        "message": "유효하지 않은 파일 형식입니다. 이미지 파일을 업로드해주세요."
+                    }
+                )
+
+            # Handle other file-related errors
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "invalid_file",
+                    "message": "이미지 파일 처리 중 오류가 발생했습니다."
+                }
+            )
+
+    # Default validation error response
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "validation_error",
+            "message": str(exc),
+            "details": errors
+        }
+    )
+
 app.include_router(curator_routes.router, prefix=f"{settings.API_V1_STR}", tags=["curators"])
 app.include_router(banner_routes.router, prefix=f"{settings.API_V1_STR}", tags=["banners"])
 app.include_router(terms_routes.router, prefix=f"{settings.API_V1_STR}", tags=["terms"])
@@ -86,3 +132,7 @@ else:
 app.title = "cul.f API"
 app.description = "API for cul.f service"
 app.version = "1.0.0"
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -154,13 +154,15 @@ export function FormPopup({
         <div className={styles.formGroup}>
           <label className={`${styles.label} font-text-4`}>이메일</label>
           <input
-            className={styles.input}
+            className={`${styles.input} ${styles.disabled}`}
             type="email"
             value={formData.email}
             onChange={(e) =>
               setFormData({ ...formData, email: e.target.value })
             }
             placeholder="example@gmail.com"
+            disabled
+            readOnly
           />
           {emailValidation && (
             <ValidationMessage

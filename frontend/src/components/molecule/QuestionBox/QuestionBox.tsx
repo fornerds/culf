@@ -2,9 +2,20 @@
 import React, { ReactNode } from 'react';
 import styles from './QuestionBox.module.css';
 
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 interface BaseQuestionBoxProps {
   content: ReactNode;
-  imageUrl?: string;
+  imageUrls?: string[];  // 단일 imageUrl 대신 imageUrls 배열로 변경
+  imageSizeInfo?: Array<{
+    originalSize: number;
+    resizedSize: number;
+  }>;
 }
 
 interface AIQuestionBoxProps extends BaseQuestionBoxProps {
@@ -12,6 +23,7 @@ interface AIQuestionBoxProps extends BaseQuestionBoxProps {
   isStreaming?: boolean;
   isLoading?: boolean;
 }
+
 
 function AIQuestionBox({ content, image, imageUrl, isStreaming, isLoading }: AIQuestionBoxProps) {
   return (
@@ -37,15 +49,25 @@ function AIQuestionBox({ content, image, imageUrl, isStreaming, isLoading }: AIQ
   );
 }
 
-function UserQuestionBox({ content, imageUrl }: BaseQuestionBoxProps) {
+function UserQuestionBox({ content, imageUrls, imageSizeInfo }: BaseQuestionBoxProps) {
   return (
     <div className={styles.userContainer}>
-        {imageUrl && (
-          <div className={styles.imageWrapper}>
-            <img src={imageUrl} alt="Uploaded" className={styles.messageImage} />
-          </div>
-        )}
-        <div className={styles.content}>{content}</div>
+      {imageUrls && imageUrls.length > 0 && (
+        <div className={styles.imagesGrid}>
+          {imageUrls.map((url, index) => (
+            <div key={index} className={styles.imageWrapper}>
+              <img src={url} alt={`Uploaded ${index + 1}`} className={styles.messageImage} />
+              {/* {imageSizeInfo && imageSizeInfo[index] && (
+                <div className={styles.imageSizeInfo}>
+                  <span>원본: {formatFileSize(imageSizeInfo[index].originalSize)}</span>
+                  <span>변환: {formatFileSize(imageSizeInfo[index].resizedSize)}</span>
+                </div>
+              )} */}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className={styles.content}>{content}</div>
     </div>
   );
 }

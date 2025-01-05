@@ -39,9 +39,10 @@ class Subscription(BaseModel):
     subscription_id: int
     plan_id: int
     plan_name: str
-    price: str
+    price: int
     next_billing_date: date
     status: str
+    subscriptions_method: str
 
 class UserInfo(BaseModel):
     user_id: UUID
@@ -92,7 +93,7 @@ class TokenInfo(BaseModel):
 
 class UserInDBBase(UserBase):
     user_id: UUID
-    hashed_password:str
+    password:str
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime]

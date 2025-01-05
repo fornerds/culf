@@ -1,0 +1,49 @@
+  .title {
+    margin: 10px 20px;
+    color: var(--text-default, #35313C);
+  }
+  
+  .authorContainer {
+    display: flex;
+    align-items: center;
+    margin: 10px 20px;
+  }
+  
+  .authorProfile {
+    margin-right: 9px;
+  }
+  
+  .profileImage {
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-sizing: border-box;
+  }
+  
+  .defaultProfile {
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background-color: #e0e0e0;
+    box-sizing: border-box;
+  }
+  
+  .authorInfo {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .authorName {
+    color: var(--text-default, #35313C);
+  }
+  
+  .date {
+    color: var(--text-guidetext, #C5CCD8);
+  }
+  
+  .content {
+    margin: 20px;
+    white-space: pre-wrap;
+    color: var(--text-default, #35313C);
+  }
