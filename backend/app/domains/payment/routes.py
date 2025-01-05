@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile, Request
 from fastapi.responses import RedirectResponse
+from pydantic import ValidationError
+import requests
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from datetime import datetime
@@ -12,6 +14,7 @@ from app.domains.user import schemas as user_schemas
 from app.domains.payment import schemas, services
 from app.domains.payment.services import PaymentService
 from app.domains.inquiry import schemas as inquiry_schemas
+from app.domains.payment.portone_services import PortoneServices
 from app.db.session import get_db
 from app.core.deps import get_current_active_user
 from app.core.config import settings
@@ -405,3 +408,45 @@ def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
 @router.get("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
 def get_coupon(coupon_id: int, db: Session = Depends(get_db)):
     return services.get_coupon(db, coupon_id)
+
+portone_service = PortoneServices()
+
+PORTONE_API_URL = "https://api.iamport.kr"
+IMP_KEY = "9566775633856234"
+IMP_SECRET = "u1c8W8sUK9wrT58fqYL5f5wvJumJMCQhE3pAcSvW21oV6wbxuWCJ28fLDBvqemHSp7tB0Yx2ZVY6r9DW"
+DANAL_BIZ_NUM=1234567890
+CHANNEL_KEYS = {
+    "kakaopay": "channel-key-44ca60ca-2d36-434c-835b-80b8adcb7792",
+    "kakaopay_sub": "channel-key-6c1c4c76-8d36-431f-92f2-9630a9592e35",
+    "danal_tpay": "channel-key-5eea97cd-86a3-46ee-8355-206cb1e7c996",
+    "danal": "channel-key-1f4f188f-dcb6-42d4-b023-6e7cb9a8c656",
+}
+
+@router.post("/one-time")
+async def one_time_payment(
+    payment_request: schemas.OneTimePaymentRequest,
+    db: Session = Depends(get_db),
+    current_user: user_schemas.User = Depends(get_current_active_user)
+):
+    """단건 결제 요청"""
+    result = portone_service.initiate_one_time_payment(payment_request, db, current_user)
+    return result
+
+@router.post("/subscription")
+async def subscription_payment(
+    subscription_request: schemas.SubscriptionPaymentRequest,
+    db: Session = Depends(get_db),
+    current_user: user_schemas.User = Depends(get_current_active_user)
+):
+    """구독 결제 요청"""
+    result = portone_service.initiate_subscription_payment(subscription_request, db, current_user)
+    return result
+
+@router.post("/payment-complete")
+async def payment_complete(
+    payment_request: schemas.PaymentCompleteRequest,
+    db: Session = Depends(get_db),
+):
+    """결제 완료 검증 및 처리"""
+    result = portone_service.verify_and_save_payment(payment_request, db)
+    return result
