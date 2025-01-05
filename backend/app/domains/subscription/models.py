@@ -33,3 +33,4 @@ class UserSubscription(Base):
     subscriptions_method = Column(String(50), nullable=False)
 
     payment_caches = relationship("PaymentCache", back_populates="subscription", cascade="all, delete-orphan")
+    subscription_plan = relationship("SubscriptionPlan", backref="user_subscriptions")
