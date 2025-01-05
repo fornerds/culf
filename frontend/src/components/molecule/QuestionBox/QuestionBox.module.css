@@ -109,9 +109,23 @@
   border-radius: 3px;
 }
 
-/* 새로 추가된 이미지 관련 스타일 */
-.imageWrapper {
+.loadingIndicator {
+  color: var(--text-default, #222);
+  font-family: 'PretendardVariable';
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.imagesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  width: 100%;
   margin-bottom: 8px;
+}
+
+.imageWrapper {
+  position: relative;
   width: 100%;
   border-radius: 8px;
   overflow: hidden;
@@ -119,16 +133,23 @@
 
 .messageImage {
   width: 100%;
-  max-height: 200px;
-  object-fit: contain;
+  height: 150px;
+  object-fit: cover;
   border-radius: 8px;
 }
 
-.loadingIndicator {
-  color: var(--text-default, #222);
-  font-family: 'PretendardVariable';
-  font-size: 14px;
-  font-weight: 500;
+.imageSizeInfo {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .userContainer {
@@ -142,8 +163,22 @@
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 20px;
-
   border-radius: 9px 9px 0px 9px;
   border: 1px solid var(--keycolor-3, #7b4fff);
   background: var(--keycolor-5, #b6b4ff);
+}
+
+/* 모바일 환경을 위한 반응형 스타일 */
+@media (max-width: 768px) {
+  .imagesGrid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+
+  .messageImage {
+    height: 120px;
+  }
+
+  .imageSizeInfo {
+    font-size: 10px;
+  }
 }

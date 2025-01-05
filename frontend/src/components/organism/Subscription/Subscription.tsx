@@ -75,7 +75,7 @@ export function Subscription() {
         </div>
       </section>
       
-      {userInfo?.subscription && (
+      {/* {userInfo?.subscription && (
         <section>
           <div className={styles.sectionTitle}>
             <span className="font-card-title-1">청구 내역</span>
@@ -86,7 +86,7 @@ export function Subscription() {
             </div>
           </div>
         </section>
-      )}
+      )} */}
 
       <Popup
         type="form"

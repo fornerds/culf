@@ -58,7 +58,7 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
         />
         <div>
           <span className="font-title-3">
-            {subscription.price} USD
+            {subscription.price.toLocaleString()} 원
           </span>
           <span className="font-text-3"> /월</span>
           <div className={`${styles.textSub} font-text-4`}>

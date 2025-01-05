@@ -217,57 +217,35 @@ export const user = {
 // Chat API
 export const chat = {
   sendMessage: async (
-    question: string,
-    imageFile?: File,
-    roomId?: string,
-    onMessage?: (message: string) => void,
+    formData: FormData,
+    onMessage?: (message: string) => void
   ): Promise<any> => {
     try {
-      if (!roomId) {
-        throw new Error('Room ID is required');
-      }
-
-      const formData = new FormData();
-      formData.append('question', question);
-      formData.append('room_id', roomId);
-
-      if (imageFile) {
-        formData.append('image_file', imageFile);
-      }
-
       const token = tokenService.getAccessToken();
       if (!token) {
         throw new Error('Authorization token is missing');
       }
-
-      console.log('Sending chat request:', {
-        roomId,
-        question,
-        hasImage: !!imageFile,
-      });
 
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
         },
-        body: formData,
+        body: formData
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        if (response.status === 404) {
+        if (response.status === 402) {
+          throw new Error('토큰이 부족합니다. 토큰을 충전해주세요.');
+        } else if (response.status === 404) {
           throw new Error('Chat room not found');
         } else if (response.status === 500) {
-          throw new Error(
-            'Internal server error occurred. Please try again later.',
-          );
+          throw new Error('Internal server error occurred. Please try again later.');
         } else {
           throw new Error(
             `Chat API Error: ${response.status}` +
-              (errorData.detail
-                ? `, Details: ${JSON.stringify(errorData.detail)}`
-                : ''),
+            (errorData.detail ? `, Details: ${JSON.stringify(errorData.detail)}` : '')
           );
         }
       }
@@ -286,15 +264,12 @@ export const chat = {
       return new Promise((resolve) => {
         const streamText = () => {
           if (isCancelled) {
-            resolve(() => {
-              isCancelled = true;
-            });
+            resolve(() => { isCancelled = true; });
             return;
           }
 
           if (currentIndex < text.length) {
             let endIndex = currentIndex + 2;
-
             while (
               endIndex < text.length &&
               !text[endIndex - 1].match(/[\s\n.!?,;:]/)
@@ -317,8 +292,11 @@ export const chat = {
 
             setTimeout(streamText, delay);
           } else {
-            resolve(() => {
-              isCancelled = true;
+            resolve({
+              conversation_id: data.conversation_id,
+              answer: data.answer,
+              tokens_used: data.tokens_used,
+              recommended_questions: data.recommended_questions
             });
           }
         };
