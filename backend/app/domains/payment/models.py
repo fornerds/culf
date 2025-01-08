@@ -10,7 +10,7 @@ class Payment(Base):
 
     payment_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False)
-    subscription_id = Column(Integer, ForeignKey('subscription_plans.plan_id'), nullable=True)
+    subscription_id = Column(Integer, ForeignKey("user_subscriptions.subscription_id"), nullable=True)
     token_plan_id = Column(Integer, ForeignKey('token_plans.token_plan_id'), nullable=True)
     payment_number = Column(String(20), unique=True, nullable=False)
     transaction_number = Column(String(20), unique=True, nullable=True)
@@ -23,7 +23,7 @@ class Payment(Base):
     manual_payment_reason = Column(String, nullable=True)
 
     # Relationships
-    subscription = relationship("SubscriptionPlan", back_populates="payments")
+    subscription = relationship("UserSubscription", back_populates="payments")
     token_plan = relationship("TokenPlan", back_populates="payments")
     used_coupon = relationship("Coupon")
     user = relationship("User", back_populates="payments")
@@ -77,21 +77,28 @@ class UserCoupon(Base):
 
     def __repr__(self):
         return f"<UserCoupon(user_id={self.user_id}, coupon_id={self.coupon_id})>"
-    
+
 class PaymentCache(Base):
     __tablename__ = "payment_cache"
 
     cache_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
-    cid = Column(String(50), nullable=False)
-    tid = Column(String(50), nullable=False, unique=True)
-    partner_order_id = Column(String(100), nullable=False)
-    partner_user_id = Column(String(100), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=True)
+    cid = Column(String(50), nullable=True)
+    tid = Column(String(50), nullable=True, unique=True)
+    partner_order_id = Column(String(100), nullable=True)
+    partner_user_id = Column(String(100), nullable=True)
     subscription_id = Column(Integer, ForeignKey("user_subscriptions.subscription_id"), nullable=True)
     environment = Column(String(20), nullable=True)
     data = Column(JSON, nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
     expires_at = Column(TIMESTAMP, nullable=False, default=datetime.now() + timedelta(hours=1))
 
+    merchant_uid = Column(String(50), nullable=False, unique=True)
+    payment_method = Column(String(50), nullable=False)
+    token_plan_id = Column(Integer, ForeignKey('token_plans.token_plan_id'), nullable=True)
+    subscription_plan_id = Column(Integer, ForeignKey("subscription_plans.plan_id"), nullable=True)
+    coupon_id = Column(Integer, ForeignKey("coupons.coupon_id"), nullable=True)
+
     user = relationship("User", back_populates="payment_caches")
     subscription = relationship("UserSubscription", back_populates="payment_caches")
+    subscription_plan = relationship("SubscriptionPlan", back_populates="payment_caches")

@@ -285,3 +285,28 @@ class PaymentDetailResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+#portone
+class OneTimePaymentRequest(BaseModel):
+    plan_id: int  # Token plan ID
+    pg: str  # 'kakaopay', 'danal', 'danal_tpay', etc.
+    pay_method: Optional[str] = None  # 'card', 'trans', 'vbank', etc. (Optional for flexibility)
+    coupon_code: Optional[str] = None
+
+class SubscriptionPaymentRequest(BaseModel):
+    plan_id: int
+    pg: str
+    coupon_code: Optional[str] = None
+
+class PaymentCompleteRequest(BaseModel):
+    imp_uid: str
+    merchant_uid: str
+
+class PortoneRequest:
+    imp_uid: str
+    merchant_uid: str
+    expected_amount: int
+    user_id: str
+    token_plan_id: int = None
+    subscription_id: int = None
+    next_billing_date: str = None  # For subscription payments

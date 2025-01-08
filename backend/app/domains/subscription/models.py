@@ -18,7 +18,8 @@ class SubscriptionPlan(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    payments = relationship("Payment", back_populates="subscription")
+    payment_caches = relationship("PaymentCache", back_populates="subscription_plan", cascade="all, delete-orphan")
+    user_subscriptions = relationship("UserSubscription", back_populates="subscription_plan")
 
 class UserSubscription(Base):
     __tablename__ = "user_subscriptions"
@@ -29,8 +30,9 @@ class UserSubscription(Base):
     start_date = Column(Date, nullable=False)
     next_billing_date = Column(Date, nullable=False)
     status = Column(Enum('ACTIVE', 'CANCELLED', name='subscription_status_enum'), nullable=False, default='ACTIVE')
-    subscription_number = Column(String(20), unique=True, nullable=True)
+    subscription_number = Column(String(50), unique=True, nullable=True)
     subscriptions_method = Column(String(50), nullable=False)
 
+    subscription_plan = relationship("SubscriptionPlan", back_populates="user_subscriptions")
+    payments = relationship("Payment", back_populates="subscription")
     payment_caches = relationship("PaymentCache", back_populates="subscription", cascade="all, delete-orphan")
-    subscription_plan = relationship("SubscriptionPlan", backref="user_subscriptions")

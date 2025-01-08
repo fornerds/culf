@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
@@ -9,7 +9,7 @@ import uuid
 
 from app.domains.user.models import User
 from app.domains.user import schemas as user_schemas
-from app.domains.payment import schemas, services
+from app.domains.payment import schemas, services, portone_services
 from app.domains.payment.services import PaymentService
 from app.domains.inquiry import schemas as inquiry_schemas
 from app.db.session import get_db
@@ -232,7 +232,6 @@ async def payment_fail(
         redirect_url = f"{settings.PAYMENT_URL}?fail&reason=unknown_error"
         return RedirectResponse(url=redirect_url)
 
-
 @router.get("/pay/cancel")
 async def payment_cancel():
     redirect_url = f"{settings.PAYMENT_URL}"
@@ -405,3 +404,78 @@ def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
 @router.get("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
 def get_coupon(coupon_id: int, db: Session = Depends(get_db)):
     return services.get_coupon(db, coupon_id)
+
+# 포트원 결제 API
+@router.post("/portone/payment")
+async def one_time_payment(
+    payment_request: schemas.OneTimePaymentRequest,
+    db: Session = Depends(get_db),
+    current_user: user_schemas.User = Depends(get_current_active_user)
+):
+    """단건 결제 요청"""
+    result = portone_services.initiate_one_time_payment(payment_request, db, current_user)
+    return result
+
+@router.post("/portone/subscription")
+async def subscription_payment(
+    subscription_request: schemas.SubscriptionPaymentRequest,
+    db: Session = Depends(get_db),
+    current_user: user_schemas.User = Depends(get_current_active_user)
+):
+    """구독 결제 요청"""
+    result = portone_services.initiate_subscription_payment(subscription_request, db, current_user)
+    return result
+
+@router.post("/payment-complete")
+async def payment_complete(
+    payment_request: schemas.PaymentCompleteRequest,
+    db: Session = Depends(get_db),
+):
+    """결제 완료 검증 및 처리"""
+    result = portone_services.verify_and_save_payment(payment_request, db)
+    return result
+
+@router.post("/portone/cancel")
+def cancel_payment(
+    inquiry_id: int,
+    db: Session = Depends(get_db)
+):
+    """결제 환불 요청 및 처리"""
+    try:
+        result = portone_services.issue_refund(inquiry_id=inquiry_id, db=db)
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="예기치 않은 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+
+@router.post("/import/webhook")
+async def import_webhook(request: Request, db: Session = Depends(get_db)):
+    try:
+        # 요청 데이터 읽기
+        body = await request.json()
+        imp_uid = body.get("imp_uid")
+        merchant_uid = body.get("merchant_uid")
+        status = body.get("status")
+        customer_uid = body.get("customer_uid", None)  # 정기 결제의 경우 포함
+
+        if not imp_uid or not merchant_uid:
+            raise HTTPException(status_code=400, detail="유효하지 않은 웹훅 요청입니다.")
+
+        # 결제 정보 조회
+        payment_info = portone_services.get_portone_payment_info(imp_uid)
+        payment_type = portone_services.identify_payment_type(merchant_uid)  # 주문 ID를 기반으로 유형 식별
+
+        if payment_type == "subscription":
+            # 정기 결제 처리
+            portone_services.process_subscription_payment(payment_info, db)
+        elif payment_type == "single":
+            # 일회성 결제 처리
+            portone_services.process_single_payment(payment_info, db)
+        else:
+            raise HTTPException(status_code=400, detail="알 수 없는 결제 유형입니다.")
+
+        return {"status": "success", "message": "웹훅 처리 완료"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"웹훅 처리 중 오류: {str(e)}")
+
