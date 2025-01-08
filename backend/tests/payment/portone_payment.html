@@ -43,8 +43,13 @@
         <option value="2">100 토큰 - 10000원</option>
         <option value="3">200 토큰 - 20000원</option>
     </select>
+    <br>
+    <label for="couponCode">쿠폰 코드:</label>
+    <input type="text" id="couponCode">
     <br><br>
+    <button id="validateCouponButton">쿠폰 유효성 확인</button>
     <button id="singlePayButton">단건 결제하기</button>
+    <p id="couponStatus"></p>
     <p id="singlePaymentStatus"></p>
 
     <!-- 구독 결제 -->
@@ -52,23 +57,32 @@
     <label for="subscriptionPgSelect">결제 방식 (PG사):</label>
     <select id="subscriptionPgSelect">
         <option value="kakaopay_sub">카카오페이</option>
+        <option value="danal_tpay">다날 Tpay</option>
     </select>
     <br>
     <label for="subscriptionPlanSelect">구독 플랜 선택:</label>
     <select id="subscriptionPlanSelect">
         <option value="1">정기 구독 플랜 - 20000원 (할인가: 15000원)</option>
     </select>
+    <br>
+    <label for="couponCodeSubscription">쿠폰 코드:</label>
+    <input type="text" id="couponCodeSubscription">
     <br><br>
+    <button id="validateCouponSubscriptionButton">쿠폰 유효성 확인</button>
     <button id="subscriptionPayButton">구독 결제하기</button>
+    <p id="couponStatusSubscription"></p>
     <p id="subscriptionPaymentStatus"></p>
 
     <script>
         const BASE_API_URL = "http://localhost:8000/v1";
 
         let accessToken = null;
+        let isCouponValid = false;
+        let isCouponValidSubscription = false;
 
         IMP.init('imp26980221');
 
+        // 로그인
         document.getElementById("loginButton").onclick = async function () {
             const email = document.getElementById("email").value;
             const password = document.getElementById("password").value;
@@ -82,28 +96,80 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    accessToken = data.access_token; // Access Token 저장
+                    accessToken = data.access_token;
                     document.getElementById("loginStatus").innerText = "로그인 성공";
                 } else {
                     const errorData = await response.json();
                     document.getElementById("loginStatus").innerText = `로그인 실패: ${errorData.detail}`;
                 }
             } catch (error) {
-                console.error('로그인 요청 중 오류 발생:', error);
-                alert('로그인 요청 중 오류가 발생했습니다.');
+                console.error('로그인 오류:', error);
             }
         };
 
-        // 결제 방식에 따른 옵션 표시
+        // PG사 선택에 따른 옵션 표시
         document.getElementById("singlePgSelect").onchange = function () {
             const pg = document.getElementById("singlePgSelect").value;
             document.getElementById("tpayOptions").style.display = (pg === "danal_tpay") ? "block" : "none";
         };
 
-        // 결제 요청 및 결제창 호출 함수
-        async function initiatePayment(endpoint, planId, pg, additionalParams = {}) {
+        // 쿠폰 유효성 확인 함수
+        async function validateCoupon(couponCode, statusElement, setValidFlag) {
+            if (!accessToken) {
+                alert("먼저 로그인 해주세요.");
+                return;
+            }
+            if (couponCode.trim() === "") {
+                alert("쿠폰 코드를 입력해주세요.");
+                return;
+            }
+
             try {
-                const body = { plan_id: planId, pg, ...additionalParams };
+                const response = await fetch(`${BASE_API_URL}/payments/coupons/validate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ coupon_code: couponCode })
+                });
+
+                const data = await response.json();
+                if (data.is_valid) {
+                    setValidFlag(true);
+                    statusElement.innerText = "유효한 쿠폰입니다.";
+                } else {
+                    setValidFlag(false);
+                    statusElement.innerText = `유효하지 않은 쿠폰: ${data.message}`;
+                }
+            } catch (error) {
+                console.error('쿠폰 유효성 확인 오류:', error);
+            }
+        }
+
+        // 쿠폰 유효성 확인 버튼
+        document.getElementById("validateCouponButton").onclick = function () {
+            const couponCode = document.getElementById("couponCode").value.trim();
+            validateCoupon(couponCode, document.getElementById("couponStatus"), valid => isCouponValid = valid);
+        };
+
+        document.getElementById("validateCouponSubscriptionButton").onclick = function () {
+            const couponCodeSubscription = document.getElementById("couponCodeSubscription").value.trim();
+            validateCoupon(couponCodeSubscription, document.getElementById("couponStatusSubscription"), valid => isCouponValidSubscription = valid);
+        };
+
+        // 결제 요청
+        async function initiatePayment(endpoint, planId, pg, additionalParams = {}) {
+            if (!accessToken) {
+                alert("먼저 로그인 해주세요.");
+                return;
+            }
+
+            const body = { plan_id: planId, pg, ...additionalParams };
+
+            console.log("결제 요청 데이터:", body);
+
+            try {
                 const response = await fetch(`${BASE_API_URL}${endpoint}`, {
                     method: 'POST',
                     headers: {
@@ -114,66 +180,67 @@
                 });
 
                 const data = await response.json();
-                if (!response.ok) {
-                    alert(`결제 API 요청 실패: ${data.detail}`);
-                    return;
-                }
 
-                // 결제 창 호출
-                IMP.request_pay(data.payment_data, function (rsp) {
-                    console.log(rsp); // 테스트용 로그
-                    if (rsp.success) {
-                        completePayment(rsp.imp_uid, rsp.merchant_uid);
-                    } else if (rsp.error_code) {
-                        alert(`결제 실패: ${rsp.error_msg}`);
-                    } else {
-                        alert("결제가 취소되었습니다.");
-                    }
-                });
+                console.log("결제 응답 데이터:", data);
+
+                if (response.ok && data.payment_data) {
+                    // 결제창 호출
+                    IMP.request_pay(data.payment_data, async function (rsp) {
+                        console.log("결제 결과:", rsp);
+                        if (rsp.success) {
+                            try {
+                                const result = await fetch(`${BASE_API_URL}/payment-complete`, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        "Authorization": `Bearer ${accessToken}`
+                                    },
+                                    body: JSON.stringify({
+                                        imp_uid: rsp.imp_uid,
+                                        merchant_uid: rsp.merchant_uid
+                                    })
+                                });
+
+                                const resultData = await result.json();
+
+                                if (result.ok) {
+                                    alert("결제가 성공적으로 처리되었습니다.");
+                                    // 추가적으로 페이지 이동이나 UI 업데이트를 수행
+                                    window.location.href = "/payment-success";
+                                } else {
+                                    alert(`결제 처리 중 문제가 발생했습니다: ${resultData.detail}`);
+                                }
+                            } catch (error) {
+                                console.error("결제 처리 요청 중 오류 발생:", error);
+                                alert("결제 처리 요청 중 문제가 발생했습니다.");
+                            }
+                        } else {
+                            // 결제 실패 시 처리
+                            console.error("결제 실패:", rsp);
+                            alert(`결제가 실패했습니다: ${rsp.error_msg}`);
+                        }
+                    });
+                }
             } catch (error) {
-                console.error('결제 요청 중 오류 발생:', error);
-                alert('결제 요청 중 오류가 발생했습니다.');
+                console.error('결제 요청 오류:', error);
             }
         }
 
-        // 결제 완료 후 검증 요청
-        async function completePayment(imp_uid, merchant_uid) {
-            try {
-                const response = await fetch(`${BASE_API_URL}/payment-complete`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
-                    },
-                    body: JSON.stringify({ imp_uid, merchant_uid })
-                });
-
-                if (response.ok) {
-                    alert('결제가 성공적으로 완료되었습니다.');
-                    window.location.href = "/payment-success";
-                } else {
-                    const errorData = await response.json();
-                    alert(`결제 검증 실패: ${errorData.detail}`);
-                }
-            } catch (error) {
-                console.error('결제 검증 요청 중 오류 발생:', error);
-                alert('결제 검증 요청 중 오류가 발생했습니다.');
-            }
-        }
-
-        // 단건 결제 버튼 클릭 이벤트
+        // 단건 결제 버튼
         document.getElementById("singlePayButton").onclick = function () {
             const planId = document.getElementById("singlePlanSelect").value;
             const pg = document.getElementById("singlePgSelect").value;
+            const couponCode = document.getElementById("couponCode").value.trim();
             const additionalParams = pg === "danal_tpay" ? { pay_method: document.getElementById("tpayMethodSelect").value } : {};
-            initiatePayment('/one-time', planId, pg, additionalParams);
+            initiatePayment('/portone/payment', planId, pg, { coupon_code: couponCode, ...additionalParams });
         };
 
-        // 구독 결제 버튼 클릭 이벤트
+        // 구독 결제 버튼
         document.getElementById("subscriptionPayButton").onclick = function () {
             const planId = document.getElementById("subscriptionPlanSelect").value;
             const pg = document.getElementById("subscriptionPgSelect").value;
-            initiatePayment('/subscription', planId, pg);
+            const couponCodeSubscription = document.getElementById("couponCodeSubscription").value.trim();
+            initiatePayment('/portone/subscription', planId, pg, { coupon_code: couponCodeSubscription });
         };
     </script>
 </body>

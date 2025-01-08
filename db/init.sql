@@ -218,15 +218,20 @@ CREATE TABLE Payments (
 CREATE TABLE Payment_Cache (
     cache_id SERIAL PRIMARY KEY,
     user_id UUID REFERENCES Users(user_id) ON DELETE CASCADE,
-    cid VARCHAR(50) NOT NULL,
-    tid VARCHAR(50) NOT NULL UNIQUE,
-    partner_order_id VARCHAR(100) NOT NULL,
-    partner_user_id VARCHAR(100) NOT NULL,
+    cid VARCHAR(50),
+    tid VARCHAR(50) UNIQUE,
+    partner_order_id VARCHAR(100),
+    partner_user_id VARCHAR(100),
     subscription_id INTEGER REFERENCES User_Subscriptions(subscription_id),
     environment VARCHAR(20),
     data JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 hour')
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 hour') NOT NULL,
+    merchant_uid VARCHAR(50) UNIQUE NOT NULL,
+    payment_method VARCHAR(50) NOT NULL,
+    token_plan_id INTEGER REFERENCES Token_Plans(token_plan_id),
+    subscription_plan_id INTEGER REFERENCES Subscription_Plans(plan_id),
+    coupon_id INTEGER REFERENCES Coupons(coupon_id)
 );
 
 -- User Coupons 테이블

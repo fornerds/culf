@@ -87,6 +87,16 @@ class Settings(BaseSettings):
     KAKAO_PAY_CANCEL: str
     KAKAO_PAY_FAIL: str
 
+    PORTONE_API_URL: str
+    PORTONE_IMP_KEY: str
+    PORTONE_IMP_SECRET: str
+    PORTONE_KAKAOPAY_KEYS: str
+    PORTONE_KAKAOPAY_SUB_KEYS: str
+    PORTONE_KAKAOPAY_M_REDIRECT_URL: str
+    PORTONE_DANAL_TPAY_KEYS: str
+    PORTONE_DANAL_KEYS: str
+    PORTONE_DANAL_BIZ_NUM: str
+
     class Config:
         env_file = ".env"
 

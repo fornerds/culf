@@ -30,7 +30,7 @@ def update_token_plan(db: Session, token_plan_id: int, token_plan: schemas.Token
     db.refresh(db_token_plan)
     return db_token_plan
 
-def delete_token_plan(db: Session, token_plan_id: int):
+def delete_t2oken_plan(db: Session, token_plan_id: int):
     db_token_plan = db.query(models.TokenPlan).filter(models.TokenPlan.token_plan_id == token_plan_id).first()
     if not db_token_plan:
         raise HTTPException(status_code=404, detail="Token plan not found")

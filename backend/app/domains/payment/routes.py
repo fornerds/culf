@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile, Request
 from fastapi.responses import RedirectResponse
-from pydantic import ValidationError
-import requests
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from datetime import datetime
@@ -11,10 +9,9 @@ import uuid
 
 from app.domains.user.models import User
 from app.domains.user import schemas as user_schemas
-from app.domains.payment import schemas, services
+from app.domains.payment import schemas, services, portone_services
 from app.domains.payment.services import PaymentService
 from app.domains.inquiry import schemas as inquiry_schemas
-from app.domains.payment.portone_services import PortoneServices
 from app.db.session import get_db
 from app.core.deps import get_current_active_user
 from app.core.config import settings
@@ -235,7 +232,6 @@ async def payment_fail(
         redirect_url = f"{settings.PAYMENT_URL}?fail&reason=unknown_error"
         return RedirectResponse(url=redirect_url)
 
-
 @router.get("/pay/cancel")
 async def payment_cancel():
     redirect_url = f"{settings.PAYMENT_URL}"
@@ -409,37 +405,25 @@ def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
 def get_coupon(coupon_id: int, db: Session = Depends(get_db)):
     return services.get_coupon(db, coupon_id)
 
-portone_service = PortoneServices()
-
-PORTONE_API_URL = "https://api.iamport.kr"
-IMP_KEY = "9566775633856234"
-IMP_SECRET = "u1c8W8sUK9wrT58fqYL5f5wvJumJMCQhE3pAcSvW21oV6wbxuWCJ28fLDBvqemHSp7tB0Yx2ZVY6r9DW"
-DANAL_BIZ_NUM=1234567890
-CHANNEL_KEYS = {
-    "kakaopay": "channel-key-44ca60ca-2d36-434c-835b-80b8adcb7792",
-    "kakaopay_sub": "channel-key-6c1c4c76-8d36-431f-92f2-9630a9592e35",
-    "danal_tpay": "channel-key-5eea97cd-86a3-46ee-8355-206cb1e7c996",
-    "danal": "channel-key-1f4f188f-dcb6-42d4-b023-6e7cb9a8c656",
-}
-
-@router.post("/one-time")
+# 포트원 결제 API
+@router.post("/portone/payment")
 async def one_time_payment(
     payment_request: schemas.OneTimePaymentRequest,
     db: Session = Depends(get_db),
     current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     """단건 결제 요청"""
-    result = portone_service.initiate_one_time_payment(payment_request, db, current_user)
+    result = portone_services.initiate_one_time_payment(payment_request, db, current_user)
     return result
 
-@router.post("/subscription")
+@router.post("/portone/subscription")
 async def subscription_payment(
     subscription_request: schemas.SubscriptionPaymentRequest,
     db: Session = Depends(get_db),
     current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     """구독 결제 요청"""
-    result = portone_service.initiate_subscription_payment(subscription_request, db, current_user)
+    result = portone_services.initiate_subscription_payment(subscription_request, db, current_user)
     return result
 
 @router.post("/payment-complete")
@@ -448,5 +432,50 @@ async def payment_complete(
     db: Session = Depends(get_db),
 ):
     """결제 완료 검증 및 처리"""
-    result = portone_service.verify_and_save_payment(payment_request, db)
+    result = portone_services.verify_and_save_payment(payment_request, db)
     return result
+
+@router.post("/portone/cancel")
+def cancel_payment(
+    inquiry_id: int,
+    db: Session = Depends(get_db)
+):
+    """결제 환불 요청 및 처리"""
+    try:
+        result = portone_services.issue_refund(inquiry_id=inquiry_id, db=db)
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="예기치 않은 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+
+@router.post("/import/webhook")
+async def import_webhook(request: Request, db: Session = Depends(get_db)):
+    try:
+        # 요청 데이터 읽기
+        body = await request.json()
+        imp_uid = body.get("imp_uid")
+        merchant_uid = body.get("merchant_uid")
+        status = body.get("status")
+        customer_uid = body.get("customer_uid", None)  # 정기 결제의 경우 포함
+
+        if not imp_uid or not merchant_uid:
+            raise HTTPException(status_code=400, detail="유효하지 않은 웹훅 요청입니다.")
+
+        # 결제 정보 조회
+        payment_info = portone_services.get_portone_payment_info(imp_uid)
+        payment_type = portone_services.identify_payment_type(merchant_uid)  # 주문 ID를 기반으로 유형 식별
+
+        if payment_type == "subscription":
+            # 정기 결제 처리
+            portone_services.process_subscription_payment(payment_info, db)
+        elif payment_type == "single":
+            # 일회성 결제 처리
+            portone_services.process_single_payment(payment_info, db)
+        else:
+            raise HTTPException(status_code=400, detail="알 수 없는 결제 유형입니다.")
+
+        return {"status": "success", "message": "웹훅 처리 완료"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"웹훅 처리 중 오류: {str(e)}")
+
