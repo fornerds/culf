@@ -290,16 +290,17 @@ class PaymentDetailResponse(BaseModel):
 class OneTimePaymentRequest(BaseModel):
     plan_id: int  # Token plan ID
     pg: str  # 'kakaopay', 'danal', 'danal_tpay', etc.
-    pay_method: str = None  # 'card', 'trans', 'vbank', etc. (Optional for flexibility)
+    pay_method: Optional[str] = None  # 'card', 'trans', 'vbank', etc. (Optional for flexibility)
+    coupon_code: Optional[str] = None
 
 class SubscriptionPaymentRequest(BaseModel):
     plan_id: int
-    pg: str  # 'kakao_subscription', 'danal_subscription'
+    pg: str
+    coupon_code: Optional[str] = None
 
 class PaymentCompleteRequest(BaseModel):
     imp_uid: str
     merchant_uid: str
-    expected_amount: float
 
 class PortoneRequest:
     imp_uid: str
