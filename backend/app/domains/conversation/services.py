@@ -137,7 +137,7 @@ def get_user_conversations(
                 conversation_id=conv.conversation_id,
                 user_id=conv.user_id,
                 question=conv.question,
-                question_image=conv.question_image,
+                question_images=conv.question_images,
                 answer=conv.answer,
                 question_time=conv.question_time,
                 answer_time=conv.answer_time,
@@ -256,7 +256,7 @@ def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoo
         "answer": conv.answer,
         "question_time": conv.question_time,
         "answer_time": conv.answer_time,
-        "question_image": conv.question_image
+        "question_images": conv.question_images
     } for conv in chat_room.conversations]  # 이미 정렬된 상태
     
     # 속성 설정

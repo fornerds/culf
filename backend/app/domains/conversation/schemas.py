@@ -29,7 +29,7 @@ class ConversationInRoom(BaseModel):
     answer: str
     question_time: datetime
     answer_time: Optional[datetime]
-    question_image: Optional[str] = None
+    question_images: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -103,7 +103,7 @@ class ConversationDetail(BaseModel):
     conversation_id: UUID
     user_id: UUID
     question: str
-    question_image: Optional[str]
+    question_images: Optional[Dict[str, List[Dict[str, str]]]] = None
     answer: str
     question_time: datetime
     answer_time: datetime
