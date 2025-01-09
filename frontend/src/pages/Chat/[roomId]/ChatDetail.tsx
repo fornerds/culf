@@ -12,7 +12,7 @@ import {
 import CameraIcon from '@/assets/icons/camera.svg?react';
 import CloseIcon from '@/assets/icons/close.svg?react';
 import AlbumIcon from '@/assets/icons/album.svg?react';
-import { chat } from '@/api';
+import { chat, token, subscription } from '@/api';
 import { useChatRoomStore } from '@/state/client/chatRoomStore';
 
 type MessageType = {
@@ -114,6 +114,7 @@ export function ChatDetail() {
   const queryClient = useQueryClient();
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [messages, setMessages] = useState<MessageType[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [previewImages, setPreviewImages] = useState<PreviewImage[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -146,6 +147,25 @@ export function ChatDetail() {
     enabled: !!roomId && !roomData?.conversations?.length,
     staleTime: 1000,
   });
+
+  const { data: tokenInfo } = useQuery({
+    queryKey: ['tokenInfo'],
+    queryFn: async () => {
+      const response = await token.getMyTokenInfo();
+      return response.data;
+    },
+    staleTime: 1000 * 60, // 1 minute
+  });
+
+  const { data: subscriptionInfo } = useQuery({
+    queryKey: ['subscriptionInfo'],
+    queryFn: async () => {
+      const response = await subscription.getMySubscription();
+      return response.data;
+    },
+    staleTime: 1000 * 60, // 1 minute
+  });
+
 
   useEffect(() => {
     if (roomData) {
@@ -196,25 +216,48 @@ export function ChatDetail() {
     }
   }, [roomData, curatorData]);
 
+  const validateTokensAndSubscription = () => {
+    if (!tokenInfo) {
+      return false;
+    }
+
+    if (tokenInfo.total_tokens > 0) {
+      return true;
+    }
+
+    if (subscriptionInfo && subscriptionInfo.length > 0) {
+      const activeSubscription = subscriptionInfo[0];
+      if (activeSubscription.status === 'ACTIVE') {
+        return true;
+      }
+    }
+
+    setIsModalOpen(true);
+    return false;
+  };
+
   const handleSendMessage = async (message?: string) => {
     try {
       if (!currentRoom?.roomId) {
         throw new Error('채팅방 정보가 없습니다.');
       }
-  
+
+      if (!validateTokensAndSubscription()) {
+        return;
+      }
+
       const imageFiles = previewImages.map(preview => preview.file);
       
       if (imageFiles.some(file => file.size > MAX_FILE_SIZE)) {
         alert('10메가바이트 이상의 사진을 첨부할 수 없습니다.');
         return;
       }
-  
+
       const formData = new FormData();
       if (message) formData.append('question', message);
       formData.append('room_id', currentRoom.roomId);
       imageFiles.forEach(file => formData.append('image_files', file));
-  
-      // 상태 업데이트
+
       setShowSuggestions(false);
       messageCompleteRef.current = false;
       setMessages(prev => [
@@ -232,7 +275,7 @@ export function ChatDetail() {
       ]);
       setPreviewImages([]);
       setIsUploadMenuOpen(false);
-  
+
       const response = await chat.sendMessage(formData, (chunk) => {
         setMessages(prev => {
           const newMessages = [...prev];
@@ -249,10 +292,9 @@ export function ChatDetail() {
           return prev;
         });
       });
-  
+
       messageCompleteRef.current = true;
-  
-      // 전송 완료 후 streaming 상태 및 추천 질문 업데이트
+
       setMessages(prev => {
         const newMessages = [...prev];
         const lastMessage = newMessages[newMessages.length - 1];
@@ -268,14 +310,17 @@ export function ChatDetail() {
         }
         return prev;
       });
-  
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['chatRooms'] }),
-        queryClient.invalidateQueries({ queryKey: ['chatRoom', currentRoom.roomId] })
+        queryClient.invalidateQueries({ queryKey: ['chatRoom', currentRoom.roomId] }),
+        queryClient.invalidateQueries({ queryKey: ['tokenInfo'] }),
+        queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] })
       ]);
-  
+
     } catch (error) {
       console.error('Message send error:', error);
+      messageCompleteRef.current = true;
       setMessages(prev => [
         ...prev.slice(0, -1),
         {
@@ -564,6 +609,13 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
           </label>
         )}
       </div>
+      <SlideUpModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        navigationLink="/beta/pricing"
+        title="가지고 있는 토큰을 모두 사용했어요"
+        content="더 대화를 나누기 위해서는 토큰 추가 구입이 필요해요."
+      />
     </div>
   );
 }
