@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query, Body
 from sqlalchemy.orm import Session
 from app.domains.curator import schemas
 from app.domains.curator import services as curator_services
@@ -99,3 +99,13 @@ def delete_curator(
 async def read_tags(db: Session = Depends(get_db)):
     """사용 가능한 모든 태그 목록을 조회합니다."""
     return curator_services.get_all_tags(db)
+
+@router.put("/curators/{curator_id}/tags")
+async def update_curator_tags_endpoint(
+    curator_id: int,
+    tag_names: List[str] = Body(..., max_items=2),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """큐레이터 태그 업데이트"""
+    return curator_services.update_curator_tags(db, curator_id, tag_names)

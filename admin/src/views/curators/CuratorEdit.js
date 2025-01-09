@@ -38,7 +38,7 @@ const CuratorEdit = () => {
 
   const categoryOptions = [
     { value: '', label: '카테고리 선택' },
-    { value: '예술', label: '예술' },
+    { value: '미술', label: '미술' },
     { value: '문화', label: '문화' },
     { value: '여행', label: '여행' }
   ]
@@ -214,7 +214,7 @@ const CuratorEdit = () => {
                 />
               </div>
               <div className="mb-3">
-                <CFormLabel>소개</CFormLabel>
+                <CFormLabel>특성</CFormLabel>
                 <CFormTextarea
                   rows={3}
                   value={formData.introduction}

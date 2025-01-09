@@ -26,12 +26,13 @@ from bson import ObjectId
 from urllib.parse import urlparse
 from app.domains.conversation.models import Conversation
 from app.domains.conversation.models import ChatRoom
-from app.domains.curator.schemas import Curator
-from app.domains.curator.schemas import Tag
+from app.domains.curator.models import Curator, CuratorTagHistory
 
 from app.domains.user.models import User
 from app.core.deps import get_current_admin_user
 from sqlalchemy import desc
+
+from .schemas import AdminConversationListResponse
 
 router = APIRouter()
 
@@ -1036,9 +1037,19 @@ async def get_chat_rooms(
     current_user: User = Depends(get_current_admin_user)
 ):
     try:
-        # 먼저 태그를 로드하지 않고 기본 쿼리 실행
+        # 대화가 있는 채팅방만 조회하도록 서브쿼리 사용
+        rooms_with_conversations = (
+            db.query(ChatRoom.room_id)
+            .join(Conversation)
+            .group_by(ChatRoom.room_id)
+            .having(func.count(Conversation.conversation_id) > 0)
+            .subquery()
+        )
+
+        # Base query with eager loading
         base_query = (
             db.query(ChatRoom)
+            .join(rooms_with_conversations, ChatRoom.room_id == rooms_with_conversations.c.room_id)
             .options(
                 joinedload(ChatRoom.user),
                 joinedload(ChatRoom.curator),
@@ -1046,7 +1057,6 @@ async def get_chat_rooms(
             )
         )
 
-        # 검색 필터 적용
         if search_query:
             base_query = (
                 base_query
@@ -1070,35 +1080,31 @@ async def get_chat_rooms(
             .all()
         )
 
-        # 태그 정보를 별도로 조회
-        curator_ids = [room.curator_id for room in chat_rooms if room.curator_id]
-        curator_tags = {}
-        if curator_ids:
-            tags_query = (
-                db.query(Curator, Tag)
-                .join(curator_tags)
-                .join(Tag)
-                .filter(Curator.curator_id.in_(curator_ids))
-                .all()
-            )
-            for curator, tag in tags_query:
-                if curator.curator_id not in curator_tags:
-                    curator_tags[curator.curator_id] = []
-                curator_tags[curator.curator_id].append(tag.name)
-
         # Format response
         result = []
         for room in chat_rooms:
-            # Get last conversation
-            last_conversation = None
-            if room.conversations:
-                last_conversation = room.conversations[-1]
+            historic_tags = (
+                db.query(CuratorTagHistory)
+                .filter(
+                    CuratorTagHistory.curator_id == room.curator_id,
+                    func.timezone('Asia/Seoul', CuratorTagHistory.created_at) <= room.created_at  # timezone 적용
+                )
+                .order_by(desc(CuratorTagHistory.created_at))
+                .first()
+            )
+
+            print("historic_tags:", historic_tags)
+            print("tag_names:", historic_tags.tag_names if historic_tags else None)
+            print("type:", type(historic_tags.tag_names) if historic_tags else None)
+            last_conversation = room.conversations[-1] if room.conversations else None
 
             result.append({
                 "room_id": room.room_id,
                 "user_name": room.user.nickname if room.user else None,
                 "curator_name": room.curator.name if room.curator else None,
-                "curator_tags": curator_tags.get(room.curator_id, []) if room.curator_id else [],
+                "curator_tags": historic_tags.tag_names if historic_tags and isinstance(historic_tags.tag_names,
+                                                                                        list) else
+                json.loads(historic_tags.tag_names) if historic_tags else [],  # JSONB 처리 추가
                 "last_message": last_conversation.question if last_conversation else None,
                 "last_message_time": (
                     last_conversation.answer_time or last_conversation.question_time
@@ -1117,7 +1123,7 @@ async def get_chat_rooms(
         }
 
     except Exception as e:
-        logging.error(f"Error fetching chat rooms: {str(e)}", exc_info=True)  # 스택 트레이스 추가
+        logging.error(f"Error fetching chat rooms: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail="채팅방 목록 조회 중 오류가 발생했습니다.")
 
@@ -1136,7 +1142,7 @@ async def get_chat_room_detail(
             db.query(ChatRoom)
             .options(
                 joinedload(ChatRoom.user),
-                joinedload(ChatRoom.curator),
+                joinedload(ChatRoom.curator).joinedload(Curator.tags),
                 joinedload(ChatRoom.conversations)
             )
             .filter(ChatRoom.room_id == room_id)
@@ -1148,6 +1154,7 @@ async def get_chat_room_detail(
 
         # Format messages
         messages = []
+        last_message_time = None
         for conv in sorted(room.conversations, key=lambda x: x.question_time):
             if conv.question:
                 messages.append({
@@ -1155,18 +1162,23 @@ async def get_chat_room_detail(
                     "created_at": conv.question_time,
                     "is_curator": False
                 })
+                last_message_time = conv.question_time
+
             if conv.answer:
                 messages.append({
                     "content": conv.answer,
                     "created_at": conv.answer_time,
                     "is_curator": True
                 })
+                if conv.answer_time and (not last_message_time or conv.answer_time > last_message_time):
+                    last_message_time = conv.answer_time
 
         return {
             "room_id": room.room_id,
             "user_name": room.user.nickname if room.user else None,
             "curator_name": room.curator.name if room.curator else None,
             "created_at": room.created_at,
+            "last_message_time": last_message_time,
             "is_active": room.is_active,
             "messages": messages
         }
@@ -1177,3 +1189,93 @@ async def get_chat_room_detail(
         logging.error(f"Error fetching chat room detail: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="채팅방 상세 정보 조회 중 오류가 발생했습니다.")
+
+
+@router.get(
+    "/admin/conversations",
+    response_model=AdminConversationListResponse,
+    summary="관리자용 대화 목록 조회",
+    responses={
+        200: {"description": "대화 목록 조회 성공"},
+        422: {"description": "입력값 검증 실패"}
+    }
+)
+async def get_admin_conversations(
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=1000000),
+        search_query: Optional[str] = None,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 대화 목록을 조회합니다."""
+    try:
+        query = (
+            db.query(Conversation)
+            .options(
+                joinedload(Conversation.user),
+                joinedload(Conversation.chat_room)
+                .joinedload(ChatRoom.curator)
+            )
+            .order_by(desc(Conversation.question_time))
+        )
+
+        # 검색어가 있는 경우 필터 적용
+        if search_query:
+            query = query.join(User).filter(User.nickname.ilike(f"%{search_query}%"))
+
+        # 전체 개수 조회
+        total_count = query.count()
+
+        # 페이지네이션 적용
+        conversations = query.offset((page - 1) * limit).limit(limit).all()
+
+        # 응답 데이터 구성
+        result = []
+        for conv in conversations:
+            chat_room = conv.chat_room
+            curator = chat_room.curator if chat_room else None
+
+            # 대화 시점의 큐레이터 태그 조회
+            historic_tags = None
+            if curator:
+                historic_tags = (
+                    db.query(CuratorTagHistory)
+                    .filter(
+                        CuratorTagHistory.curator_id == curator.curator_id,
+                        CuratorTagHistory.created_at <= conv.question_time
+                    )
+                    .order_by(desc(CuratorTagHistory.created_at))
+                    .first()
+                )
+
+            result.append({
+                "conversation_id": conv.conversation_id,
+                "user_nickname": conv.user.nickname if conv.user else None,
+                "question": conv.question,
+                "answer": conv.answer,
+                "question_time": conv.question_time,
+                "answer_time": conv.answer_time,
+                "tokens_used": conv.tokens_used,
+                "curator": {
+                    "name": curator.name if curator else None,
+                    "category": curator.category if curator else None
+                } if curator else None,
+                "curator_tags": (
+                    json.loads(historic_tags.tag_names)
+                    if historic_tags and isinstance(historic_tags.tag_names, str)
+                    else historic_tags.tag_names if historic_tags
+                    else []
+                )
+            })
+
+        return {
+            "conversations": result,
+            "total_count": total_count
+        }
+
+    except Exception as e:
+        logging.error(f"Error in get_admin_conversations: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="대화 목록 조회 중 오류가 발생했습니다."
+        )

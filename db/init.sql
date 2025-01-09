@@ -63,6 +63,14 @@ CREATE TABLE Tags (
     name VARCHAR(50) UNIQUE NOT NULL
 );
 
+-- CuratorTagHistory 테이블
+CREATE TABLE curator_tags_history (
+    history_id SERIAL PRIMARY KEY,
+    curator_id INTEGER NOT NULL REFERENCES curators(curator_id) ON DELETE CASCADE,
+    tag_names JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Curator_Tags 중간 테이블
 CREATE TABLE Curator_Tags (
     curator_id INTEGER REFERENCES Curators(curator_id) ON DELETE CASCADE,
@@ -139,7 +147,7 @@ CREATE TABLE tokens (
 );
 
 -- Token Usage History 테이블
-CREATE TABLE Token_Usage_History (
+CREATE TABLE token_usage_history (
     history_id SERIAL PRIMARY KEY,
     user_id UUID REFERENCES Users(user_id),
     conversation_id UUID REFERENCES Conversations(conversation_id),
@@ -421,7 +429,7 @@ INSERT INTO Tags (name) VALUES
 
 -- 새로운 큐레이터 데이터 추가
 INSERT INTO Curators (name, persona, main_image, profile_image, introduction, category) VALUES
-('외계인 네오', '지구 예술에 푹 빠진 외계인 네오', 'alien_curator_main.jpg', 'alien_curator.jpg', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
+('네오', '지구 예술에 푹 빠진 외계인 네오', 'alien_curator_main.jpg', 'alien_curator.jpg', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
 ('레미', '19세기 출신 파리지앵 레미', 'remy_curator_main.jpg', 'remy_curator.jpg', '인상주의 작품들과 유럽 미술을 소개해드립니다.', '미술'),
 ('두리', '감성 충만한 미술 애호가 두리', 'duri_curator_main.jpg', 'duri_curator.jpg', '한국의 현대미술과 동시대 작가들을 만나보세요.', '미술');
 
@@ -430,7 +438,7 @@ INSERT INTO Curators (name, persona, main_image, profile_image, introduction, ca
 INSERT INTO Curator_Tags (curator_id, tag_id)
 SELECT c.curator_id, t.tag_id
 FROM Curators c, Tags t
-WHERE c.name = '외계인 네오' AND t.name IN ('초보', '미술입문');
+WHERE c.name = '네오' AND t.name IN ('초보', '미술입문');
 
 -- 레미의 태그
 INSERT INTO Curator_Tags (curator_id, tag_id)

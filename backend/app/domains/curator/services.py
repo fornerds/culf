@@ -7,6 +7,8 @@ from app.core.config import settings
 from fastapi import HTTPException
 import uuid
 import logging
+from .models import Curator, CuratorTagHistory
+from sqlalchemy.sql import func
 
 def get_or_create_tag(db: Session, tag_name: str) -> models.Tag:
     """태그를 조회하거나 없으면 생성"""
@@ -112,6 +114,14 @@ def update_curator(db: Session, curator_id: int, curator: schemas.CuratorUpdate,
             tag = get_or_create_tag(db, tag_name)
             db_curator.tags.append(tag)
 
+        # 태그 히스토리 저장
+        tag_history = CuratorTagHistory(
+            curator_id=curator_id,
+            tag_names=curator.tag_names,
+            created_at=func.now()  # 현재 시간으로 저장
+        )
+        db.add(tag_history)
+
     try:
         db.add(db_curator)
         db.commit()
@@ -135,3 +145,24 @@ def delete_curator(db: Session, curator_id: int):
         db.commit()
         return True
     return False
+
+def update_curator_tags(db: Session, curator_id: int, tag_names: List[str]) -> Curator:
+    curator = db.query(Curator).filter(Curator.curator_id == curator_id).first()
+    if not curator:
+        raise HTTPException(status_code=404, detail="Curator not found")
+
+    # 태그 갱신
+    curator.tags = []
+    for tag_name in tag_names:
+        tag = get_or_create_tag(db, tag_name)
+        curator.tags.append(tag)
+
+    # 태그 히스토리 저장
+    history = CuratorTagHistory(
+        curator_id=curator_id,
+        tag_names=tag_names
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(curator)
+    return curator

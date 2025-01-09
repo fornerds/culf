@@ -88,12 +88,9 @@ const ChatRoomDetail = () => {
             <div>{new Date(chatRoom.created_at).toLocaleString()}</div>
           </div>
           <div className="col-md-3">
-            <div className="fw-bold">상태</div>
-            <div>
-              <span className={`badge bg-${chatRoom.is_active ? 'success' : 'secondary'}`}>
-                {chatRoom.is_active ? '진행중' : '종료'}
-              </span>
-            </div>
+            <div className="fw-bold">마지막 채팅 시간</div>
+            <div>{chatRoom.last_message_time ? 
+                new Date(chatRoom.last_message_time).toLocaleString() : '-'}</div>
           </div>
         </div>
       </div>

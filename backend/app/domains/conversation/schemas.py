@@ -141,3 +141,10 @@ class ChatRoomListItem(BaseModel):
 
     class Config:
         from_attributes = True
+
+class AdminConversationListResponse(BaseModel):
+    conversations: List[dict]
+    total_count: int
+
+    class Config:
+        from_attributes = True

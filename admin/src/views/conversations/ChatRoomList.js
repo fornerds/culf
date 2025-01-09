@@ -14,7 +14,12 @@ import {
   CTableRow,
   CSpinner,
   CBadge,
+  CButton,
 } from '@coreui/react';
+import { cilCloudDownload } from '@coreui/icons'
+import CIcon from '@coreui/icons-react'
+import * as XLSX from 'xlsx'
+import { saveAs } from 'file-saver';
 import httpClient from '../../api/httpClient';
 
 const ChatRoomList = () => {
@@ -38,35 +43,76 @@ const ChatRoomList = () => {
     }
   };
 
-  const formatLastChatTime = (time) => {
-    const date = new Date(time);
-    const now = new Date();
-    const diffInHours = (now - date) / (1000 * 60 * 60);
-
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffInHours < 48) {
-      return '어제';
-    } else {
-      return date.toLocaleDateString();
+  const handleExportExcel = async () => {
+    try {
+      setLoading(true);
+      // 관리자용 엔드포인트로 변경
+      const { data } = await httpClient.get('/admin/conversations', {
+        params: {
+          limit: 999999,
+          page: 1,
+          search_query: ''
+        }
+      });
+  
+      // 엑셀로 변환할 데이터 준비 (큐레이터 정보와 태그 포함)
+      const exportData = data.conversations.map(conv => ({
+        '사용자': conv.user_nickname,
+        '큐레이터': conv.curator?.name || '',
+        '큐레이터 태그': conv.curator_tags?.join(', ') || '',
+        '질문': conv.question,
+        '답변': conv.answer,
+        '질문 시간': new Date(conv.question_time).toLocaleString(),
+        '토큰 사용량': conv.tokens_used
+      }));
+  
+      // 워크북 생성
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+  
+      // 열 너비 자동 조정
+      const maxWidth = 50;
+      const wscols = [
+        { wch: 15 }, // 사용자
+        { wch: 15 }, // 큐레이터
+        { wch: 20 }, // 큐레이터 태그
+        { wch: 30 }, // 질문
+        { wch: maxWidth }, // 답변
+        { wch: 20 }, // 질문 시간
+        { wch: 12 }  // 토큰 사용량
+      ];
+      ws['!cols'] = wscols;
+  
+      // 워크시트를 워크북에 추가
+      XLSX.utils.book_append_sheet(wb, ws, '대화내역');
+  
+      // 파일 저장
+      const fileName = `대화내역_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      saveAs(new Blob([wbout], { type: 'application/octet-stream' }), fileName);
+  
+    } catch (error) {
+      console.error('Error exporting conversations:', error);
+    } finally {
+      setLoading(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="text-center">
-        <CSpinner color="primary" />
-      </div>
-    );
-  }
 
   return (
     <CRow>
       <CCol xs={12}>
         <CCard className="mb-4">
-          <CCardHeader>
-            <strong>채팅방 목록</strong>
-          </CCardHeader>
+          <CCardHeader className="d-flex justify-content-between align-items-center">
+              <strong>채팅방 목록</strong>
+              <CButton 
+                color="primary"
+                size="sm"
+                onClick={handleExportExcel}
+              >
+                <CIcon icon={cilCloudDownload} className="me-2" />
+                대화내용 내보내기
+              </CButton>
+            </CCardHeader>
           <CCardBody>
             <CTable hover align="middle">
               <CTableHead>
@@ -84,7 +130,7 @@ const ChatRoomList = () => {
                 {chatRooms.map((room) => (
                   <CTableRow 
                     key={room.room_id} 
-                    onClick={() => navigate(`/admin/chat-rooms/${room.room_id}`)}
+                    onClick={() => navigate(`/conversations/${room.room_id}`)}
                     style={{ cursor: 'pointer' }}
                   >
                     <CTableDataCell>{room.user_name}</CTableDataCell>
@@ -112,7 +158,7 @@ const ChatRoomList = () => {
                         : room.last_message}
                     </CTableDataCell>
                     <CTableDataCell>
-                      {formatLastChatTime(room.last_message_time)}
+                      {new Date(room.last_message_time).toLocaleString()}
                     </CTableDataCell>
                     <CTableDataCell>
                       {room.message_count}
