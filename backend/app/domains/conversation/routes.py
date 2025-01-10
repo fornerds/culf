@@ -26,9 +26,13 @@ from bson import ObjectId
 from urllib.parse import urlparse
 from app.domains.conversation.models import Conversation
 from app.domains.conversation.models import ChatRoom
-from app.domains.curator.schemas import Curator
+from app.domains.curator.models import Curator, CuratorTagHistory
+
 from app.domains.user.models import User
-from .services import get_chat_room
+from app.core.deps import get_current_admin_user
+from sqlalchemy import desc
+
+from .schemas import AdminConversationListResponse
 
 router = APIRouter()
 
@@ -428,14 +432,18 @@ async def create_chat(
 
                 {PROMPT}
 
-                모든 답변 뒤에는 반드시 아래 형식으로 연관된 추천 질문을 정확히 3개 제시해야 합니다:
-
+                모든 답변은 반드시 다음 형식으로 작성해주세요:
+                
+                [답변]
+                답변 내용을 여기에 작성하세요.
+                
+                [대화 요약]
+                현재까지의 대화를 20자 이내로 요약하세요. 이 요약은 채팅방의 제목으로 사용됩니다.
+                
                 [추천 질문]
                 1. 첫번째 추천 질문
                 2. 두번째 추천 질문
-                3. 세번째 추천 질문
-
-                추천 질문은 반드시 3개를 생성해야 하며, 각 질문은 이전 답변과 관련된 내용이어야 합니다."""
+                3. 세번째 추천 질문"""
 
             # GPT 사용
             logger.info("GPT API 사용")
@@ -481,50 +489,92 @@ async def create_chat(
                 messages=messages
             )
 
-            raw_answer = response.choices[0].message.content
-            if not raw_answer:
+            answer = response.choices[0].message.content
+            logging.info(f"Raw GPT response:\n{answer}")
+
+            if not answer:
                 raise HTTPException(status_code=500, detail="응답 생성에 실패했습니다")
             tokens_used = response.usage.total_tokens
 
-        # 답변에서 추천 질문 추출
         try:
-            # 추천 질문이 3개 미만인 경우 기본 질문으로 보충
-            if "[추천 질문]" in raw_answer:
-                main_answer, questions_section = raw_answer.split("[추천 질문]")
-                cleaned_answer = main_answer.strip()
-
-                import re
-                questions = re.findall(r'\d\.\s*(.+?)(?=\d\.|$)', questions_section)
-                recommended_questions = [q.strip() for q in questions if q.strip()]
-
-                # 질문이 3개 미만인 경우 기본 질문으로 보충
-                while len(recommended_questions) < 3:
-                    if len(recommended_questions) == 0:
-                        recommended_questions.append("이 주제에 대해 더 자세히 알고 싶어요.")
-                    elif len(recommended_questions) == 1:
-                        recommended_questions.append("다른 관점에서는 어떻게 볼 수 있을까요?")
-                    elif len(recommended_questions) == 2:
-                        recommended_questions.append("실제 사례나 예시를 들어주실 수 있나요?")
-            else:
-                cleaned_answer = raw_answer.strip()
-                recommended_questions = [
-                    "이 주제에 대해 더 자세히 알고 싶어요.",
-                    "다른 관점에서는 어떻게 볼 수 있을까요?",
-                    "실제 사례나 예시를 들어주실 수 있나요?"
-                ]
-
-        except Exception as e:
-            logging.error(f"추천 질문 추출 오류: {str(e)}")
-            cleaned_answer = raw_answer.strip()
+            sections = answer.split('[')
+            answer_section = ""
+            summary = ""
             recommended_questions = []
 
-        # 대화 저장
+            if '[답변]' in answer:
+                # [답변] 태그가 있는 경우
+                answer_section = answer.split('[답변]')[1]  # [답변] 이후 텍스트 추출
+            else:
+                # [답변] 태그가 없는 경우
+                answer_section = answer
+
+            # [대화 요약] 이전 부분만 답변으로 사용
+            if '[대화 요약]' in answer_section:
+                answer_section = answer_section.split('[대화 요약]')[0]
+
+            # 결과 문자열 정리 (앞뒤 공백 제거)
+            answer_section = answer_section.strip()
+            logging.info(f"Parsed answer section:\n{answer_section}")
+
+            # 답변이 비어있는지 확인
+            if not answer_section:
+                # [대화 요약] 이전까지의 모든 텍스트를 답변으로 처리
+                answer_section = answer.split('[대화 요약]')[0].strip()
+                logging.info(f"Using full text as answer:\n{answer_section}")
+
+            # 대화 요약 섹션 처리
+            if '[대화 요약]' in answer:
+                summary_part = answer.split('[대화 요약]')[1]
+                summary = summary_part.split('[')[0].strip()
+                if '[추천 질문]' in summary:
+                    summary = summary.split('[추천 질문]')[0].strip()
+                logging.info(f"Parsed summary: {summary}")
+
+            # 추천 질문 섹션 처리
+            if '[추천 질문]' in answer:
+                questions_part = answer.split('[추천 질문]')[1]
+                questions = [q.strip() for q in questions_part.split('\n') if q.strip()]
+                recommended_questions = [q.split('. ')[1] for q in questions if len(q.split('. ')) > 1]
+                logging.info(f"Parsed recommended questions: {recommended_questions}")
+
+            # 추천 질문이 3개 미만인 경우 기본 질문으로 보충
+            while len(recommended_questions) < 3:
+                if len(recommended_questions) == 0:
+                    recommended_questions.append("이 주제에 대해 더 자세히 알고 싶어요.")
+                elif len(recommended_questions) == 1:
+                    recommended_questions.append("다른 관점에서는 어떻게 볼 수 있을까요?")
+                elif len(recommended_questions) == 2:
+                    recommended_questions.append("실제 사례나 예시를 들어주실 수 있나요?")
+
+            logging.info(f"Final recommended questions (after filling defaults): {recommended_questions}")
+
+        except Exception as e:
+            logging.error(f"Error parsing GPT response: {str(e)}\nRaw response: {answer}")
+            # 파싱 실패 시 기본값 설정
+            answer_section = answer
+            recommended_questions = [
+                "이 주제에 대해 더 자세히 알고 싶어요.",
+                "다른 관점에서는 어떻게 볼 수 있을까요?",
+                "실제 사례나 예시를 들어주실 수 있나요?"
+            ]
+            logging.info("Using default questions due to parsing error")
+
+        # 대화 저장과 채팅방 제목 업데이트
         chat = schemas.ConversationCreate(
             question=question,
             question_images={"image_files": image_urls} if image_urls else None,
             room_id=room_id
         )
-        conversation = services.create_conversation(db, chat, current_user.user_id, cleaned_answer, tokens_used)
+        # answer_section을 저장 (전체 응답이 아닌 파싱된 답변만)
+        conversation = services.create_conversation(db, chat, current_user.user_id, answer_section, tokens_used)
+
+        # 채팅방 제목 업데이트 (summary 사용)
+        if chat_room and summary:
+            old_title = chat_room.title
+            chat_room.title = summary
+            db.commit()
+            logging.info(f"Updated chat room title from '{old_title}' to '{chat_room.title}'")
 
         # MongoDB 저장
         chat_data = {
@@ -560,7 +610,7 @@ async def create_chat(
 
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,
-            answer=conversation.answer,
+            answer=answer_section,
             tokens_used=conversation.tokens_used,
             recommended_questions=recommended_questions
         )
@@ -704,7 +754,7 @@ async def get_conversations(
                         "conversation_id": "123e4567-e89b-12d3-a456-426614174000",
                         "user_id": "123e4567-e89b-12d3-a456-426614174000",
                         "question": "예술에 대해 설명해주세요",
-                        "question_image": "https://example.com/image.jpg",
+                        "question_images": "https://example.com/image.jpg",
                         "answer": "예술은 인간의 미적감각과 ...",
                         "question_time": "2024-01-01T12:00:00",
                         "answer_time": "2024-01-01T12:00:05",
@@ -976,3 +1026,256 @@ async def get_chat_room_curator(
         "room_id": chat_room.room_id,
         "curator": chat_room.curator
     }
+
+
+@router.get("/admin/chat-rooms")
+async def get_chat_rooms(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search_query: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    try:
+        # 대화가 있는 채팅방만 조회하도록 서브쿼리 사용
+        rooms_with_conversations = (
+            db.query(ChatRoom.room_id)
+            .join(Conversation)
+            .group_by(ChatRoom.room_id)
+            .having(func.count(Conversation.conversation_id) > 0)
+            .subquery()
+        )
+
+        # Base query with eager loading
+        base_query = (
+            db.query(ChatRoom)
+            .join(rooms_with_conversations, ChatRoom.room_id == rooms_with_conversations.c.room_id)
+            .options(
+                joinedload(ChatRoom.user),
+                joinedload(ChatRoom.curator),
+                joinedload(ChatRoom.conversations)
+            )
+        )
+
+        if search_query:
+            base_query = (
+                base_query
+                .join(ChatRoom.user)
+                .join(ChatRoom.curator)
+                .filter(
+                    (User.nickname.ilike(f"%{search_query}%")) |
+                    (Curator.name.ilike(f"%{search_query}%"))
+                )
+            )
+
+        # Get total count
+        total_count = base_query.count()
+
+        # Get paginated results
+        chat_rooms = (
+            base_query
+            .order_by(desc(ChatRoom.created_at))
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+
+        # Format response
+        result = []
+        for room in chat_rooms:
+            historic_tags = (
+                db.query(CuratorTagHistory)
+                .filter(
+                    CuratorTagHistory.curator_id == room.curator_id,
+                    func.timezone('Asia/Seoul', CuratorTagHistory.created_at) <= room.created_at  # timezone 적용
+                )
+                .order_by(desc(CuratorTagHistory.created_at))
+                .first()
+            )
+
+            print("historic_tags:", historic_tags)
+            print("tag_names:", historic_tags.tag_names if historic_tags else None)
+            print("type:", type(historic_tags.tag_names) if historic_tags else None)
+            last_conversation = room.conversations[-1] if room.conversations else None
+
+            result.append({
+                "room_id": room.room_id,
+                "user_name": room.user.nickname if room.user else None,
+                "curator_name": room.curator.name if room.curator else None,
+                "curator_tags": historic_tags.tag_names if historic_tags and isinstance(historic_tags.tag_names,
+                                                                                        list) else
+                json.loads(historic_tags.tag_names) if historic_tags else [],  # JSONB 처리 추가
+                "last_message": last_conversation.question if last_conversation else None,
+                "last_message_time": (
+                    last_conversation.answer_time or last_conversation.question_time
+                    if last_conversation else None
+                ),
+                "created_at": room.created_at,
+                "message_count": len(room.conversations),
+                "is_active": room.is_active
+            })
+
+        return {
+            "chat_rooms": result,
+            "total_count": total_count,
+            "page": page,
+            "limit": limit
+        }
+
+    except Exception as e:
+        logging.error(f"Error fetching chat rooms: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="채팅방 목록 조회 중 오류가 발생했습니다.")
+
+@router.get("/admin/chat-rooms/{room_id}")
+async def get_chat_room_detail(
+    room_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    특정 채팅방의 상세 정보와 대화 내역 조회
+    """
+    try:
+        # Get chat room with eager loading
+        room = (
+            db.query(ChatRoom)
+            .options(
+                joinedload(ChatRoom.user),
+                joinedload(ChatRoom.curator).joinedload(Curator.tags),
+                joinedload(ChatRoom.conversations)
+            )
+            .filter(ChatRoom.room_id == room_id)
+            .first()
+        )
+
+        if not room:
+            raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다.")
+
+        # Format messages
+        messages = []
+        last_message_time = None
+        for conv in sorted(room.conversations, key=lambda x: x.question_time):
+            if conv.question:
+                messages.append({
+                    "content": conv.question,
+                    "created_at": conv.question_time,
+                    "is_curator": False
+                })
+                last_message_time = conv.question_time
+
+            if conv.answer:
+                messages.append({
+                    "content": conv.answer,
+                    "created_at": conv.answer_time,
+                    "is_curator": True
+                })
+                if conv.answer_time and (not last_message_time or conv.answer_time > last_message_time):
+                    last_message_time = conv.answer_time
+
+        return {
+            "room_id": room.room_id,
+            "user_name": room.user.nickname if room.user else None,
+            "curator_name": room.curator.name if room.curator else None,
+            "created_at": room.created_at,
+            "last_message_time": last_message_time,
+            "is_active": room.is_active,
+            "messages": messages
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error fetching chat room detail: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="채팅방 상세 정보 조회 중 오류가 발생했습니다.")
+
+
+@router.get(
+    "/admin/conversations",
+    response_model=AdminConversationListResponse,
+    summary="관리자용 대화 목록 조회",
+    responses={
+        200: {"description": "대화 목록 조회 성공"},
+        422: {"description": "입력값 검증 실패"}
+    }
+)
+async def get_admin_conversations(
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=1000000),
+        search_query: Optional[str] = None,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 대화 목록을 조회합니다."""
+    try:
+        query = (
+            db.query(Conversation)
+            .options(
+                joinedload(Conversation.user),
+                joinedload(Conversation.chat_room)
+                .joinedload(ChatRoom.curator)
+            )
+            .order_by(desc(Conversation.question_time))
+        )
+
+        # 검색어가 있는 경우 필터 적용
+        if search_query:
+            query = query.join(User).filter(User.nickname.ilike(f"%{search_query}%"))
+
+        # 전체 개수 조회
+        total_count = query.count()
+
+        # 페이지네이션 적용
+        conversations = query.offset((page - 1) * limit).limit(limit).all()
+
+        # 응답 데이터 구성
+        result = []
+        for conv in conversations:
+            chat_room = conv.chat_room
+            curator = chat_room.curator if chat_room else None
+
+            # 대화 시점의 큐레이터 태그 조회
+            historic_tags = None
+            if curator:
+                historic_tags = (
+                    db.query(CuratorTagHistory)
+                    .filter(
+                        CuratorTagHistory.curator_id == curator.curator_id,
+                        CuratorTagHistory.created_at <= conv.question_time
+                    )
+                    .order_by(desc(CuratorTagHistory.created_at))
+                    .first()
+                )
+
+            result.append({
+                "conversation_id": conv.conversation_id,
+                "user_nickname": conv.user.nickname if conv.user else None,
+                "question": conv.question,
+                "answer": conv.answer,
+                "question_time": conv.question_time,
+                "answer_time": conv.answer_time,
+                "tokens_used": conv.tokens_used,
+                "curator": {
+                    "name": curator.name if curator else None,
+                    "category": curator.category if curator else None
+                } if curator else None,
+                "curator_tags": (
+                    json.loads(historic_tags.tag_names)
+                    if historic_tags and isinstance(historic_tags.tag_names, str)
+                    else historic_tags.tag_names if historic_tags
+                    else []
+                )
+            })
+
+        return {
+            "conversations": result,
+            "total_count": total_count
+        }
+
+    except Exception as e:
+        logging.error(f"Error in get_admin_conversations: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="대화 목록 조회 중 오류가 발생했습니다."
+        )

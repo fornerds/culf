@@ -156,7 +156,9 @@ def initiate_subscription_payment(subscription_request, db: Session, current_use
             }
         })
         payment_method = f"subscription_danal_tpay"
+        
     elif subscription_request.pg == "kakaopay":
+
         payment_data.update({
             "pay_method": "card"
         })
