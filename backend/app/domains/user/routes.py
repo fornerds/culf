@@ -65,26 +65,29 @@ def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db
         })
 
     tokens = token_services.get_user_tokens(db, current_user.user_id)
+    response = {
+        'user_id': user.user_id,
+        'email': user.email,
+        'nickname': user.nickname,
+        'phone_number': user.phone_number,
+        'total_tokens': tokens.total_tokens,
+        'created_at': user.created_at,
+        'updated_at': user.updated_at,
+        'subscription':None
+    }
     user_subscription = user_services.get_user_subscription(db, current_user.user_id)
-    subscription = {
-        "subscription_id":user_subscription.subscription_id,
-        "plan_id":user_subscription.plan_id,
-        "plan_name":user_subscription.subscription_plan.plan_name,
-        "price":user_subscription.subscription_plan.price,
-        "next_billing_date":user_subscription.next_billing_date,
-        "status":user_subscription.status,
-        "subscriptions_method":user_subscription.subscriptions_method
-    }
-    return {
-        "user_id": user.user_id,
-        "email": user.email,
-        "nickname": user.nickname,
-        "phone_number": user.phone_number,
-        "total_tokens": tokens.total_tokens,
-        "created_at": user.created_at,
-        "updated_at": user.updated_at,
-        "subscription": subscription
-    }
+    if user_subscription:
+        subscription = {
+            'subscription_id':user_subscription.subscription_id,
+            'plan_id':user_subscription.plan_id,
+            'plan_name':user_subscription.subscription_plan.plan_name,
+            'price':user_subscription.subscription_plan.price,
+            'next_billing_date':user_subscription.next_billing_date,
+            'status':user_subscription.status,
+            'subscriptions_method':user_subscription.subscriptions_method
+        }
+        response['subscription']=subscription
+    return response
 
 @router.post("/users/me", response_model=user_schemas.UserInfo)
 def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
