@@ -386,6 +386,12 @@ CREATE TABLE Banners (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 배너 데이터 추가가
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (1, 'https://d21y711itn1wuo.cloudfront.net/banners/41289fdb-9476-4e65-97b5-83050a9e5330.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:55:54.058594', '2025-01-10 14:55:54.058594');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (2, 'https://d21y711itn1wuo.cloudfront.net/banners/4328f669-3066-47d9-bada-cc0247018d36.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:56:40.849256', '2025-01-10 14:56:40.849256');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (3, 'https://d21y711itn1wuo.cloudfront.net/banners/7cf06406-305f-4088-a8d9-9b70add696cc.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:03.812885', '2025-01-10 14:57:03.812885');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (4, 'https://d21y711itn1wuo.cloudfront.net/banners/da221356-16f8-4330-b9a6-970ebf960376.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:23.905582', '2025-01-10 14:57:23.905582');
+
 -- TermsAndConditions 테이블
 CREATE TABLE Terms_And_Conditions (
     terms_id SERIAL PRIMARY KEY,
@@ -429,9 +435,9 @@ INSERT INTO Tags (name) VALUES
 
 -- 새로운 큐레이터 데이터 추가
 INSERT INTO Curators (name, persona, main_image, profile_image, introduction, category) VALUES
-('네오', '지구 예술에 푹 빠진 외계인 네오', 'alien_curator_main.jpg', 'alien_curator.jpg', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
-('레미', '19세기 출신 파리지앵 레미', 'remy_curator_main.jpg', 'remy_curator.jpg', '인상주의 작품들과 유럽 미술을 소개해드립니다.', '미술'),
-('두리', '감성 충만한 미술 애호가 두리', 'duri_curator_main.jpg', 'duri_curator.jpg', '한국의 현대미술과 동시대 작가들을 만나보세요.', '미술');
+('네오', '지구 예술에 푹 빠진 외계인 네오', 'https://d21y711itn1wuo.cloudfront.net/curators/profile01.png', 'https://d21y711itn1wuo.cloudfront.net/curators/curator01.png', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
+('레미', '19세기 출신 파리지앵 레미', 'https://d21y711itn1wuo.cloudfront.net/curators/profile02.png', 'https://d21y711itn1wuo.cloudfront.net/curators/curator02.png', '인상주의 작품들과 유럽 미술을 소개해드립니다.', '미술'),
+('두리', '감성 충만한 미술 애호가 두리', 'https://d21y711itn1wuo.cloudfront.net/curators/profile03.png', 'https://d21y711itn1wuo.cloudfront.net/curators/curator03.png', '한국의 현대미술과 동시대 작가들을 만나보세요.', '미술');
 
 -- 큐레이터-태그 연결
 -- 외계인 네오의 태그

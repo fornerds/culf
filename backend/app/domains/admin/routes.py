@@ -1,26 +1,230 @@
-from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query, Body
 from pydantic import HttpUrl
 from sqlalchemy.orm import Session
+
+from app.core.security import get_password_hash
 from app.db.session import get_db
+from app.domains.admin import services, schemas
+from app.domains.user import services as user_services
 from app.domains.banner import schemas as banner_schemas
 from app.domains.banner import services as banner_services
 from app.domains.curator import schemas as curator_schemas
 from app.domains.curator import services as curator_services
-from app.core.deps import get_current_active_superuser
+from app.core.deps import get_current_active_superuser, get_current_admin_user
 from app.domains.user.models import User
-from typing import List, Optional
+from typing import List, Optional, Dict
 from app.core.config import settings
+from datetime import datetime, date
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-def get_current_admin_user(
-    current_user: User = Depends(get_current_active_superuser)
-) -> User:
-    if settings.DEV_MODE:
-        # In development mode, return a mock admin user
-        return User(user_id=1, email="admin@example.com", role="ADMIN")
-    return current_user
+@router.get("/users/export")
+async def export_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    전체 사용자 목록을 엑셀 다운로드용으로 조회합니다.
+    """
+    try:
+        users = services.get_admin_users_for_export(db)
+        return {"users": users}
+    except Exception as e:
+        logger.error(f"Error exporting users: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/users/stats")
+async def get_user_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자 통계 정보를 조회합니다."""
+    try:
+        stats = services.get_user_stats(db)
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting user stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/users")
+async def get_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = None,
+    sort: str = "created_at:desc",
+    status: str = "all",
+    token_filter: str = "all",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자 목록을 조회합니다."""
+    try:
+        result = services.get_admin_users(
+            db=db,
+            page=page,
+            limit=limit,
+            search=search,
+            sort=sort,
+            status=status,
+            token_filter=token_filter
+        )
+        return {
+            "users": result["users"],
+            "total_count": result["total_count"],
+            "page": page,
+            "limit": limit
+        }
+    except Exception as e:
+        logger.error(f"Error getting users: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.post("/users", response_model=schemas.AdminUserResponse)
+async def create_user(
+        user_data: schemas.AdminUserCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자가 새로운 사용자를 생성합니다."""
+    try:
+        # 이메일 중복 확인
+        if user_services.get_user_by_email(db, email=user_data.email):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "validation_error",
+                    "message": "이미 등록된 이메일 주소입니다."
+                }
+            )
+
+        # 닉네임 중복 확인
+        if user_services.get_user_by_nickname(db, nickname=user_data.nickname):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "validation_error",
+                    "message": "이미 등록된 닉네임입니다."
+                }
+            )
+
+        # 비밀번호 일치 확인
+        if user_data.password != user_data.password_confirmation:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "validation_error",
+                    "message": "비밀번호가 일치하지 않습니다."
+                }
+            )
+
+        # 사용자 생성
+        user = User(
+            email=user_data.email,
+            password=get_password_hash(user_data.password),
+            nickname=user_data.nickname,
+            phone_number=user_data.phone_number,
+            birthdate=user_data.birthdate,
+            gender=user_data.gender,
+            status=user_data.status,
+            role=user_data.role,
+            marketing_agreed=False  # 기본값으로 설정
+        )
+
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        return user
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Error creating user: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="내부 서버 오류가 발생했습니다."
+        )
+@router.get("/users/{user_id}")
+async def get_user_detail(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """특정 사용자의 상세 정보를 조회합니다."""
+    try:
+        user_detail = services.get_admin_user_detail(db, user_id)
+        if not user_detail:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user_detail
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error getting user detail: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.put("/users/{user_id}/role")
+async def update_user_role(
+    user_id: str,
+    role_update: schemas.UserRoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자의 권한을 변경합니다."""
+    try:
+        updated_user = services.update_user_role(db, user_id, role_update.role)
+        return {"message": "User role updated successfully", "user": updated_user}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error updating user role: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.put("/users/{user_id}/status")
+async def update_user_status(
+        user_id: str,
+        status_update: Dict[str, str] = Body(..., example={"status": "ACTIVE"}),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """
+    사용자의 상태를 변경합니다.
+
+    Parameters:
+    - user_id: 변경할 사용자의 ID
+    - status_update: 새로운 상태 정보 {'status': 'ACTIVE' | 'INACTIVE' | 'BANNED'}
+    """
+    try:
+        if 'status' not in status_update:
+            raise HTTPException(status_code=422, detail="Status field is required")
+
+        updated_user = services.update_user_status(db, user_id, status_update['status'])
+        return {"message": "User status updated successfully", "user": updated_user}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error updating user status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자 계정을 비활성화합니다."""
+    try:
+        result = services.delete_user(db, user_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"message": "User has been deactivated successfully"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error deactivating user: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.post("/banners", response_model=banner_schemas.Banner)
 async def create_banner(

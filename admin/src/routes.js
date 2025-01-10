@@ -9,8 +9,8 @@ const Curators = React.lazy(() => import('./views/curators/Curators'))
 const CuratorCreate = React.lazy(() => import('./views/curators/CuratorCreate'))
 const CuratorEdit = React.lazy(() => import('./views/curators/CuratorEdit'))
 
-const Users = React.lazy(() => import('./views/users/Users'))
 const UserDetail = React.lazy(() => import('./views/users/UserDetail'))
+const UserCreate = React.lazy(() => import('./views/users/UserCreate'))
 const UserList = React.lazy(() => import('./views/users/UserList'))
 
 const Conversations = React.lazy(() => import('./views/conversations/Conversations'))
@@ -28,6 +28,7 @@ const routes = [
   { path: '/curators/create', name: '큐레이터 생성', element: CuratorCreate },
   { path: '/curators/:id/edit', name: '큐레이터 수정', element: CuratorEdit },
   { path: '/users', name: '사용자 관리', element: UserList },
+  { path: '/users/create', name: '사용자자 생성', element: UserCreate },
   { path: '/users/:id', name: '사용자 상세', element: UserDetail },
   // { path: '/conversations', name: '대화 내역', element: ConversationList },
   // { path: '/conversations/:id', name: '대화 상세', element: ConversationDetail },

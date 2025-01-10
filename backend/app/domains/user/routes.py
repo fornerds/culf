@@ -279,3 +279,9 @@ def get_user_tokens(
         used_tokens=user_tokens.used_tokens,
         last_charged_at=user_tokens.last_charged_at
     )
+
+@router.get("/users/check-nickname/{nickname}", response_model=dict)
+def check_nickname(nickname: str, db: Session = Depends(get_db)):
+    """닉네임 중복 확인 API"""
+    db_user = user_services.get_user_by_nickname(db, nickname=nickname)
+    return {"exists": db_user is not None}
