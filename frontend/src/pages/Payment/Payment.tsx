@@ -7,6 +7,8 @@ import { Checkbox } from '@/components/atom/Checkbox';
 import { InputBox } from '@/components/molecule/InputBox';
 import { LoadingAnimation } from '@/components/atom';
 import logoimage from '@/assets/images/culf.png';
+import { usePortoneInit } from '@/hooks/payment/usePortoneInit';
+import { Popup } from '@/components/molecule';
 
 interface PaymentInfo {
   productPrice: number;
@@ -15,24 +17,38 @@ interface PaymentInfo {
   totalPrice: number;
 }
 
-interface PaymentMethod {
-  id: 'creditcard' | 'virtualaccount' | 'bank' | 'phone' | 'kakaopay';
-  label: string;
+interface SubscriptionProduct {
+  plan_id: number;
+  plan_name: string;
+  price: string;
+  discounted_price: string;
+  tokens_included: number;
+  description: string;
+  is_promotion: boolean;
+  promotion_details: any;
+  created_at: string;
+  updated_at: string;
 }
 
-const paymentMethods: PaymentMethod[] = [
-  { id: 'creditcard', label: '신용카드' },
-  { id: 'virtualaccount', label: '가상계좌' },
-  { id: 'bank', label: '무통장 입금' },
-  { id: 'phone', label: '핸드폰 결제' },
-  { id: 'kakaopay', label: '카카오페이' },
-];
+interface TokenProduct {
+  token_plan_id: number;
+  tokens: number;
+  price: string;
+  discounted_price: string;
+  discount_rate: string;
+  is_promotion: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 export function Payment() {
   const { type, id } = useParams<{ type: string; id: string }>();
   const productType = type as 'subscription' | 'token';
+  const isPortoneInitialized = usePortoneInit();
   
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod['id'] | ''>('kakaopay');
+  // 상태 관리
+  const [selectedPg, setSelectedPg] = useState('kakaopay');
+  const [payMethod, setPayMethod] = useState('');
   const [isAgreed, setIsAgreed] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [isCouponApplied, setIsCouponApplied] = useState(false);
@@ -45,19 +61,35 @@ export function Payment() {
     totalPrice: 0,
   });
 
+  // 커스텀 훅 사용
   const { 
     getProductById, 
     validateCoupon, 
     processSinglePayment,
     processSubscription,
-    isLoading 
+    isLoading,
+    pgProviders,
+    payMethods,
+    errorMessage,
+    showErrorPopup,
+    setShowErrorPopup
   } = usePayment();
 
   const { data: productData } = getProductById(id!, productType);
 
+  // 타입 가드 함수
   const isSubscription = (data: any): data is SubscriptionProduct => {
     return 'plan_id' in data;
   };
+
+  // Effects
+  useEffect(() => {
+    if (selectedPg === pgProviders.DANAL_TPAY) {
+      setPayMethod(payMethods.CARD); // 기본값 설정
+    } else {
+      setPayMethod(''); // 다날 Tpay가 아닌 경우 초기화
+    }
+  }, [selectedPg, pgProviders.DANAL_TPAY, payMethods.CARD]);
 
   useEffect(() => {
     if (productData) {
@@ -74,6 +106,7 @@ export function Payment() {
     }
   }, [productData]);
 
+  // 환경 감지 함수
   const detectEnvironment = () => {
     const userAgent = navigator.userAgent.toLowerCase();
     if (/mobile/i.test(userAgent)) return 'mobile';
@@ -81,6 +114,7 @@ export function Payment() {
     return 'pc';
   };
 
+  // 쿠폰 관련 함수들
   const handleCouponChange = (value: string) => {
     setCouponCode(value);
     setShowValidation(false);
@@ -139,31 +173,46 @@ export function Payment() {
     }
   };
 
+  // 결제 처리 함수
   const handlePaymentSubmit = async () => {
     if (!isPaymentEnabled) return;
+    if (!isPortoneInitialized) {
+      alert('결제 시스템을 초기화하는 중입니다. 잠시만 기다려주세요.');
+      return;
+    }
   
     try {
       if (!id || !productData) {
         throw new Error('상품 정보가 올바르지 않습니다.');
       }
   
-      // 결제 데이터 준비
-      let paymentData;
-      if (productType === 'subscription') {
+      // 결제 데이터 구성
+      let paymentData = {
+        plan_id: Number(id),
+        pg: selectedPg,
+      };
+  
+      // PG사별 추가 파라미터 처리
+      if (selectedPg === pgProviders.DANAL_TPAY) {
+        // 다날 Tpay의 경우
         paymentData = {
-          plan_id: Number(id),
-          quantity: 1,
-          environment: detectEnvironment(),
-          coupon_code: isCouponApplied && couponCode ? couponCode : undefined
+          ...paymentData,
+          pay_method: payMethod,
         };
-      } else {
-        // 토큰 결제의 경우
+      } else if (selectedPg === pgProviders.DANAL) {
+        // 다날 휴대폰 결제의 경우
         paymentData = {
-          plan_id: Number(id), // URL의 id 파라미터 사용
-          quantity: 1,
-          environment: detectEnvironment(),
-          coupon_code: isCouponApplied && couponCode ? couponCode : undefined
+          ...paymentData,
+          pay_method: 'phone', // 휴대폰 결제는 항상 'phone'으로 고정
         };
+      } else if (selectedPg === pgProviders.KAKAO && productType === 'subscription') {
+        // 카카오페이 정기결제의 경우
+        paymentData.pg = pgProviders.KAKAO_SUBSCRIPTION;
+      }
+  
+      // 쿠폰 적용
+      if (isCouponApplied && couponCode) {
+        paymentData.coupon_code = couponCode;
       }
   
       console.log('Payment request data:', paymentData);
@@ -176,16 +225,21 @@ export function Payment() {
         }
       } catch (error: any) {
         if (error.response?.data?.detail) {
-          throw new Error(error.response.data.detail);
+          setErrorMessage(error.response.data.detail);
+        } else {
+          setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
         }
-        throw error;
+        setShowErrorPopup(true);
       }
     } catch (error: any) {
       console.error('Payment failed:', error);
-      alert(error.message || '결제 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+      setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
+      setShowErrorPopup(true);
     }
   };
+  
 
+  // Validation 관련 함수들
   const getValidationMessage = () => {
     if (!showValidation) return undefined;
     return validationMessage;
@@ -198,6 +252,7 @@ export function Payment() {
 
   const isPaymentEnabled = isAgreed;
 
+  // 로딩 상태 처리
   if (isLoading) {
     return (
       <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
@@ -213,7 +268,7 @@ export function Payment() {
     );
   }
 
-  return (
+  return (<>
     <main className={styles.main}>
       <div className={styles.cardWrapper}>
         <div
@@ -232,6 +287,7 @@ export function Payment() {
             height="15px"
           />
 
+          {/* 상품 정보 섹션 */}
           <section className={styles.section}>
             <h2 className={`${styles.sectionTitle} font-card-title-1`}>
               상품 정보
@@ -256,6 +312,7 @@ export function Payment() {
             )}
           </section>
 
+          {/* 쿠폰 섹션 */}
           <section className={styles.section}>
             <h2 className={`${styles.sectionTitle} font-card-title-1`}>
               쿠폰 사용
@@ -277,6 +334,7 @@ export function Payment() {
             />
           </section>
 
+          {/* 결제 금액 섹션 */}
           <section className={styles.section}>
             <h2 className={`${styles.sectionTitle} font-card-title-1`}>
               결제 금액
@@ -310,9 +368,46 @@ export function Payment() {
               </div>
             </div>
           </section>
+
+          <section className={styles.section2}>
+            <h2 className={`${styles.sectionTitle} font-title-3`}>
+              결제 수단 선택
+            </h2>
+            <div className={styles.paymentMethods}>
+              <select 
+                value={selectedPg}
+                onChange={(e) => {
+                  setSelectedPg(e.target.value);
+                  // 다날 휴대폰 결제 선택 시 pay_method 자동 설정
+                  if (e.target.value === pgProviders.DANAL) {
+                    setPayMethod('phone');
+                  }
+                }}
+                className={styles.select}
+              >
+                {productType === 'subscription' 
+                ? <option value={pgProviders.KAKAO_SUBSCRIPTION}>카카오페이</option>
+                : <option value={pgProviders.KAKAO}>카카오페이</option>}
+                <option value={pgProviders.DANAL_TPAY}>다날 Tpay</option>
+              </select>
+
+              {selectedPg === pgProviders.DANAL_TPAY && (
+                <select 
+                  value={payMethod}
+                  onChange={(e) => setPayMethod(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value={payMethods.CARD}>신용카드</option>
+                  <option value={payMethods.TRANS}>실시간 계좌이체</option>
+                  <option value={payMethods.VBANK}>가상계좌</option>
+                </select>
+              )}
+            </div>
+          </section>
         </div>
       </div>
 
+      {/* 약관 동의 */}
       <Checkbox
         id="agreement"
         label="구매조건 확인 및 결제진행 동의"
@@ -320,6 +415,7 @@ export function Payment() {
         onChange={(e) => setIsAgreed(e.target.checked)}
       />
 
+      {/* 결제 버튼 */}
       <button
         disabled={!isPaymentEnabled}
         onClick={handlePaymentSubmit}
@@ -327,8 +423,16 @@ export function Payment() {
           !isPaymentEnabled ? styles.disabled : ''
         } font-button-1`}
       >
-        카카오페이 결제하기
+        결제하기
       </button>
     </main>
+    <Popup
+      type="alert"
+      isOpen={showErrorPopup}
+      onClose={() => setShowErrorPopup(false)}
+      content={errorMessage}
+      confirmText="확인"
+    />
+  </>
   );
 }

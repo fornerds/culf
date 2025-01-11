@@ -1,7 +1,9 @@
 // hooks/payment/usePayment.ts
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { payment } from '@/api';
+import { PAYMENT_CONFIG } from '@/config/payment';
 
 interface PaymentMethod {
   id: 'creditcard' | 'virtualaccount' | 'bank' | 'phone' | 'kakaopay';
@@ -10,8 +12,8 @@ interface PaymentMethod {
 
 interface PaymentData {
   plan_id: number;
-  quantity: number;
-  environment: string;
+  pg: string;
+  pay_method?: string;
   coupon_code?: string;
 }
 
@@ -66,6 +68,12 @@ interface PaymentResponse {
 export const usePayment = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod['id'] | ''>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const navigate = useNavigate();
+
+  const pgProviders = PAYMENT_CONFIG.pgProviders;
+  const payMethods = PAYMENT_CONFIG.payMethods;
 
   // 상품 목록 조회
   const getProductsQuery = useQuery<ProductsResponse>({
@@ -90,14 +98,13 @@ export const usePayment = () => {
   // 결제 데이터 유효성 검증
   const validatePaymentData = (data: PaymentData): boolean => {
     if (!data.plan_id) {
-      console.log(data)
       throw new Error('유효하지 않은 상품입니다.');
     }
-    if (!data.quantity || data.quantity <= 0) {
-      throw new Error('수량은 1개 이상이어야 합니다.');
+    if (!data.pg) {
+      throw new Error('결제 방식을 선택해주세요.');
     }
-    if (!data.environment) {
-      throw new Error('환경 정보가 필요합니다.');
+    if (data.pg === pgProviders.DANAL_TPAY && !data.pay_method) {
+      throw new Error('결제 수단을 선택해주세요.');
     }
     return true;
   };
@@ -118,9 +125,36 @@ export const usePayment = () => {
     },
   });
 
-  // 단건 결제 mutation
-  const processSinglePaymentMutation = useMutation<PaymentResponse, Error, PaymentData>({
-    mutationFn: async (paymentData) => {
+  const handlePaymentCompletion = async (rsp: any) => {
+    console.log('Payment response:', rsp);
+    
+    if (rsp.success) {
+      try {
+        const verifyResponse = await payment.verifyPayment({
+          imp_uid: rsp.imp_uid,
+          merchant_uid: rsp.merchant_uid
+        });
+        
+        if (verifyResponse.status === 200) {
+          navigate('/payment/result?success');
+          return true;
+        } else {
+          throw new Error('결제 검증에 실패했습니다.');
+        }
+      } catch (error: any) {
+        setErrorMessage(error.message || '결제 검증 중 오류가 발생했습니다.');
+        setShowErrorPopup(true);
+        return false;
+      }
+    } else {
+      setErrorMessage(rsp.error_msg || '결제에 실패했습니다.');
+      setShowErrorPopup(true);
+      return false;
+    }
+  };
+
+  const processSinglePaymentMutation = useMutation({
+    mutationFn: async (paymentData: PaymentData) => {
       try {
         validatePaymentData(paymentData);
         const response = await payment.createSinglePayment(paymentData);
@@ -128,55 +162,59 @@ export const usePayment = () => {
         if (!response?.data) {
           throw new Error('결제 응답이 올바르지 않습니다.');
         }
-        
-        return response.data;
-      } catch (error: any) {
-        console.error('Single payment failed:', {
-          error: error,
-          response: error.response?.data
-        });
 
-        if (error.response?.status === 400) {
-          const errorResponse = error.response?.data as PaymentErrorResponse;
-          throw new Error(errorResponse?.detail || '결제 데이터가 올바르지 않습니다.');
-        }
-        if (error.response?.status === 401) {
-          throw new Error('로그인이 필요합니다.');
-        }
-        throw new Error(error.response?.data?.detail || '결제 처리 중 오류가 발생했습니다.');
+        const { IMP } = window;
+        if (!IMP) throw new Error('포트원 SDK가 로드되지 않았습니다.');
+
+        return new Promise((resolve, reject) => {
+          IMP.request_pay(response.data.payment_data, async function(rsp: any) {
+            const success = await handlePaymentCompletion(rsp);
+            if (success) {
+              resolve(rsp);
+            } else {
+              reject(new Error(rsp.error_msg || '결제에 실패했습니다.'));
+            }
+          });
+        });
+      } catch (error: any) {
+        setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
+        setShowErrorPopup(true);
+        throw error;
       }
     },
   });
 
-  // 구독 결제 mutation
-  const processSubscriptionMutation = useMutation<PaymentResponse, Error, PaymentData>({
-    mutationFn: async (subscriptionData) => {
+  const processSubscriptionMutation = useMutation({
+    mutationFn: async (subscriptionData: PaymentData) => {
       try {
         validatePaymentData(subscriptionData);
         const response = await payment.createSubscription(subscriptionData);
         
-        if (!response?.data) {
-          throw new Error('결제 응답이 올바르지 않습니다.');
+        if (!response?.data?.payment_data) {
+          throw new Error('결제 데이터가 올바르지 않습니다.');
         }
-        
-        return response.data;
-      } catch (error: any) {
-        console.error('Subscription payment failed:', {
-          error: error,
-          response: error.response?.data
-        });
 
-        if (error.response?.status === 400) {
-          const errorResponse = error.response?.data as PaymentErrorResponse;
-          throw new Error(errorResponse?.detail || '구독 데이터가 올바르지 않습니다.');
-        }
-        if (error.response?.status === 401) {
-          throw new Error('로그인이 필요합니다.');
-        }
-        throw new Error(error.response?.data?.detail || '구독 결제 처리 중 오류가 발생했습니다.');
+        const { IMP } = window;
+        if (!IMP) throw new Error('포트원 SDK가 로드되지 않았습니다.');
+
+        return new Promise((resolve, reject) => {
+          IMP.request_pay(response.data.payment_data, async function(rsp: any) {
+            const success = await handlePaymentCompletion(rsp);
+            if (success) {
+              resolve(rsp);
+            } else {
+              reject(new Error(rsp.error_msg || '결제에 실패했습니다.'));
+            }
+          });
+        });
+      } catch (error: any) {
+        setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
+        setShowErrorPopup(true);
+        throw error;
       }
     },
   });
+
 
   // 쿠폰 검증
   const validateCoupon = async (couponCode: string) => {
@@ -197,20 +235,7 @@ export const usePayment = () => {
   const processSinglePayment = async (paymentData: PaymentData) => {
     setIsLoading(true);
     try {
-      const response = await processSinglePaymentMutation.mutateAsync(paymentData);
-      
-      if (typeof response === 'string') {
-        window.location.href = response;
-      } else if (response.redirect_url) {
-        window.location.href = response.redirect_url;
-      } else {
-        throw new Error('결제 페이지 URL을 받지 못했습니다.');
-      }
-      
-      return response;
-    } catch (error) {
-      console.error('Single payment process error:', error);
-      throw error;
+      await processSinglePaymentMutation.mutateAsync(paymentData);
     } finally {
       setIsLoading(false);
     }
@@ -219,20 +244,7 @@ export const usePayment = () => {
   const processSubscription = async (subscriptionData: PaymentData) => {
     setIsLoading(true);
     try {
-      const response = await processSubscriptionMutation.mutateAsync(subscriptionData);
-      
-      if (typeof response === 'string') {
-        window.location.href = response;
-      } else if (response.redirect_url) {
-        window.location.href = response.redirect_url;
-      } else {
-        throw new Error('결제 페이지 URL을 받지 못했습니다.');
-      }
-      
-      return response;
-    } catch (error) {
-      console.error('Subscription process error:', error);
-      throw error;
+      await processSubscriptionMutation.mutateAsync(subscriptionData);
     } finally {
       setIsLoading(false);
     }
@@ -240,6 +252,8 @@ export const usePayment = () => {
 
   return {
     isLoading,
+    pgProviders,
+    payMethods,
     getProducts: getProductsQuery,
     getProductById,
     validateCoupon,
@@ -247,5 +261,8 @@ export const usePayment = () => {
     processSubscription,
     selectedPayment,
     setSelectedPayment,
+    errorMessage,
+    showErrorPopup,
+    setShowErrorPopup,
   };
 };
