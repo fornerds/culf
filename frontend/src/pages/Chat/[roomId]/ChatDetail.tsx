@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, UseQueryResult } from '@tanstack/react-query';
 import styles from './ChatDetail.module.css';
 import {
   ChatInput,
   FileUploadButton,
   QuestionBox,
   MarkdownChat,
-  SlideUpModal
+  SlideUpModal,
+  SuggestedQuestions
 } from '@/components/molecule';
 import CameraIcon from '@/assets/icons/camera.svg?react';
 import CloseIcon from '@/assets/icons/close.svg?react';
@@ -16,7 +17,7 @@ import { chat, token, subscription } from '@/api';
 import { useChatRoomStore } from '@/state/client/chatRoomStore';
 
 type MessageType = {
-  type: 'user' | 'ai' | 'suggestion';
+  type: 'user' | 'ai';
   content: string;
   isLoading?: boolean;
   isStreaming?: boolean;
@@ -116,7 +117,6 @@ export function ChatDetail() {
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [previewImages, setPreviewImages] = useState<PreviewImage[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(true);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatInputGroupRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,6 +125,8 @@ export function ChatDetail() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const messageCompleteRef = useRef<boolean>(true);
   const isMobile = window.innerWidth < 425;
+  const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // 채팅방 데이터 조회
   const { data: roomData } = useQuery({
@@ -148,7 +150,7 @@ export function ChatDetail() {
     staleTime: 1000,
   });
 
-  const { data: tokenInfo } = useQuery({
+  const { data: tokenInfo, error: tokenError }: UseQueryResult<any, Error> = useQuery({
     queryKey: ['tokenInfo'],
     queryFn: async () => {
       const response = await token.getMyTokenInfo();
@@ -157,7 +159,7 @@ export function ChatDetail() {
     staleTime: 1000 * 60, // 1 minute
   });
 
-  const { data: subscriptionInfo } = useQuery({
+  const { data: subscriptionInfo, error: subscriptionError }: UseQueryResult<any, Error> = useQuery({
     queryKey: ['subscriptionInfo'],
     queryFn: async () => {
       const response = await subscription.getMySubscription();
@@ -217,23 +219,20 @@ export function ChatDetail() {
   }, [roomData, curatorData]);
 
   const validateTokensAndSubscription = () => {
-    if (!tokenInfo) {
+    const hasTokenError = tokenError && 'response' in tokenError && 
+      (tokenError.response as any)?.status === 404;
+    const hasSubscriptionError = subscriptionError && 'response' in subscriptionError && 
+      (subscriptionError.response as any)?.status === 404;
+    const hasNoTokens = tokenInfo && tokenInfo.total_tokens <= 0;
+    const hasInactiveSubscription = subscriptionInfo && 
+      (subscriptionInfo.length === 0 || subscriptionInfo[0].status !== 'ACTIVE');
+
+    if ((hasTokenError || hasNoTokens) && (hasSubscriptionError || hasInactiveSubscription)) {
+      setIsModalOpen(true);
       return false;
     }
 
-    if (tokenInfo.total_tokens > 0) {
-      return true;
-    }
-
-    if (subscriptionInfo && subscriptionInfo.length > 0) {
-      const activeSubscription = subscriptionInfo[0];
-      if (activeSubscription.status === 'ACTIVE') {
-        return true;
-      }
-    }
-
-    setIsModalOpen(true);
-    return false;
+    return true;
   };
 
   const handleSendMessage = async (message?: string) => {
@@ -241,94 +240,144 @@ export function ChatDetail() {
       if (!currentRoom?.roomId) {
         throw new Error('채팅방 정보가 없습니다.');
       }
-
+  
       if (!validateTokensAndSubscription()) {
         return;
       }
-
+  
       const imageFiles = previewImages.map(preview => preview.file);
       
       if (imageFiles.some(file => file.size > MAX_FILE_SIZE)) {
         alert('10메가바이트 이상의 사진을 첨부할 수 없습니다.');
         return;
       }
-
+  
       const formData = new FormData();
       if (message) formData.append('question', message);
       formData.append('room_id', currentRoom.roomId);
       imageFiles.forEach(file => formData.append('image_files', file));
-
+  
+      // 기존 추천 질문 숨기기
       setShowSuggestions(false);
+      setCurrentSuggestions([]);
       messageCompleteRef.current = false;
-      setMessages(prev => [
-        ...prev,
-        {
-          type: 'user',
-          content: message || '',
-          imageUrls: previewImages.map(preview => preview.url),
-          imageSizeInfo: previewImages.map(preview => ({
-            originalSize: preview.originalSize,
-            resizedSize: preview.resizedSize
-          }))
-        },
-        { type: 'ai', content: '', isStreaming: true }
-      ]);
+  
+      // 새 메시지 추가
+      const userMessage = {
+        type: 'user' as const,
+        content: message || '',
+        imageUrls: previewImages.map(preview => preview.url),
+        imageSizeInfo: previewImages.map(preview => ({
+          originalSize: preview.originalSize,
+          resizedSize: preview.resizedSize
+        }))
+      };
+  
+      const aiMessage = {
+        type: 'ai' as const,
+        content: '',
+        isStreaming: true
+      };
+  
+      setMessages(prev => [...prev, userMessage, aiMessage]);
       setPreviewImages([]);
       setIsUploadMenuOpen(false);
-
-      const response = await chat.sendMessage(formData, (chunk) => {
+  
+      let currentContent = '';
+      let currentRecommendedQuestions: string[] = [];
+  
+      try {
+        const response = await chat.sendMessage(formData, (chunk) => {
+          currentContent += chunk;
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.type === 'ai' && lastMessage.isStreaming) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...lastMessage,
+                  content: currentContent
+                }
+              ];
+            }
+            return prev;
+          });
+        });
+  
+        console.log('Stream completed, response data:', response);
+  
+        // 스트리밍 완료 후 최종 메시지 업데이트
         setMessages(prev => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage?.isStreaming) {
+          const lastMessage = prev[prev.length - 1];
+          if (lastMessage?.type === 'ai') {
             return [
               ...prev.slice(0, -1),
               {
-                ...lastMessage,
-                content: lastMessage.content + chunk,
-              },
+                type: 'ai' as const,
+                content: currentContent,
+                isStreaming: false
+              }
             ];
           }
           return prev;
         });
-      });
-
-      messageCompleteRef.current = true;
-
-      setMessages(prev => {
-        const newMessages = [...prev];
-        const lastMessage = newMessages[newMessages.length - 1];
-        if (lastMessage?.type === 'ai') {
-          return [
-            ...prev.slice(0, -1),
-            {
-              ...lastMessage,
-              isStreaming: false,
-              recommendedQuestions: response.recommended_questions
-            }
-          ];
+  
+        // 추천 질문 업데이트
+        if (response?.recommended_questions?.length) {
+          currentRecommendedQuestions = response.recommended_questions;
+          setCurrentSuggestions(currentRecommendedQuestions);
+          setTimeout(() => {
+            setShowSuggestions(true);
+          }, 300); // 메시지가 완전히 표시된 후 추천 질문 표시
         }
-        return prev;
-      });
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['chatRooms'] }),
-        queryClient.invalidateQueries({ queryKey: ['chatRoom', currentRoom.roomId] }),
-        queryClient.invalidateQueries({ queryKey: ['tokenInfo'] }),
-        queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] })
-      ]);
-
+  
+        messageCompleteRef.current = true;
+  
+        // 쿼리 캐시 업데이트
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['chatRooms'] }),
+          queryClient.invalidateQueries({ queryKey: ['chatRoom', currentRoom.roomId] }),
+          queryClient.invalidateQueries({ queryKey: ['tokenInfo'] }),
+          queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] })
+        ]);
+  
+        // 채팅창 스크롤
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTo({
+            top: chatContainerRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+  
+      } catch (streamError) {
+        console.error('Streaming error:', streamError);
+        throw streamError;
+      }
+  
     } catch (error) {
       console.error('Message send error:', error);
       messageCompleteRef.current = true;
+      
+      // 에러 메시지 표시
       setMessages(prev => [
         ...prev.slice(0, -1),
         {
-          type: 'ai',
+          type: 'ai' as const,
           content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
-          isStreaming: false,
-        },
+          isStreaming: false
+        }
       ]);
+  
+      // 추천 질문 초기화
+      setShowSuggestions(false);
+      setCurrentSuggestions([]);
+  
+      if (error instanceof Error) {
+        if (error.message.includes('404')) {
+          setIsModalOpen(true);
+        }
+      }
     }
   };
 
@@ -450,7 +499,13 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
 
   useEffect(() => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      // 약간의 지연을 주어 추천 질문이 렌더링된 후 스크롤 조정
+      setTimeout(() => {
+        chatContainerRef.current?.scrollTo({
+          top: chatContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
     }
   }, [messages]);
 
@@ -507,21 +562,13 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
         {messages.map((message, index) => {
           if (message.type === 'ai') {
             return (
-              <React.Fragment key={index}>
-                <MarkdownChat
-                  markdown={message.content}
-                  isStreaming={message.isStreaming}
-                  isLoading={message.isLoading}
-                  image={currentRoom?.curatorInfo?.profileImage}
-                />
-                {message.recommendedQuestions && message.recommendedQuestions.length > 0 && !message.isStreaming && (
-                  <QuestionBox
-                    type="suggestion"
-                    suggestions={message.recommendedQuestions}
-                    onSuggestionClick={handleSuggestionClick}
-                  />
-                )}
-              </React.Fragment>
+              <MarkdownChat
+                key={index}
+                markdown={message.content}
+                isStreaming={message.isStreaming}
+                isLoading={message.isLoading}
+                image={currentRoom?.curatorInfo?.profileImage}
+              />
             );
           } else if (message.type === 'user') {
             return (
@@ -537,6 +584,12 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
           return null;
         })}
       </div>
+
+      <SuggestedQuestions
+        questions={currentSuggestions}
+        onQuestionClick={handleSuggestionClick}
+        visible={showSuggestions}
+      />
 
       <section
         ref={chatInputGroupRef}

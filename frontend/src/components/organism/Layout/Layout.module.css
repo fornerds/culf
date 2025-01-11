@@ -16,7 +16,7 @@
   box-sizing: border-box;
   box-shadow: rgba(0, 0, 0, 0.15) 0px 8px 36px;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 @media (max-width: 600px) {

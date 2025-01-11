@@ -13,3 +13,4 @@ export { SlideUpModal } from "./SlideUpModal";
 export { NoticeList } from "./NoticeList";
 export { Post } from "./Post";
 export { InputBox } from './InputBox';
+export { SuggestedQuestions } from "./SuggestedQuestions";

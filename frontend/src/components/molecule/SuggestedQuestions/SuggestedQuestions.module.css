@@ -1,0 +1,111 @@
+/* SuggestedQuestions.module.css */
+.container {
+    position: fixed;
+    bottom: var(--input-group-height);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: var(--max-width);
+    box-sizing: border-box;
+    padding: 12px 20px;
+    transition: all 0.3s ease;
+    z-index: 99;
+  }
+  
+  .label {
+    font-family: 'PretendardVariable';
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted, #666);
+    margin-bottom: 8px;
+  }
+  
+  .questionsContainer {
+    display: flex;
+    overflow-x: auto;
+    gap: 12px;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .questionsContainer::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  .questionsContainer::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .questionsContainer::-webkit-scrollbar-thumb {
+    background: var(--scroll-thumb, rgba(0, 0, 0, 0.2));
+    border-radius: 2px;
+  }
+  
+  .questionButton {
+    display: flex;
+    width: 178px;
+    height: 82px;
+    padding: 10px 12px;
+    align-items: flex-start;
+    gap: 10px;
+    flex-shrink: 0;
+    border-radius: 12px 12px 0px 12px;
+    border: 1px solid var(--line-less-highlight, #c9c9c9);
+    background: var(--box-default, #fbfbfb);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    text-align: start;
+    line-height: 21px;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: keep-all;
+    word-wrap: break-word;
+  }
+  
+  .questionButton:hover {
+    background: var(--box-hover, #f5f5f5);
+    border-color: var(--line-highlight, #999);
+  }
+  
+  .questionButton:active {
+    background: var(--box-active, #efefef);
+    transform: scale(0.98);
+  }
+  
+  /* 모바일 환경을 위한 미디어 쿼리 */
+  @media (max-width: 768px) {
+    .container {
+      padding: 10px 16px;
+    }
+  
+    .questionButton {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
+  }
+  
+  /* 애니메이션 관련 클래스 */
+  .enter {
+    opacity: 0;
+    transform: translate(-50%, 100%);
+  }
+  
+  .enterActive {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    transition: all 0.3s ease;
+  }
+  
+  .exit {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  
+  .exitActive {
+    opacity: 0;
+    transform: translate(-50%, 100%);
+    transition: all 0.3s ease;
+  }
