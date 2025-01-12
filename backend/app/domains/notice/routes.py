@@ -1,7 +1,9 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.core.deps import get_current_active_superuser, get_current_active_user
+from app.core.deps import get_current_active_superuser, get_current_active_user, get_current_user
 from app.domains.user.models import User
 from . import schemas, services
 from datetime import date, timedelta
@@ -24,14 +26,15 @@ router = APIRouter()
 async def get_notices(
         page: int = Query(1, ge=1, description="페이지 번호"),
         limit: int = Query(10, ge=1, le=100, description="페이지당 항목 수"),
-        current_user: User = Depends(get_current_active_user),
+        current_user: Optional[User] = Depends(get_current_user),
         db: Session = Depends(get_db)
 ) -> schemas.NoticeList:
+    user_id = current_user.user_id if current_user else None
     notices, total = services.get_notices(
         db,
         skip=(page - 1) * limit,
         limit=limit,
-        user_id=current_user.user_id
+        user_id=user_id
     )
     return {
         "notices": notices,
@@ -49,14 +52,16 @@ async def get_notices(
 )
 async def get_notice(
         notice_id: int = Path(..., description="조회할 공지사항 ID"),
-        current_user: User = Depends(get_current_active_user),
+        current_user: Optional[User] = Depends(get_current_user),
         db: Session = Depends(get_db)
 ) -> schemas.NoticeDetail:
     notice = services.get_notice(db, notice_id)
     if not notice:
         raise HTTPException(status_code=404, detail="Notice not found")
 
-    services.mark_notice_as_read(db, current_user.user_id, notice_id)
+    # 로그인한 사용자인 경우에만 읽음 상태 처리
+    if current_user:
+        services.mark_notice_as_read(db, current_user.user_id, notice_id)
     return notice
 
 

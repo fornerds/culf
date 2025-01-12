@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 from . import models, schemas
@@ -106,13 +107,25 @@ def update_notice(
 
 
 def delete_notice(db: Session, notice_id: int) -> bool:
-    db_notice = get_notice(db, notice_id, increment_view=False)
-    if not db_notice:
-        return False
+    try:
+        # 먼저 user_notice_reads 테이블에서 관련 레코드 삭제
+        db.query(models.UserNoticeRead).filter(
+            models.UserNoticeRead.notice_id == notice_id
+        ).delete()
 
-    db.delete(db_notice)
-    db.commit()
-    return True
+        # 그 다음 notices 테이블에서 공지사항 삭제
+        result = db.query(models.Notice).filter(
+            models.Notice.notice_id == notice_id
+        ).delete()
+
+        db.commit()
+        return result > 0
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete notice"
+        )
 
 
 def mark_notice_as_read(
