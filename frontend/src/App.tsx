@@ -313,6 +313,11 @@ function AppRoutes() {
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
         <Route path="/inquiry" element={<CustomerInquiry />} />
+        <Route path="/notification">
+          <Route index element={<Navigate to="/notification/notice" replace />} />
+          <Route path="notice" element={<Notification />} />
+          <Route path="notice/:notice_id" element={<NoticeDetail />} />
+        </Route>
 
         {/* 인증이 필요한 라우트 */}
         <Route element={<PrivateOutlet />}>
@@ -328,12 +333,7 @@ function AppRoutes() {
           <Route path="/payment/result" element={<Result />} />
           <Route path="/cancel-payment/:payment_id" element={<CancelPayment />} />
           <Route path="/delete-account" element={<DeleteAccount />} />
-          <Route
-            path="/notification"
-            element={<Navigate to="/notification/notice" replace />}
-          />
           <Route path="/notification/:tab" element={<Notification />} />
-          <Route path="/notification/notice/:notice_id" element={<NoticeDetail />} />
         </Route>
       </Routes>
     </Layout>

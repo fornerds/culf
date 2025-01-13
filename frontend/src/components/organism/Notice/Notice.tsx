@@ -5,6 +5,7 @@ import styles from './Notice.module.css';
 import { LoadingAnimation } from '@/components/atom';
 import logoimage from '@/assets/images/culf.png';
 import PinIcon from '@/assets/icons/pin.svg?react';
+import { useAuthStore } from '@/state/client/authStore';
 
 interface NoticeListProps {
   page?: number;
@@ -14,6 +15,7 @@ interface NoticeListProps {
 export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
   const navigate = useNavigate();
   const { data, isLoading, error } = useNotices({ page, limit });
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   if (isLoading) {
     return (
@@ -56,6 +58,9 @@ export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
               <span className={`${styles.date} font-tag-2`}>
                 {new Date(notice.created_at).toLocaleDateString()}
               </span>
+              {isAuthenticated && notice.is_read && (
+                <span className={`${styles.readStatus} font-tag-2`}>읽음</span>
+              )}
             </div>
             {notice.is_important && <PinIcon width="24px" height="24px"/>}
           </div>
