@@ -65,6 +65,20 @@ interface PaymentResponse {
   redirect_url?: string;
 }
 
+const paymentLogger = {
+  debug: (message: string, data?: any) => {
+    console.debug(`[Payment Debug] ${message}`, data || '');
+  },
+  error: (message: string, error: any) => {
+    console.error(`[Payment Error] ${message}`, {
+      error,
+      stack: error?.stack,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
+  }
+};
+
 export const usePayment = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod['id'] | ''>('');
@@ -126,14 +140,21 @@ export const usePayment = () => {
   });
 
   const handlePaymentCompletion = async (rsp: any) => {
-    console.log('Payment response:', rsp);
+    paymentLogger.debug('Payment response received:', rsp);
     
     if (rsp.success) {
       try {
+        paymentLogger.debug('Verifying payment:', {
+          imp_uid: rsp.imp_uid,
+          merchant_uid: rsp.merchant_uid
+        });
+
         const verifyResponse = await payment.verifyPayment({
           imp_uid: rsp.imp_uid,
           merchant_uid: rsp.merchant_uid
         });
+        
+        paymentLogger.debug('Payment verification response:', verifyResponse);
         
         if (verifyResponse.status === 200) {
           navigate('/payment/result?success');
@@ -142,11 +163,16 @@ export const usePayment = () => {
           throw new Error('결제 검증에 실패했습니다.');
         }
       } catch (error: any) {
+        paymentLogger.error('Payment verification failed:', error);
         setErrorMessage(error.message || '결제 검증 중 오류가 발생했습니다.');
         setShowErrorPopup(true);
         return false;
       }
     } else {
+      paymentLogger.error('Payment failed:', {
+        error_code: rsp.error_code,
+        error_msg: rsp.error_msg
+      });
       setErrorMessage(rsp.error_msg || '결제에 실패했습니다.');
       setShowErrorPopup(true);
       return false;
@@ -156,17 +182,26 @@ export const usePayment = () => {
   const processSinglePaymentMutation = useMutation({
     mutationFn: async (paymentData: PaymentData) => {
       try {
+        paymentLogger.debug('Processing single payment:', paymentData);
+        
         validatePaymentData(paymentData);
         const response = await payment.createSinglePayment(paymentData);
+        
+        paymentLogger.debug('Payment creation response:', response);
         
         if (!response?.data) {
           throw new Error('결제 응답이 올바르지 않습니다.');
         }
 
         const { IMP } = window;
-        if (!IMP) throw new Error('포트원 SDK가 로드되지 않았습니다.');
+        if (!IMP) {
+          paymentLogger.error('Portone SDK not loaded', new Error('SDK not found'));
+          throw new Error('포트원 SDK가 로드되지 않았습니다.');
+        }
 
         return new Promise((resolve, reject) => {
+          paymentLogger.debug('Requesting payment:', response.data.payment_data);
+          
           IMP.request_pay(response.data.payment_data, async function(rsp: any) {
             const success = await handlePaymentCompletion(rsp);
             if (success) {
@@ -177,6 +212,7 @@ export const usePayment = () => {
           });
         });
       } catch (error: any) {
+        paymentLogger.error('Payment processing failed:', error);
         setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
         setShowErrorPopup(true);
         throw error;
