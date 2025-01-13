@@ -298,6 +298,7 @@ export const usePayment = () => {
     selectedPayment,
     setSelectedPayment,
     errorMessage,
+    setErrorMessage,
     showErrorPopup,
     setShowErrorPopup,
   };

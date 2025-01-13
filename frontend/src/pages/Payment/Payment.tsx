@@ -70,6 +70,7 @@ export function Payment() {
     isLoading,
     pgProviders,
     payMethods,
+    setErrorMessage,
     errorMessage,
     showErrorPopup,
     setShowErrorPopup
@@ -176,63 +177,58 @@ export function Payment() {
   // 결제 처리 함수
   const handlePaymentSubmit = async () => {
     if (!isPaymentEnabled) return;
+    
     if (!isPortoneInitialized) {
-      alert('결제 시스템을 초기화하는 중입니다. 잠시만 기다려주세요.');
+      setErrorMessage('결제 시스템을 초기화하는 중입니다. 잠시만 기다려주세요.');
+      setShowErrorPopup(true);
       return;
     }
-  
+
     try {
+      console.log('Payment submission started:', {
+        productType,
+        id,
+        selectedPg,
+        payMethod,
+        couponCode
+      });
+
       if (!id || !productData) {
         throw new Error('상품 정보가 올바르지 않습니다.');
       }
-  
+
       // 결제 데이터 구성
-      let paymentData = {
+      const paymentData = {
         plan_id: Number(id),
         pg: selectedPg,
+        ...(selectedPg === pgProviders.DANAL_TPAY && { pay_method: payMethod }),
+        ...(selectedPg === pgProviders.DANAL && { pay_method: 'phone' }),
+        ...(isCouponApplied && couponCode && { coupon_code: couponCode })
       };
-  
-      // PG사별 추가 파라미터 처리
-      if (selectedPg === pgProviders.DANAL_TPAY) {
-        // 다날 Tpay의 경우
-        paymentData = {
-          ...paymentData,
-          pay_method: payMethod,
-        };
-      } else if (selectedPg === pgProviders.DANAL) {
-        // 다날 휴대폰 결제의 경우
-        paymentData = {
-          ...paymentData,
-          pay_method: 'phone', // 휴대폰 결제는 항상 'phone'으로 고정
-        };
-      } else if (selectedPg === pgProviders.KAKAO && productType === 'subscription') {
-        // 카카오페이 정기결제의 경우
+
+      console.log('Prepared payment data:', paymentData);
+
+      // PG사별 특별 처리
+      if (selectedPg === pgProviders.KAKAO && productType === 'subscription') {
         paymentData.pg = pgProviders.KAKAO_SUBSCRIPTION;
       }
-  
-      // 쿠폰 적용
-      if (isCouponApplied && couponCode) {
-        paymentData.coupon_code = couponCode;
-      }
-  
-      console.log('Payment request data:', paymentData);
-  
+
       try {
         if (productType === 'subscription') {
+          console.log('Processing subscription payment');
           await processSubscription(paymentData);
         } else {
+          console.log('Processing single payment');
           await processSinglePayment(paymentData);
         }
       } catch (error: any) {
-        if (error.response?.data?.detail) {
-          setErrorMessage(error.response.data.detail);
-        } else {
-          setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
-        }
+        console.error('Payment processing error:', error);
+        const errorDetail = error.response?.data?.detail;
+        setErrorMessage(errorDetail || error.message || '결제 처리 중 오류가 발생했습니다.');
         setShowErrorPopup(true);
       }
     } catch (error: any) {
-      console.error('Payment failed:', error);
+      console.error('Payment submission error:', error);
       setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
       setShowErrorPopup(true);
     }
@@ -427,12 +423,12 @@ export function Payment() {
       </button>
     </main>
     <Popup
-      type="alert"
-      isOpen={showErrorPopup}
-      onClose={() => setShowErrorPopup(false)}
-      content={errorMessage}
-      confirmText="확인"
-    />
+        type="alert"
+        isOpen={showErrorPopup}
+        onClose={() => setShowErrorPopup(false)}
+        content={errorMessage || '알 수 없는 오류가 발생했습니다.'}
+        confirmText="확인"
+      />
   </>
   );
 }
