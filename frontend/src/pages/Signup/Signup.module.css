@@ -14,3 +14,8 @@
 .buttonArea {
   margin-top: 32px;
 }
+
+.genderOptionsWrap {
+  display: flex;
+  gap: 32px;
+}
