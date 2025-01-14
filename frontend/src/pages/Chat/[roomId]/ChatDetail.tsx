@@ -263,14 +263,16 @@ export function ChatDetail() {
       messageCompleteRef.current = false;
   
       // 새 메시지 추가
-      const userMessage = {
-        type: 'user' as const,
+      const userMessage: MessageType = {
+        type: 'user',
         content: message || '',
-        imageUrls: previewImages.map(preview => preview.url),
-        imageSizeInfo: previewImages.map(preview => ({
-          originalSize: preview.originalSize,
-          resizedSize: preview.resizedSize
-        }))
+        ...(previewImages.length > 0 && {
+          imageUrls: previewImages.map(preview => preview.url),
+          imageSizeInfo: previewImages.map(preview => ({
+            originalSize: preview.originalSize,
+            resizedSize: preview.resizedSize
+          }))
+        })
       };
   
       const aiMessage = {
