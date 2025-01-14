@@ -3,9 +3,9 @@
   height: 20px;
 }
 
-.radioButton + .radioButton {
+/* .radioButton + .radioButton {
   margin-left: 32px;
-}
+} */
 
 .radioInput {
   display: none;
