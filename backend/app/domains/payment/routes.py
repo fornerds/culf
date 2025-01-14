@@ -545,27 +545,32 @@ async def import_webhook(request: Request, db: Session = Depends(get_db)):
         payment_info = portone_services.get_portone_payment_info(imp_uid, token)
         logging.info(f"Payment info retrieved: {json.dumps(payment_info, ensure_ascii=False)}")
 
+        name = payment_info.get("name")
+        logging.info(f"Retrieved name from payment info: {name}")
         payment_type = portone_services.identify_payment_type(merchant_uid)
         logging.info(f"Payment type identified: {payment_type}")
 
-        if status != "paid":
-            logging.warning(f"Payment not successful. Imp_uid: {imp_uid}, Status: {status}")
-            return {"status": "failed", "message": "결제 실패 또는 취소"}
+        # 결제 방식 변경을 위한 결제는 처리하지 않음
+        if "결제 방식 변경" in name:
+            logging.info(f"Skipping payment processing for method change. Name: {name}")
+            return {"status": "skipped", "message": "결제 방식 변경 요청은 처리하지 않습니다."}
 
-        if payment_type == "single":
-            logging.info("Processing single payment.")
-            portone_services.process_single_payment(payment_info, db)
-        elif payment_type == "subscription":
-            logging.info("Processing subscription payment.")
-            subscription = portone_services.process_subscription_payment(payment_info, db)
-
-            portone_services.schedule_subscription_payment(subscription.subscription_id, db)
-            logging.info(f"Next subscription payment scheduled for subscription ID {subscription.subscription_id}.")
+        if status == "paid":
+            if payment_type == "single":
+                logging.info("Processing single payment.")
+                portone_services.process_single_payment(payment_info, db)
+            elif payment_type == "subscription":
+                logging.info("Processing subscription payment.")
+                subscription = portone_services.process_subscription_payment(payment_info, db)
+                portone_services.schedule_subscription_payment(subscription.subscription_id, db)
+        elif status == "failed":
+            if payment_type == "subscription":
+                logging.info("Processing failed subscription payment.")
+                portone_services.handle_failed_subscription_payment(payment_info, db)
+            else:
+                logging.warning(f"Failed payment for non-subscription type. Merchant UID: {merchant_uid}")
         else:
-            logging.warning(f"Unknown payment type for merchant_uid: {merchant_uid}")
-            raise HTTPException(status_code=400, detail="알 수 없는 결제 유형입니다.")
-
-        logging.info("Webhook processing completed successfully.")
+            logging.warning(f"Unhandled payment status: {status} for imp_uid: {imp_uid}")
         return {"status": "success", "message": "웹훅 처리 완료"}
 
     except HTTPException as e:
@@ -575,7 +580,7 @@ async def import_webhook(request: Request, db: Session = Depends(get_db)):
         logging.error(f"Unexpected error during webhook processing: {str(e)}")
         raise HTTPException(status_code=500, detail=f"웹훅 처리 중 오류: {str(e)}")
 
-@router.post("/v1/portone/mobile")
+@router.post("/portone/mobile")
 async def handle_mobile_redirect(
     imp_uid: str = Query(..., description="포트원 결제 고유 ID"),
     merchant_uid: str = Query(..., description="상점 거래 고유 ID"),
@@ -628,3 +633,14 @@ async def handle_mobile_redirect(
         error_url = f"{settings.PORTONE_M_PAYMENT_RESULT_URL}?fail&reason=server_error"
         logging.error(f"예상치 못한 오류 - 리다이렉트 URL: {error_url} - 오류: {str(e)}")
         return RedirectResponse(error_url)
+
+@router.post("/portone/change-subscription")
+async def change_subscription_payment_method(
+    change_request: schemas.SubscriptionPaymentRequest,
+    db: Session = Depends(get_db),
+    current_user: user_schemas.User = Depends(get_current_active_user),
+):
+    """
+    구독 결제 방식 변경 요청
+    """
+    return portone_services.initiate_change_payment_method(change_request, db, current_user)

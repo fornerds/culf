@@ -298,3 +298,7 @@ class PortoneRequest:
     token_plan_id: int = None
     subscription_id: int = None
     next_billing_date: str = None  # For subscription payments
+
+class SubscriptionChangeRequest(BaseModel):
+    user_id: UUID = Field(..., description="사용자 ID")
+    new_plan_id: int = Field(..., description="새 구독 플랜 ID")
