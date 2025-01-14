@@ -1,3 +1,4 @@
+from calendar import monthrange
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime, timedelta
@@ -52,6 +53,7 @@ def initiate_one_time_payment(payment_request, db: Session, current_user):
         "buyer_email": current_user.email,
         "buyer_name": current_user.nickname,
         "buyer_tel": current_user.phone_number,
+        "notice_url": settings.PORTONE_WEPHOOK_URL,
     }
 
     # PG사별 추가 설정
@@ -144,6 +146,7 @@ def initiate_subscription_payment(subscription_request, db: Session, current_use
         "buyer_name": current_user.nickname,
         "buyer_tel": current_user.phone_number,
         "m_redirect_url": settings.PORTONE_KAKAOPAY_M_REDIRECT_URL,
+        "notice_url": settings.PORTONE_WEPHOOK_URL,
     }
 
     # PG사별 추가 설정
@@ -225,32 +228,20 @@ def process_tokens(payment, db):
 
     db.commit()
 
-def verify_and_save_payment(payment_request, db):
-    """결제 검증 및 저장"""
-    token = get_portone_token()
-    payment_info = get_portone_payment_info(payment_request.imp_uid, token)
-
-    payment_cache = db.query(PaymentCache).filter(
-        PaymentCache.merchant_uid == payment_request.merchant_uid
-    ).first()
-    if not payment_cache:
-        raise HTTPException(status_code=404, detail="결제 캐시를 찾을 수 없습니다.")
-
+def save_payment_data(payment_info, payment_cache, db):
+    """검증된 결제 데이터를 저장"""
     if payment_cache.token_plan_id:
-        # 단건 결제 로직
-        tokens_purchased = db.query(TokenPlan).filter(
+        token_plan = db.query(TokenPlan).filter(
             TokenPlan.token_plan_id == payment_cache.token_plan_id
         ).first()
-        if not tokens_purchased:
-            raise HTTPException(status_code=404, detail="토큰 플랜을 찾을 수 없습니다.")
 
         payment_record = Payment(
-            payment_id=payment_request.merchant_uid,
+            payment_id=payment_cache.merchant_uid,
             user_id=payment_cache.user_id,
             token_plan_id=payment_cache.token_plan_id,
             payment_number=payment_info["imp_uid"],
             transaction_number=payment_info["pg_tid"],
-            tokens_purchased=tokens_purchased.tokens,
+            tokens_purchased=token_plan.tokens,
             amount=payment_info["amount"],
             payment_method=payment_cache.payment_method,
             used_coupon_id=payment_cache.coupon_id if payment_cache.coupon_id else None,
@@ -258,21 +249,26 @@ def verify_and_save_payment(payment_request, db):
             status="SUCCESS",
         )
         db.add(payment_record)
-
         process_tokens(payment_record, db)
 
     elif payment_cache.subscription_plan_id:
         subscription_plan = db.query(SubscriptionPlan).filter(
             SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
         ).first()
-        if not subscription_plan:
-            raise HTTPException(status_code=404, detail="구독 플랜을 찾을 수 없습니다.")
+
+        payment_date = datetime.fromtimestamp(payment_info["paid_at"])
+        day_of_payment = payment_date.day
+        next_month = payment_date.month + 1 if payment_date.month < 12 else 1
+        next_year = payment_date.year if payment_date.month < 12 else payment_date.year + 1
+        _, last_day_of_next_month = monthrange(next_year, next_month)
+        next_billing_day = min(day_of_payment, last_day_of_next_month)
+        next_billing_date = payment_date.replace(year=next_year, month=next_month, day=next_billing_day)
 
         subscription = UserSubscription(
             user_id=payment_cache.user_id,
             plan_id=subscription_plan.plan_id,
-            start_date=datetime.now().date(),
-            next_billing_date=(datetime.fromtimestamp(payment_info["paid_at"]) + timedelta(days=30)).date(),
+            start_date=payment_date.date(),
+            next_billing_date=next_billing_date.date(),
             status="ACTIVE",
             subscription_number=payment_info["customer_uid"],
             subscriptions_method=payment_cache.payment_method,
@@ -281,9 +277,8 @@ def verify_and_save_payment(payment_request, db):
         db.commit()
         db.refresh(subscription)
 
-        # Payment 기록 생성
         payment_record = Payment(
-            payment_id=payment_request.merchant_uid,
+            payment_id=payment_cache.merchant_uid,
             user_id=payment_cache.user_id,
             subscription_id=subscription.subscription_id,
             payment_number=payment_info["imp_uid"],
@@ -292,14 +287,12 @@ def verify_and_save_payment(payment_request, db):
             amount=payment_info["amount"],
             payment_method=payment_cache.payment_method,
             used_coupon_id=payment_cache.coupon_id if payment_cache.coupon_id else None,
-            payment_date=datetime.fromtimestamp(payment_info["paid_at"]),
+            payment_date=payment_date,
             status="SUCCESS",
         )
         db.add(payment_record)
 
-    else:
-        raise HTTPException(status_code=400, detail="유효하지 않은 결제 유형입니다.")
-
+    # 쿠폰 처리
     if payment_cache.coupon_id:
         coupon = db.query(Coupon).filter(
             Coupon.coupon_id == payment_cache.coupon_id
@@ -317,6 +310,61 @@ def verify_and_save_payment(payment_request, db):
 
     db.delete(payment_cache)
     db.commit()
+
+def validate_payment_info(payment_request, db):
+    """결제 정보를 검증하고 관련 데이터를 반환"""
+    token = get_portone_token()
+    payment_info = get_portone_payment_info(payment_request.imp_uid, token)
+
+    # 중복 결제 검증
+    existing_payment = db.query(Payment).filter(
+        Payment.payment_id == payment_request.merchant_uid
+    ).first()
+    if existing_payment:
+        logging.info(f"Duplicate payment request detected for {payment_request.merchant_uid}. Skipping processing.")
+        return {"status": "duplicate", "message": "이미 처리된 결제 요청입니다."}
+
+    # 결제 캐시 조회
+    payment_cache = db.query(PaymentCache).filter(
+        PaymentCache.merchant_uid == payment_request.merchant_uid
+    ).first()
+    if not payment_cache:
+        raise HTTPException(status_code=404, detail="결제 캐시를 찾을 수 없습니다.")
+
+    # 예상 결제 금액 계산
+    expected_amount = None
+    if payment_cache.token_plan_id:
+        token_plan = db.query(TokenPlan).filter(
+            TokenPlan.token_plan_id == payment_cache.token_plan_id
+        ).first()
+        if not token_plan:
+            raise HTTPException(status_code=404, detail="토큰 플랜을 찾을 수 없습니다.")
+        expected_amount = float(token_plan.discounted_price or token_plan.price)
+    elif payment_cache.subscription_plan_id:
+        subscription_plan = db.query(SubscriptionPlan).filter(
+            SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
+        ).first()
+        if not subscription_plan:
+            raise HTTPException(status_code=404, detail="구독 플랜을 찾을 수 없습니다.")
+        expected_amount = float(subscription_plan.discounted_price or subscription_plan.price)
+
+    if expected_amount is None:
+        raise HTTPException(status_code=400, detail="유효하지 않은 결제 유형입니다.")
+
+    # 금액 검증
+    if payment_info["amount"] != expected_amount:
+        raise HTTPException(
+            status_code=400,
+            detail=f"결제 금액이 일치하지 않습니다. 예상 금액: {expected_amount}, 결제 금액: {payment_info['amount']}"
+        )
+
+    return payment_info, payment_cache
+
+def verify_and_save_payment(payment_request, db):
+    """결제 검증 및 저장"""
+    payment_info, payment_cache = validate_payment_info(payment_request, db)
+    save_payment_data(payment_info, payment_cache, db)
+    return {"status": "success", "message": "결제 처리가 완료되었습니다."}
 
 def issue_refund(inquiry_id: int, db: Session):
     access_token = get_portone_token()
@@ -358,60 +406,56 @@ def issue_refund(inquiry_id: int, db: Session):
 
     return {"status": "success", "data": response.json().get("response")}
 
-def schedule_subscription_payment(subscription_id, db):
-    """반복 결제 예약"""
+def schedule_subscription_payment(subscription_id, db: Session):
+    """
+    정기 결제 예약 로직.
+    """
     token = get_portone_token()
-    user_subscription = db.query(UserSubscription).filter(
+
+    subscription = db.query(UserSubscription).filter(
         UserSubscription.subscription_id == subscription_id
     ).first()
-    if not user_subscription:
-        raise HTTPException(status_code=404, detail="구독 정보을 찾을 수 없습니다.")
+    if not subscription:
+        raise HTTPException(status_code=404, detail="구독 정보를 찾을 수 없습니다.")
 
     subscription_plan = db.query(SubscriptionPlan).filter(
-        SubscriptionPlan.plan_id == user_subscription.plan_id
+        SubscriptionPlan.plan_id == subscription.plan_id
     ).first()
     if not subscription_plan:
         raise HTTPException(status_code=404, detail="구독 플랜을 찾을 수 없습니다.")
 
-    if not isinstance(user_subscription.next_billing_date, datetime):
-        raise HTTPException(status_code=400, detail="구독 정보의 청구 날짜가 올바르지 않습니다.")
+    next_billing_date = subscription.next_billing_date
 
     schedule_data = {
-        "customer_uid": user_subscription.subscription_number or f"{user_subscription.user_id}-customer",
+        "customer_uid": subscription.subscription_number,
         "schedules": [
             {
-                "merchant_uid": str(uuid.uuid4()),
-                "schedule_at": int(user_subscription.next_billing_date.timestamp()),
+                "merchant_uid": f"sub_{uuid.uuid4()}",
+                "schedule_at": int(next_billing_date.timestamp()),
                 "amount": float(subscription_plan.discounted_price or subscription_plan.price),
                 "name": subscription_plan.plan_name,
             }
         ],
     }
+
     try:
-        # API 호출
         response = requests.post(
             f"{settings.PORTONE_API_URL}/subscribe/payments/schedule",
             json=schedule_data,
             headers={"Authorization": f"Bearer {token}"},
         )
+        response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"결제 예약 요청 중 네트워크 오류가 발생했습니다: {str(e)}")
-    
-    # API 응답 처리
-    if not response.ok:
-        error_message = response.json().get("message", "알 수 없는 오류로 인해 결제 예약에 실패했습니다.") \
-            if response.headers.get("Content-Type") == "application/json" else "포트원 API 응답이 올바르지 않습니다."
-        raise HTTPException(status_code=400, detail=f"구독 결제 예약 실패: {error_message}")
+        raise HTTPException(status_code=500, detail=f"결제 예약 요청 중 오류가 발생했습니다: {str(e)}")
 
-    logger.info(f"Scheduling payment for subscription ID {subscription_id} with data: {schedule_data}")
-    logger.info(f"Portone API response: {response.json()}")
-
+    logging.info(f"Next subscription payment scheduled. Subscription ID: {subscription.subscription_id}")
     return response.json()
 
 def identify_payment_type(merchant_uid: str) -> str:
     """
     주문 ID(merchant_uid)를 기반으로 결제 유형을 식별합니다.
-    예를 들어, 구독 결제는 'sub_'로 시작하고, 일회성 결제는 'one_'로 시작.
+    - "sub_"로 시작하면 정기 결제.
+    - "one_"로 시작하면 일회성 결제.
     """
     if merchant_uid.startswith("sub_"):
         return "subscription"
@@ -422,30 +466,82 @@ def identify_payment_type(merchant_uid: str) -> str:
 
 def process_subscription_payment(payment_info, db: Session):
     """
-    정기 결제 처리 및 다음 결제 예약
+    정기 결제 처리 로직. 중복 처리 방지 포함.
     """
-    if payment_info["status"] != "paid":
-        raise Exception("정기 결제가 실패했습니다.")
+    existing_payment = db.query(Payment).filter(
+        Payment.payment_number == payment_info["imp_uid"]
+    ).first()
 
-    # DB에 결제 기록 저장
-    # ...
+    if existing_payment:
+        logging.info(f"Duplicate subscription payment detected. Imp_uid: {payment_info['imp_uid']}")
+        return
 
-    # 다음 결제 예약
-    next_schedule_date = datetime.now() + timedelta(days=30)
-    # schedule_next_payment(
-    #     customer_uid=payment_info["customer_uid"],
-    #     amount=payment_info["amount"],
-    #     name="월간 이용권 정기결제",
-    #     schedule_date=next_schedule_date,
-    #     db=db,
-    # )
+    subscription = db.query(UserSubscription).filter(
+        UserSubscription.subscription_number == payment_info["customer_uid"]
+    ).first()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="구독 정보를 찾을 수 없습니다.")
+
+    subscription_plan = db.query(SubscriptionPlan).filter(
+        SubscriptionPlan.plan_id == subscription.plan_id
+    ).first()
+
+    if not subscription_plan:
+        raise HTTPException(status_code=404, detail="구독 플랜을 찾을 수 없습니다.")
+
+    payment_record = Payment(
+        payment_id=payment_info["merchant_uid"],
+        user_id=subscription.user_id,
+        subscription_id=subscription.subscription_id,
+        payment_number=payment_info["imp_uid"],
+        transaction_number=payment_info["pg_tid"],
+        tokens_purchased=subscription_plan.tokens_included,
+        amount=payment_info["amount"],
+        payment_method=payment_info["pay_method"],
+        payment_date=datetime.fromtimestamp(payment_info["paid_at"]),
+        status="SUCCESS",
+    )
+
+    db.add(payment_record)
+    db.commit()
+    logging.info(f"Subscription payment processed and saved. Subscription ID: {subscription.subscription_id}")
+
+    return subscription
 
 def process_single_payment(payment_info, db: Session):
     """
-    일회성 결제 처리
+    단건 결제 처리 로직. 중복 처리 방지 포함.
     """
-    if payment_info["status"] != "paid":
-        raise Exception("일회성 결제가 실패했습니다.")
+    existing_payment = db.query(Payment).filter(
+        Payment.payment_number == payment_info["imp_uid"]
+    ).first()
 
-    # DB에 결제 기록 저장
-    # ...
+    if existing_payment:
+        logging.info(f"Duplicate single payment detected. Imp_uid: {payment_info['imp_uid']}")
+        return
+
+    token_plan = db.query(TokenPlan).filter(
+        TokenPlan.token_plan_id == payment_info["custom_data"]["token_plan_id"]
+    ).first()
+
+    if not token_plan:
+        raise HTTPException(status_code=404, detail="토큰 플랜을 찾을 수 없습니다.")
+
+    payment_record = Payment(
+        payment_id=payment_info["merchant_uid"],
+        user_id=payment_info["custom_data"]["user_id"],
+        token_plan_id=token_plan.token_plan_id,
+        payment_number=payment_info["imp_uid"],
+        transaction_number=payment_info["pg_tid"],
+        tokens_purchased=token_plan.tokens,
+        amount=payment_info["amount"],
+        payment_method=payment_info["pay_method"],
+        payment_date=datetime.fromtimestamp(payment_info["paid_at"]),
+        status="SUCCESS",
+    )
+
+    db.add(payment_record)
+    db.commit()
+    logging.info(f"Single payment processed and saved. Merchant UID: {payment_info['merchant_uid']}")
+

@@ -64,20 +64,6 @@ class PaymentResponse(PaymentBase):
     class Config:
         orm_mode = True
 
-class PaycancelBase(BaseModel):
-    payment_id: int
-    user_id: int
-    amount: float
-    reason: Optional[str] = None
-    status: Optional[str] = 'PENDING'
-
-class PaycancelResponse(BaseModel):
-    inquiry_id: int
-    refund_id: int
-    payment_number: str
-    status: str
-    message: str
-
 class PaycancelResponse(BaseModel):
     inquiry_id: int = Field(..., description="문의 ID")
     refund_id: int = Field(..., description="환불 ID")
