@@ -6,9 +6,11 @@ from datetime import datetime
 import logging
 from uuid import UUID
 import uuid
+import json
 
 from app.domains.user.models import User
 from app.domains.user import schemas as user_schemas
+from app.domains.payment.models import Payment
 from app.domains.payment import schemas, services, portone_services
 from app.domains.payment.services import PaymentService
 from app.domains.inquiry import schemas as inquiry_schemas
@@ -80,11 +82,39 @@ async def cancel_payment(
     current_user: user_schemas.User = Depends(get_current_active_user),
 ):
     try:
+        logging.info("Starting cancellation process")
+
+        # 파일 크기 및 형식 검증
+        if attachments:
+            logging.info(f"Validating {len(attachments)} attachments")
+            for file in attachments:
+                if file.size > 10 * 1024 * 1024:  # 10MB 제한
+                    logging.error(f"File too large: {file.filename}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "file_too_large",
+                            "message": f"파일 크기는 10MB를 초과할 수 없습니다. ({file.filename})"
+                        }
+                    )
+
+                content_type = file.content_type.lower()
+                if content_type not in ["image/jpeg", "image/jpg", "image/png", "image/gif"]:
+                    logging.error(f"Invalid file type: {file.filename}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "invalid_file_type",
+                            "message": f"지원하지 않는 파일 형식입니다. ({file.filename})"
+                        }
+                    )
+
         # 첨부파일 처리
         attachment_info = []
         if attachments:
+            logging.info("Processing attachments")
             for file in attachments:
-                file_extension = file.filename.split('.')[-1]
+                file_extension = file.filename.split('.')[-1].lower()
                 object_name = f"inquiries/{uuid.uuid4()}.{file_extension}"
 
                 if upload_file_to_s3(file.file, settings.S3_BUCKET_NAME, object_name):
@@ -106,8 +136,12 @@ async def cancel_payment(
 
         # 결제 취소 및 문의 생성
         result = services.cancel_payment_with_inquiry(db, payment_id, current_user.user_id, inquiry_data)
+
         if not result:
+            logging.error("Payment not found")
             raise HTTPException(status_code=404, detail="Payment not found.")
+
+        logging.info(f"Response data: {{'inquiry_id': {result['inquiry'].inquiry_id}, 'refund_id': {result['refund'].refund_id}}}")
 
         return {
             "inquiry_id": result["inquiry"].inquiry_id,
@@ -117,16 +151,8 @@ async def cancel_payment(
             "message": "환불 요청과 문의가 성공적으로 접수되었습니다.",
         }
 
-    except ValueError as ve:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "validation_error",
-                "message": str(ve),
-            }
-        )
     except Exception as e:
-        logging.error(f"Payment cancellation error: {str(e)}")
+        logging.error(f"Unexpected error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -374,13 +400,13 @@ def create_manual_payment_route(payment: schemas.AdminPaymentCreate, db: Session
     new_payment = services.create_manual_payment(db, payment.dict())
     return new_payment
 
-@router.post("/admin/refunds/{refund_id}", response_model=schemas.AdminRefundResponse)
-def admin_process_refund(refund_id: int, db: Session = Depends(get_db)):
+@router.post("/admin/refunds/{inquiry_id}", response_model=schemas.AdminRefundResponse)
+def admin_process_refund(inquiry_id: int, db: Session = Depends(get_db)):
     """
     환불 요청 승인 및 처리
     """
     try:
-        refund = services.process_refund(refund_id=refund_id, db=db)
+        refund = portone_services.issue_refund(inquiry_id=inquiry_id, db=db)
         return refund
     except HTTPException as e:
         raise e
@@ -432,50 +458,127 @@ async def payment_complete(
     db: Session = Depends(get_db),
 ):
     """결제 완료 검증 및 처리"""
-    result = portone_services.verify_and_save_payment(payment_request, db)
-    return result
-
-@router.post("/portone/cancel")
-def cancel_payment(
-    inquiry_id: int,
-    db: Session = Depends(get_db)
-):
-    """결제 환불 요청 및 처리"""
     try:
-        result = portone_services.issue_refund(inquiry_id=inquiry_id, db=db)
+        result = portone_services.verify_and_save_payment(payment_request, db)
         return result
     except HTTPException as e:
+        logging.error(f"Payment processing error: {e.detail}")
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail="예기치 않은 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+        logging.error(f"Unexpected error during payment processing: {str(e)}")
+        raise HTTPException(status_code=500, detail="결제 처리 중 오류가 발생했습니다.")
 
 @router.post("/import/webhook")
 async def import_webhook(request: Request, db: Session = Depends(get_db)):
+    """
+    포트원 웹훅 처리 라우터. 중복 처리 방지 및 정기 결제 예약 처리 포함.
+    """
     try:
         # 요청 데이터 읽기
         body = await request.json()
+        logging.info(f"Webhook received: {json.dumps(body, ensure_ascii=False)}")
+
         imp_uid = body.get("imp_uid")
         merchant_uid = body.get("merchant_uid")
         status = body.get("status")
-        customer_uid = body.get("customer_uid", None)  # 정기 결제의 경우 포함
+        customer_uid = body.get("customer_uid", None)
+
+        logging.info(f"Parsed body: imp_uid={imp_uid}, merchant_uid={merchant_uid}, status={status}, customer_uid={customer_uid}")
 
         if not imp_uid or not merchant_uid:
             raise HTTPException(status_code=400, detail="유효하지 않은 웹훅 요청입니다.")
 
-        # 결제 정보 조회
-        payment_info = portone_services.get_portone_payment_info(imp_uid)
-        payment_type = portone_services.identify_payment_type(merchant_uid)  # 주문 ID를 기반으로 유형 식별
+        existing_payment = db.query(Payment).filter(
+            Payment.payment_number == imp_uid
+        ).first()
+        if existing_payment:
+            logging.info(f"Duplicate payment detected for imp_uid: {imp_uid}. Skipping.")
+            return {"status": "duplicate", "message": "이미 처리된 결제 요청입니다."}
 
-        if payment_type == "subscription":
-            # 정기 결제 처리
-            portone_services.process_subscription_payment(payment_info, db)
-        elif payment_type == "single":
-            # 일회성 결제 처리
+        token = portone_services.get_portone_token()
+        payment_info = portone_services.get_portone_payment_info(imp_uid, token)
+        logging.info(f"Payment info retrieved: {json.dumps(payment_info, ensure_ascii=False)}")
+
+        payment_type = portone_services.identify_payment_type(merchant_uid)
+        logging.info(f"Payment type identified: {payment_type}")
+
+        if status != "paid":
+            logging.warning(f"Payment not successful. Imp_uid: {imp_uid}, Status: {status}")
+            return {"status": "failed", "message": "결제 실패 또는 취소"}
+
+        if payment_type == "single":
+            logging.info("Processing single payment.")
             portone_services.process_single_payment(payment_info, db)
+        elif payment_type == "subscription":
+            logging.info("Processing subscription payment.")
+            subscription = portone_services.process_subscription_payment(payment_info, db)
+
+            portone_services.schedule_subscription_payment(subscription.subscription_id, db)
+            logging.info(f"Next subscription payment scheduled for subscription ID {subscription.subscription_id}.")
         else:
+            logging.warning(f"Unknown payment type for merchant_uid: {merchant_uid}")
             raise HTTPException(status_code=400, detail="알 수 없는 결제 유형입니다.")
 
+        logging.info("Webhook processing completed successfully.")
         return {"status": "success", "message": "웹훅 처리 완료"}
+
+    except HTTPException as e:
+        logging.error(f"HTTPException during webhook processing: {e.detail}")
+        raise e
     except Exception as e:
+        logging.error(f"Unexpected error during webhook processing: {str(e)}")
         raise HTTPException(status_code=500, detail=f"웹훅 처리 중 오류: {str(e)}")
 
+@router.post("/v1/portone/mobile")
+async def handle_mobile_redirect(
+    imp_uid: str = Query(..., description="포트원 결제 고유 ID"),
+    merchant_uid: str = Query(..., description="상점 거래 고유 ID"),
+    success: str = Query(None, description="결제 성공 여부 (true/false)"),
+    db: Session = Depends(get_db),
+):
+    """
+    포트원 카카오페이 모바일 결제 리다이렉션 처리
+
+    Args:
+        imp_uid (str): 포트원에서 제공하는 결제 고유 ID.
+        merchant_uid (str): 상점 거래 고유 ID.
+        success (str): 결제 성공 여부 (true/false).
+        db (Session): 데이터베이스 세션.
+    """
+    try:
+        logging.info("모바일 결제 리다이렉션 요청 처리 시작")
+
+        if success == "true":
+            # 결제 검증 및 저장
+            payment_request = schemas.PaymentCompleteRequest(imp_uid=imp_uid, merchant_uid=merchant_uid)
+            portone_services.verify_and_save_payment(payment_request, db)
+
+            # 성공 URL 생성 및 리다이렉트
+            success_url = f"{settings.PORTONE_M_PAYMENT_RESULT_URL}?success"
+            logging.info(f"결제 성공 - 리다이렉트 URL: {success_url}")
+            return RedirectResponse(success_url)
+
+        elif success == "false":
+            # 실패 또는 취소 URL 생성 및 리다이렉트
+            failure_url = f"{settings.PORTONE_M_PAYMENT_RESULT_URL}?fail&reason=payment_failed_or_cancelled"
+            logging.warning(f"결제가 실패하거나 취소됨 - 리다이렉트 URL: {failure_url}")
+            return RedirectResponse(failure_url)
+
+        else:
+            # 잘못된 요청 처리
+            invalid_url = f"{settings.PORTONE_M_PAYMENT_RESULT_URL}?fail&reason=invalid_request"
+            logging.error(f"잘못된 요청 - 리다이렉트 URL: {invalid_url}")
+            return RedirectResponse(invalid_url)
+
+    except HTTPException as e:
+        # HTTPException 처리
+        failure_reason = e.detail.get("detail") if isinstance(e.detail, dict) else str(e.detail)
+        failure_url = f"{settings.PORTONE_M_PAYMENT_RESULT_URL}?fail&reason={failure_reason}"
+        logging.error(f"결제 실패 - 리다이렉트 URL: {failure_url}")
+        return RedirectResponse(failure_url)
+
+    except Exception as e:
+        # 기타 예외 처리
+        error_url = f"{settings.PORTONE_M_PAYMENT_RESULT_URL}?fail&reason=server_error"
+        logging.error(f"예상치 못한 오류 - 리다이렉트 URL: {error_url} - 오류: {str(e)}")
+        return RedirectResponse(error_url)
