@@ -43,38 +43,47 @@ function AIQuestionBox({ content, image, isStreaming, isLoading }: AIQuestionBox
   );
 }
 
+function isValidImageUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  if (url === "null" || url === "") return false;
+  
+  try {
+    const parsedData = JSON.parse(url);
+    return !!(parsedData.images?.[0]?.url);
+  } catch {
+    // If it's not JSON, check if it's a valid URL string
+    return url.startsWith('http') || url.startsWith('https');
+  }
+}
+
 function UserQuestionBox({ content, imageUrls, imageSizeInfo }: BaseQuestionBoxProps) {
-  // Filter out any null, undefined, or empty string URLs
-  const validImageUrls = imageUrls?.filter(url => url && url.trim() !== '') || [];
+  // Filter and validate image URLs
+  const validImages = (imageUrls || [])
+    .filter(isValidImageUrl)
+    .map(url => {
+      try {
+        const parsedData = JSON.parse(url);
+        return parsedData.images?.[0]?.url || url;
+      } catch {
+        return url;
+      }
+    });
 
   return (
     <div className={styles.userContainer}>
-      {validImageUrls.length > 0 && (
+      {validImages.length > 0 && (
         <div className={styles.imagesGrid}>
-          {validImageUrls.map((url, index) => {
-            // Try to parse the URL if it's a JSON string
-            let imageUrl = url;
-            try {
-              const parsedData = JSON.parse(url);
-              if (parsedData.images && parsedData.images[0]?.url) {
-                imageUrl = parsedData.images[0].url;
-              }
-            } catch (e) {
-              // URL is not a JSON string, use it as is
-            }
-
-            return (
-              <div key={index} className={styles.imageWrapper}>
-                <img src={imageUrl} alt={`Uploaded ${index + 1}`} className={styles.messageImage} />
-                {imageSizeInfo && imageSizeInfo[index] && (
-                  <div className={styles.imageSizeInfo}>
-                    <span>원본: {formatFileSize(imageSizeInfo[index].originalSize)}</span>
-                    <span>변환: {formatFileSize(imageSizeInfo[index].resizedSize)}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {validImages.map((url, index) => (
+            <div key={index} className={styles.imageWrapper}>
+              <img src={url} alt={`Uploaded ${index + 1}`} className={styles.messageImage} />
+              {imageSizeInfo && imageSizeInfo[index] && (
+                <div className={styles.imageSizeInfo}>
+                  <span>원본: {formatFileSize(imageSizeInfo[index].originalSize)}</span>
+                  <span>변환: {formatFileSize(imageSizeInfo[index].resizedSize)}</span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
       <div className={styles.content}>{content}</div>
