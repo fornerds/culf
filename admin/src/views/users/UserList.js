@@ -201,7 +201,7 @@ const UserList = () => {
                   <option value="low">낮은 사용량 (0-500)</option>
                 </CFormSelect>
               </div>
-              <CInputGroup style={{ width: 'auto' }}>
+              <CInputGroup style={{ width: '300px' }}>
                 <CFormInput
                   placeholder="닉네임 또는 이메일로 검색"
                   value={tempSearchQuery}
