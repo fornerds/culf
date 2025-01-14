@@ -13,7 +13,6 @@ class InquiryCreate(BaseModel):
     email: str = Field(..., description="답변 받을 이메일")
     contact: str = Field(..., min_length=1, max_length=20, description="연락처")
     content: str = Field(..., min_length=1, description="문의 내용")
-    attachments: Optional[Dict[str, List[AttachmentInfo]]] = Field(default=None, description="첨부 파일 목록")
 
     class Config:
         json_schema_extra = {
@@ -22,15 +21,10 @@ class InquiryCreate(BaseModel):
                 "email": "user@example.com",
                 "contact": "010-1234-5678",
                 "content": "서비스 이용에 대해 문의드립니다.",
-                "attachments": {
-                    "files": [
-                        {
-                            "file_name": "screenshot.png",
-                            "file_type": "image/png",
-                            "file_url": "https://example.com/files/screenshot.png"
-                        }
-                    ]
-                }
+                "attachments": [
+                    "https://example.com/files/screenshot1.png",
+                    "https://example.com/files/screenshot2.png"
+                ]
             }
         }
 
@@ -50,13 +44,13 @@ class InquiryResponse(BaseModel):
 
 class InquiryDetail(BaseModel):
     inquiry_id: int
-    user_id: UUID
+    user_id: Optional[UUID] = None
     type: str
     title: str
     email: str
     contact: str
     content: str
-    attachments: Optional[Union[Dict[str, Any], None]] = None
+    attachments: Optional[List[str]] = None
     status: str
     created_at: datetime
 
@@ -71,16 +65,11 @@ class InquiryDetail(BaseModel):
                 "email": "user@example.com",
                 "contact": "010-1234-5678",
                 "content": "서비스 이용에 대해 문의드립니다.",
-                "attachments": {
-                    "files": [
-                        {
-                            "file_name": "screenshot.png",
-                            "file_type": "image/png",
-                            "file_url": "https://example.com/files/screenshot.png"
-                        }
-                    ]
-                },
-                "status": "RECEIVED",
+                "attachments": [
+                    "https://example.com/files/screenshot1.png",
+                    "https://example.com/files/screenshot2.png"
+                ],
+                "status": "PENDING",
                 "created_at": "2024-01-01T00:00:00Z"
             }
         }

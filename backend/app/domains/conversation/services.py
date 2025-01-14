@@ -8,6 +8,7 @@ from uuid import UUID
 from app.domains.curator import services as curator_services
 from app.domains.conversation.models import ChatRoom, Conversation
 from app.domains.curator.models import Curator
+from sqlalchemy import func
 
 def extract_summary_from_answer(answer: str) -> str:
     # 문장 단위로 분리
@@ -137,7 +138,7 @@ def get_user_conversations(
                 conversation_id=conv.conversation_id,
                 user_id=conv.user_id,
                 question=conv.question,
-                question_image=conv.question_image,
+                question_images=conv.question_images,
                 answer=conv.answer,
                 question_time=conv.question_time,
                 answer_time=conv.answer_time,
@@ -179,56 +180,67 @@ def create_chat_room(db: Session, chat_room: schemas.ChatRoomCreate, user_id: UU
 
 
 def get_user_chat_rooms(db: Session, user_id: UUID) -> List[dict]:
-    """사용자의 채팅방 목록을 가져옵니다."""
-    chat_rooms = (
-        db.query(ChatRoom)
-        .filter(
-            ChatRoom.user_id == user_id,
-            ChatRoom.is_active == True
-        )
-        .options(
-            joinedload(ChatRoom.curator).joinedload(Curator.tags)
-        )
-        .order_by(ChatRoom.created_at.desc())
-        .all()
-    )
+   """사용자의 채팅방 목록을 가져옵니다."""
+   # 대화가 있는 채팅방만 조회하도록 서브쿼리 사용
+   rooms_with_conversations = (
+       db.query(ChatRoom.room_id)
+       .join(Conversation)
+       .filter(Conversation.user_id == user_id)
+       .group_by(ChatRoom.room_id)
+       .having(func.count(Conversation.conversation_id) > 0)
+       .subquery()
+   )
 
-    # 각 채팅방에 대한 추가 정보 계산
-    for room in chat_rooms:
-        # 현재 사용자의 대화 수 계산
-        conversation_count = (
-            db.query(Conversation)
-            .filter(
-                Conversation.room_id == room.room_id,
-                Conversation.user_id == user_id
-            )
-            .count()
-        )
+   chat_rooms = (
+       db.query(ChatRoom)
+       .join(rooms_with_conversations, ChatRoom.room_id == rooms_with_conversations.c.room_id)
+       .filter(
+           ChatRoom.user_id == user_id,
+           ChatRoom.is_active == True
+       )
+       .options(
+           joinedload(ChatRoom.curator).joinedload(Curator.tags)
+       )
+       .order_by(ChatRoom.created_at.desc())
+       .all()
+   )
 
-        # 현재 사용자의 마지막 대화 가져오기
-        last_conversation = (
-            db.query(Conversation)
-            .filter(
-                Conversation.room_id == room.room_id,
-                Conversation.user_id == user_id
-            )
-            .order_by(Conversation.question_time.desc())
-            .first()
-        )
+   # 각 채팅방에 대한 추가 정보 계산
+   for room in chat_rooms:
+       # 현재 사용자의 대화 수 계산
+       conversation_count = (
+           db.query(Conversation)
+           .filter(
+               Conversation.room_id == room.room_id,
+               Conversation.user_id == user_id
+           )
+           .count()
+       )
 
-        # 속성 설정
-        setattr(room, '_conversation_count', conversation_count)
+       # 현재 사용자의 마지막 대화 가져오기
+       last_conversation = (
+           db.query(Conversation)
+           .filter(
+               Conversation.room_id == room.room_id,
+               Conversation.user_id == user_id
+           )
+           .order_by(Conversation.question_time.desc())
+           .first()
+       )
 
-        if last_conversation:
-            setattr(room, '_last_conversation', {
-                "question": last_conversation.question,
-                "answer": last_conversation.answer,
-                "question_time": last_conversation.question_time
-            })
-        else:
-            setattr(room, '_last_conversation', None)
+       # 속성 설정
+       setattr(room, '_conversation_count', conversation_count)
 
-    return chat_rooms
+       if last_conversation:
+           setattr(room, '_last_conversation', {
+               "question": last_conversation.question,
+               "answer": last_conversation.answer,
+               "question_time": last_conversation.question_time
+           })
+       else:
+           setattr(room, '_last_conversation', None)
+
+   return chat_rooms
 
 
 def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoom]:
@@ -256,7 +268,7 @@ def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoo
         "answer": conv.answer,
         "question_time": conv.question_time,
         "answer_time": conv.answer_time,
-        "question_image": conv.question_image
+        "question_images": conv.question_images
     } for conv in chat_room.conversations]  # 이미 정렬된 상태
     
     # 속성 설정

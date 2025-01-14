@@ -4,27 +4,27 @@ from typing import List, Optional
 from uuid import UUID
 from app.domains.notification.models import NotificationType
 
-class NotificationBase(BaseModel):
+# 알림 응답 스키마
+class NotificationResponse(BaseModel):
+    notification_id: int
     type: NotificationType
     message: str
-
-class NotificationCreate(NotificationBase):
-    user_id: UUID
-
-class NotificationResponse(NotificationBase):
-    notification_id: int
-    user_id: UUID
-    is_read: bool
     created_at: datetime
+    is_read: bool
+    read_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
-class Notification(NotificationResponse):
-    pass
+# 알림 생성 스키마
+class NotificationCreate(BaseModel):
+    type: NotificationType
+    message: str
+    user_ids: Optional[List[str]] = None  # None이면 전체 발송
 
+# 알림 목록 스키마
 class NotificationList(BaseModel):
-    notifications: List[Notification]
+    notifications: List[NotificationResponse]
     total_count: int
     page: int
     limit: int
@@ -32,6 +32,7 @@ class NotificationList(BaseModel):
     class Config:
         from_attributes = True
 
+# 알림 설정 관련 스키마
 class NotificationSettingBase(BaseModel):
     notification_type: NotificationType
     is_enabled: bool
@@ -46,17 +47,8 @@ class NotificationSetting(NotificationSettingBase):
     class Config:
         from_attributes = True
 
-# 관리자용 스키마
-class AdminNotificationCreate(NotificationCreate):
-    """관리자가 알림을 생성할 때 사용하는 스키마"""
-    pass
+class NotificationSettingList(BaseModel):
+    settings: List[NotificationSetting]
 
-class AdminNotificationUpdate(BaseModel):
-    """관리자가 알림을 수정할 때 사용하는 스키마"""
-    type: Optional[NotificationType] = None
-    message: Optional[str] = None
-    is_read: Optional[bool] = None
-
-class AdminNotificationResponse(NotificationResponse):
-    """관리자가 알림을 조회할 때 사용하는 스키마"""
-    user_nickname: Optional[str] = None
+    class Config:
+        from_attributes = True

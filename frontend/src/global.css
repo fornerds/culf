@@ -7,6 +7,7 @@
 
 :root {
   --max-width: 600px;
+  --input-group-height: 60px;
 }
 
 /* 폰트 설정 */

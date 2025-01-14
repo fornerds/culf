@@ -2,13 +2,22 @@
 import axios, { AxiosInstance } from 'axios';
 import { tokenService } from '@/utils/tokenService';
 import { useAuthStore } from '../state/client/authStore';
+import { PAYMENT_CONFIG } from '@/config/payment';
 
 interface PaymentData {
-  plan_id: number;  // token_plan_id 또는 subscription plan_id
-  quantity: number;
-  environment: string;
+  plan_id: number;
+  pg: string;
+  pay_method?: string;
   coupon_code?: string;
 }
+
+interface CleanedPaymentData {
+  plan_id: number;
+  pg: string;
+  pay_method?: string;
+  coupon_code?: string;
+}
+
 
 export const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
 
@@ -372,36 +381,54 @@ export const payment = {
     }),
   createPayment: (paymentData: any) => api.post('/payments', paymentData),
   createSinglePayment: (paymentData: PaymentData) => {
-    const cleanedData = {
+    if (!paymentData.plan_id || !paymentData.pg) {
+      throw new Error('필수 결제 정보가 누락되었습니다.');
+    }
+
+    // 다날 결제의 경우 pay_method 필수
+    if (paymentData.pg === PAYMENT_CONFIG.pgProviders.DANAL && !paymentData.pay_method) {
+      throw new Error('휴대폰 결제 방식이 선택되지 않았습니다.');
+    }
+
+    const cleanedData: CleanedPaymentData = {
       plan_id: Number(paymentData.plan_id),
-      quantity: Math.max(1, paymentData.quantity),
-      environment: paymentData.environment.toLowerCase(),
-      coupon_code: paymentData.coupon_code || null
+      pg: paymentData.pg,
+      pay_method: paymentData.pay_method,
+      ...(paymentData.coupon_code && { coupon_code: paymentData.coupon_code })
     };
 
-    return api.post('/pay', cleanedData, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${tokenService.getAccessToken()}`
-      }
-    });
+    // 불필요한 undefined 값 제거
+    const finalData: CleanedPaymentData = Object.fromEntries(
+      Object.entries(cleanedData).filter(([_, value]) => value !== undefined)
+    ) as CleanedPaymentData;
+
+    console.log('Cleaned payment data:', finalData);
+
+    return api.post('/portone/payment', finalData);
   },
 
   createSubscription: (subscriptionData: PaymentData) => {
-    const cleanedData = {
+    if (!subscriptionData.plan_id || !subscriptionData.pg) {
+      throw new Error('필수 결제 정보가 누락되었습니다.');
+    }
+
+    const cleanedData: CleanedPaymentData = {
       plan_id: Number(subscriptionData.plan_id),
-      quantity: Math.max(1, subscriptionData.quantity),
-      environment: subscriptionData.environment.toLowerCase(),
-      coupon_code: subscriptionData.coupon_code || null
+      pg: subscriptionData.pg,
+      pay_method: subscriptionData.pay_method,
+      ...(subscriptionData.coupon_code && { coupon_code: subscriptionData.coupon_code })
     };
 
-    return api.post('/subscription', cleanedData, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${tokenService.getAccessToken()}`
-      }
-    });
+    // 불필요한 undefined 값 제거
+    const finalData: CleanedPaymentData = Object.fromEntries(
+      Object.entries(cleanedData).filter(([_, value]) => value !== undefined)
+    ) as CleanedPaymentData;
+
+    console.log('Cleaned subscription data:', finalData);
+
+    return api.post('/portone/subscription', finalData);
   },
+
   getMyPayments: (page: number = 1, limit: number = 10) =>
     api.get('/users/me/payments', { params: { page, limit } }),
   getPaymentById: (paymentId: string) =>
@@ -419,6 +446,14 @@ export const payment = {
     return api.post(`/users/me/payments/${paymentId}/cancel`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  verifyPayment: (verificationData: { imp_uid: string; merchant_uid: string }) => {
+    return api.post('/payment-complete', verificationData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokenService.getAccessToken()}`
       }
     });
   },

@@ -93,7 +93,7 @@ const Curators = () => {
                   <CTableHeaderCell style={{ width: '80px' }}>이름</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '220px' }}>페르소나</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '90px' }}>카테고리</CTableHeaderCell>
-                  <CTableHeaderCell>소개</CTableHeaderCell>
+                  <CTableHeaderCell>특성</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '150px' }}>태그</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '120px' }}>작업</CTableHeaderCell>
                 </CTableRow>

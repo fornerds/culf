@@ -1,4 +1,5 @@
 import random
+from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,12 +17,13 @@ import uuid
 oauth2_scheme = OAuth2PasswordBearer(
    tokenUrl=f"{settings.API_V1_STR}/form/login",
    scheme_name="Email & Password",
-   description="Use your email and password to login"
+   description="Use your email and password to login",
+   auto_error=False
 )
 
 async def get_current_user(
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    token: Optional[str] = Depends(oauth2_scheme)
 ) -> user_schemas.User:
     if settings.DEV_MODE:
         logging.warning("Using dev mode authentication")
@@ -47,11 +49,7 @@ async def get_current_user(
 
     # 실제 운영 환경의 인증 로직
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        return None  # 토큰이 없으면 None 반환
 
     try:
         payload = jwt.decode(

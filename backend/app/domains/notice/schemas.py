@@ -6,8 +6,8 @@ from uuid import UUID
 class NoticeBase(BaseModel):
     title: str = Field(..., example="시스템 점검 안내", description="공지사항 제목")
     content: str = Field(..., example="2024년 1월 1일 새벽 2시부터 4시까지 시스템 점검이 있을 예정입니다.", description="공지사항 내용")
-    image_url: Optional[str] = Field(..., example="https://example.com/images/notice.jpg", description="공지사항 이미지 URL")
-    start_date: date = Field(..., example="2024-01-01", description="공지사항 시작일")
+    image_url: Optional[str] = Field(None, example="https://example.com/images/notice.jpg", description="공지사항 이미지 URL")
+    start_date: date = Field(None, example="2024-01-01", description="공지사항 시작일")
     end_date: date = Field(..., example="2024-01-31", description="공지사항 종료일")
     is_public: bool = Field(True, description="공개 여부")
     is_important: Optional[bool] = Field(None, description="중요 공지 여부")

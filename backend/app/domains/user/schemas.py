@@ -3,8 +3,7 @@ from typing import Optional, Dict
 from datetime import date, datetime
 from uuid import UUID
 from typing import List
-from app.domains.notification.schemas import Notification
-from app.domains.notification.schemas import NotificationSetting
+from app.domains.notification.schemas import NotificationSetting, NotificationResponse
 from app.domains.notice.schemas import UserNoticeRead
 
 class UserBase(BaseModel):
@@ -53,7 +52,7 @@ class UserInfo(BaseModel):
     created_at: datetime
     updated_at: datetime
     subscription: Optional[Subscription]
-    notifications: Optional[List[Notification]] = []
+    notifications: Optional[List[NotificationResponse]] = []
     notification_settings: Optional[List[NotificationSetting]] = []
     notice_reads: Optional[List[UserNoticeRead]] = []
 

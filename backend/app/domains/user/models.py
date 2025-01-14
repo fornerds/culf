@@ -39,8 +39,9 @@ class User(Base):
     payments = relationship("Payment", back_populates="user")
     inquiries = relationship("Inquiry", back_populates="user")
     payment_caches = relationship("PaymentCache", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("UserNotification", back_populates="user", cascade="all, delete-orphan")
+    notification_settings = relationship("UserNotificationSetting", back_populates="user")
 
-# class model for UserProvider that refer User
 class UserProvider(Base):
     __tablename__ = 'user_provider'
     

@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile, Request, Response
 from fastapi.responses import RedirectResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from datetime import datetime
@@ -24,45 +26,51 @@ logger = logging.getLogger("app")
 
 router = APIRouter()
 
+
 # 상품 관련 엔드포인트
 @router.get("/payments/products", response_model=dict)
 async def get_all_products(db: Session = Depends(get_db)):
     products = services.get_all_products(db)
     return {
-        "subscription_plans": [schemas.SubscriptionPlanSchema.from_orm(plan) for plan in products["subscription_plans"]],
+        "subscription_plans": [schemas.SubscriptionPlanSchema.from_orm(plan) for plan in
+                               products["subscription_plans"]],
         "token_plans": [schemas.TokenPlanSchema.from_orm(plan) for plan in products["token_plans"]]
     }
 
-@router.get("/payments/products/{product_id}", response_model=Union[schemas.SubscriptionPlanSchema, schemas.TokenPlanSchema])
+
+@router.get("/payments/products/{product_id}",
+            response_model=Union[schemas.SubscriptionPlanSchema, schemas.TokenPlanSchema])
 async def get_product_by_id(product_id: int, product_type: str, db: Session = Depends(get_db)):
     product = services.get_product_by_id(db, product_id, product_type)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    
+
     if product_type == "subscription":
         return schemas.SubscriptionPlanSchema.from_orm(product)
     elif product_type == "token":
         return schemas.TokenPlanSchema.from_orm(product)
 
+
 # 개인 결제 내역 조회 API
 @router.get("/users/me/payments", response_model=List[schemas.PaymentResponse])
 async def get_me_payments(
-    page: int = 1,
-    limit: int = 10,
-    year: int = None,
-    month: int = None,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user)
+        page: int = 1,
+        limit: int = 10,
+        year: int = None,
+        month: int = None,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_active_user)
 ):
     user_id = current_user.user_id
     payments = services.get_me_payments(db, user_id, page, limit, year, month)
     return payments
 
+
 @router.get("/users/me/payments/{payment_id}", response_model=schemas.PaymentResponse)
 async def get_payment_detail(
-    payment_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user)
+        payment_id: int,
+        db: Session = Depends(get_db),
+        current_user=Depends(get_current_active_user)
 ):
     user_id = current_user.user_id
     payment = services.get_payment_detail(db, payment_id, user_id)
@@ -70,16 +78,17 @@ async def get_payment_detail(
         raise HTTPException(status_code=404, detail="Payment not found")
     return payment
 
+
 @router.post("/users/me/payments/{payment_id}/cancel", response_model=schemas.PaycancelResponse)
 async def cancel_payment(
-    payment_id: UUID,
-    title: str = Form(..., description="문의 제목"),
-    email: str = Form(..., description="연락받을 이메일"),
-    contact: str = Form(..., description="연락처"),
-    content: str = Form(..., description="문의 내용"),
-    attachments: List[UploadFile] = File(None, description="첨부파일 (선택)"),
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user),
+        payment_id: UUID,
+        title: str = Form(..., description="문의 제목"),
+        email: str = Form(..., description="연락받을 이메일"),
+        contact: str = Form(..., description="연락처"),
+        content: str = Form(..., description="문의 내용"),
+        attachments: List[UploadFile] = File(None, description="첨부파일 (선택)"),
+        db: Session = Depends(get_db),
+        current_user: user_schemas.User = Depends(get_current_active_user),
 ):
     try:
         logging.info("Starting cancellation process")
@@ -161,15 +170,17 @@ async def cancel_payment(
             }
         )
 
+
 # 쿠폰 유효성 검사
 @router.post("/payments/coupons/validate", response_model=schemas.CouponValidationResponse)
 def validate_coupon(
-    coupon_data: schemas.CouponValidationRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+        coupon_data: schemas.CouponValidationRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     validation_response = services.validate_coupon(db, coupon_data.coupon_code, current_user.user_id)
     return validation_response
+
 
 # 결제 관련 엔드포인트
 @router.post("/payments", response_model=schemas.PaymentResponse)
@@ -177,20 +188,23 @@ def create_payment(payment_data: schemas.PaymentCreate, db: Session = Depends(ge
     payment = services.create_payment(db, payment_data)
     return payment
 
+
 payment_service = PaymentService()
+
 
 @router.post("/pay")
 async def initiate_payment(
-    payment_request: schemas.KakaoPayRequest,
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user)
+        payment_request: schemas.KakaoPayRequest,
+        db: Session = Depends(get_db),
+        current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
         logger.info(f"User: {current_user}")
         logger.info(f"Received payment request: {payment_request}")
         logger.info(f"Environment: {payment_request.environment}")
 
-        payment_data = payment_service.initiate_payment(payment_request=payment_request, db=db, current_user=current_user)
+        payment_data = payment_service.initiate_payment(payment_request=payment_request, db=db,
+                                                        current_user=current_user)
         return payment_data
     except HTTPException as e:
         logger.error(f"HTTP Exception: {str(e)}")
@@ -199,11 +213,12 @@ async def initiate_payment(
         logger.error(f"Unexpected error initiating payment: {str(e)}")
         raise HTTPException(status_code=400, detail="결제 준비에 실패했습니다.")
 
+
 @router.get("/pay/success")
 async def approve_payment(
-    pg_token: str,
-    partner_order_id: str,
-    db: Session = Depends(get_db)
+        pg_token: str,
+        partner_order_id: str,
+        db: Session = Depends(get_db)
 ):
     logger.info(f"Received partner_order_id: {partner_order_id}")
     try:
@@ -224,14 +239,15 @@ async def approve_payment(
         logger.error(f"Redirecting to unknown error URL: {redirect_url}")
         return RedirectResponse(url=redirect_url)
 
+
 @router.get("/pay/fail")
 async def payment_fail(
-    partner_order_id: str,
-    error_code: Optional[int] = None,
-    error_message: Optional[str] = None,
-    method_result_code: Optional[str] = None,
-    method_result_message: Optional[str] = None,
-    db: Session = Depends(get_db)
+        partner_order_id: str,
+        error_code: Optional[int] = None,
+        error_message: Optional[str] = None,
+        method_result_code: Optional[str] = None,
+        method_result_message: Optional[str] = None,
+        db: Session = Depends(get_db)
 ):
     logger.info(f"Received partner_order_id: {partner_order_id}")
     try:
@@ -258,16 +274,18 @@ async def payment_fail(
         redirect_url = f"{settings.PAYMENT_URL}?fail&reason=unknown_error"
         return RedirectResponse(url=redirect_url)
 
+
 @router.get("/pay/cancel")
 async def payment_cancel():
     redirect_url = f"{settings.PAYMENT_URL}"
     return RedirectResponse(url=redirect_url)
 
+
 @router.post("/subscription")
 async def initiate_subscription(
-    subscription_request: schemas.KakaoPaySubscriptionRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+        subscription_request: schemas.KakaoPaySubscriptionRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user)
 ):
     try:
         subscription_data = payment_service.initiate_subscription(subscription_request, db, current_user)
@@ -279,10 +297,11 @@ async def initiate_subscription(
         logger.error(f"Unexpected error initiating payment: {str(e)}")
         raise HTTPException(status_code=400, detail="결제 준비에 실패했습니다.")
 
+
 @router.post("/subscription/pay/{user_id}")
 async def pay_subscription_for_user(
-    user_id: UUID,
-    db: Session = Depends(get_db),
+        user_id: UUID,
+        db: Session = Depends(get_db),
 ):
     try:
         result = PaymentService.process_subscription(user_id, db)
@@ -294,9 +313,10 @@ async def pay_subscription_for_user(
         logger.error(f"Unexpected error processing subscription for user_id {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred during subscription processing.")
 
+
 @router.post("/subscriptions/automatic")
 async def automatic_subscription_payments(
-    db: Session = Depends(get_db),
+        db: Session = Depends(get_db),
 ):
     try:
         results = PaymentService.process_all_subscriptions(db)
@@ -306,12 +326,14 @@ async def automatic_subscription_payments(
         raise e
     except Exception as e:
         logger.error(f"Unexpected error during automatic subscription processing: {str(e)}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred during automatic subscription processing.")
+        raise HTTPException(status_code=500,
+                            detail="An unexpected error occurred during automatic subscription processing.")
+
 
 @router.post("/subscription/cancel")
 async def cancel_subscription(
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user)
+        db: Session = Depends(get_db),
+        current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
         cancellation_response = payment_service.cancel_subscription(current_user.user_id, db)
@@ -323,10 +345,11 @@ async def cancel_subscription(
         logger.error(f"Unexpected error during subscription cancellation: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred during subscription cancellation.")
 
+
 @router.get("/subscription/status")
 async def subscription_status(
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user)
+        db: Session = Depends(get_db),
+        current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     try:
         status_response = payment_service.get_subscription_status(current_user.user_id, db)
@@ -334,11 +357,12 @@ async def subscription_status(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @router.post("/subscription/change-method")
 async def change_subscription_method(
-    subscription_request: schemas.KakaoPaySubscriptionRequest,
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user),
+        subscription_request: schemas.KakaoPaySubscriptionRequest,
+        db: Session = Depends(get_db),
+        current_user: user_schemas.User = Depends(get_current_active_user),
 ):
     try:
         payment_service = PaymentService()
@@ -353,30 +377,44 @@ async def change_subscription_method(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-#admin 관련 엔드 포인트
+
+# admin 관련 엔드 포인트
 @router.get("/admin/payments", response_model=List[schemas.PaymentListResponse])
-def get_admin_payments(
-    query: Optional[str] = Query(None, description="검색어 (결제 ID, 닉네임, 상품명, 결제 수단)"),
-    start_date: Optional[datetime] = Query(None, description="시작 날짜 (YYYY-MM-DD)"),
-    end_date: Optional[datetime] = Query(None, description="종료 날짜 (YYYY-MM-DD)"),
-    page: int = Query(1, description="페이지 번호"),
-    limit: int = Query(10, description="페이지당 항목 수"),
-    sort: str = Query("payment_date:desc", description="정렬 기준 (예: payment_date:desc)"),
+async def get_admin_payments(
+    query: Optional[str] = Query(None, description="검색어 (결제번호, 닉네임)"),
+    payment_method: Optional[str] = Query(None, description="결제 수단 (manual, kakaopay)"),
+    start_date: Optional[datetime] = Query(None, description="시작 날짜"),
+    end_date: Optional[datetime] = Query(None, description="종료 날짜"),
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    limit: int = Query(10, ge=1, le=100, description="페이지당 항목 수"),
+    sort: str = Query("payment_date:desc", description="정렬 (field:asc|desc)"),
+    status: Optional[str] = Query(None, description="결제 상태"),
     db: Session = Depends(get_db)
 ):
     """
-    검색 및 필터링된 결제 내역 조회 API
+    결제 내역 조회 API
+    - payment_method: 결제 수단으로 필터링 (manual: 수동결제, kakaopay: 카카오페이)
+    - query: 결제번호, 닉네임으로 검색
+    - start_date, end_date: 결제일 기간 필터링
+    - sort: 정렬 기준 (예: payment_date:desc)
+    - status: 결제 상태로 필터링
     """
-    payments = services.get_admin_payments(
+    payments, total_count = services.get_admin_payments(
         db=db,
         query=query,
+        payment_method=payment_method,
         start_date=start_date,
         end_date=end_date,
         page=page,
         limit=limit,
-        sort=sort
+        sort=sort,
+        status=status
     )
-    return payments
+
+    return JSONResponse(
+        content=jsonable_encoder(payments),
+        headers={"X-Total-Count": str(total_count)}
+    )
 
 @router.get("/admin/payments/{payment_id}", response_model=schemas.PaymentDetailResponse)
 def get_payment_detail(payment_id: UUID, db: Session = Depends(get_db)):
@@ -413,49 +451,56 @@ def admin_process_refund(inquiry_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Unexpected error occurred.")
 
+
 # 쿠폰 관련 엔드포인트
 @router.post("/admin/coupons", response_model=schemas.CouponResponse, status_code=status.HTTP_201_CREATED)
 def create_coupon(coupon_data: schemas.CouponCreate, db: Session = Depends(get_db)):
     return services.create_coupon(db, coupon_data)
 
+
 @router.put("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
 def update_coupon(coupon_id: int, coupon_data: schemas.CouponUpdate, db: Session = Depends(get_db)):
     return services.update_coupon(db, coupon_id, coupon_data)
+
 
 @router.delete("/admin/coupons/{coupon_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
     services.delete_coupon(db, coupon_id)
     return {"message": "Coupon deleted successfully"}
 
+
 @router.get("/admin/coupons/{coupon_id}", response_model=schemas.CouponResponse)
 def get_coupon(coupon_id: int, db: Session = Depends(get_db)):
     return services.get_coupon(db, coupon_id)
 
+
 # 포트원 결제 API
 @router.post("/portone/payment")
 async def one_time_payment(
-    payment_request: schemas.OneTimePaymentRequest,
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user)
+        payment_request: schemas.OneTimePaymentRequest,
+        db: Session = Depends(get_db),
+        current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     """단건 결제 요청"""
     result = portone_services.initiate_one_time_payment(payment_request, db, current_user)
     return result
 
+
 @router.post("/portone/subscription")
 async def subscription_payment(
-    subscription_request: schemas.SubscriptionPaymentRequest,
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user)
+        subscription_request: schemas.SubscriptionPaymentRequest,
+        db: Session = Depends(get_db),
+        current_user: user_schemas.User = Depends(get_current_active_user)
 ):
     """구독 결제 요청"""
     result = portone_services.initiate_subscription_payment(subscription_request, db, current_user)
     return result
 
+
 @router.post("/payment-complete")
 async def payment_complete(
-    payment_request: schemas.PaymentCompleteRequest,
-    db: Session = Depends(get_db),
+        payment_request: schemas.PaymentCompleteRequest,
+        db: Session = Depends(get_db),
 ):
     """결제 완료 검증 및 처리"""
     try:
@@ -467,6 +512,7 @@ async def payment_complete(
     except Exception as e:
         logging.error(f"Unexpected error during payment processing: {str(e)}")
         raise HTTPException(status_code=500, detail="결제 처리 중 오류가 발생했습니다.")
+
 
 @router.post("/import/webhook")
 async def import_webhook(request: Request, db: Session = Depends(get_db)):

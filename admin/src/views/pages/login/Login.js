@@ -23,28 +23,24 @@ const Login = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setIsLoading(true)
   
-    const email = e.target.username.value // username을 email로 사용
+    const email = e.target.username.value
     const password = e.target.password.value
   
     try {
-      // 실제 로그인 API 호출
       const response = await httpClient.post('/auth/login', {
         email,
         password
       })
       
-      // 응답에서 access_token 추출
       const { access_token } = response.data
-      
-      // 토큰 저장
       localStorage.setItem('token', access_token)
-      
-      // httpClient의 기본 헤더에 토큰 설정
       httpClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
       
       dispatch({ 
@@ -55,11 +51,32 @@ const Login = () => {
       navigate('/')
     } catch (error) {
       console.error('Login error:', error)
-      setError('로그인 중 오류가 발생했습니다.')
+      
+      let errorMessage = '로그인 중 오류가 발생했습니다.'
+      
+      if (error.response) {
+        switch (error.response.status) {
+          case 401:
+            errorMessage = '아이디 또는 비밀번호가 올바르지 않습니다.'
+            break
+          case 404:
+            errorMessage = '존재하지 않는 계정입니다.'
+            break
+          case 500:
+            errorMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+            break
+          default:
+            errorMessage = error.response.data?.detail || '로그인에 실패했습니다.'
+        }
+      }
+      
+      setError(errorMessage)
       dispatch({ 
         type: 'LOGIN_FAILURE', 
-        payload: error.response?.data?.detail || '로그인에 실패했습니다.' 
+        payload: errorMessage
       })
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -87,6 +104,8 @@ const Login = () => {
                         name="username"
                         placeholder="아이디"
                         autoComplete="username"
+                        disabled={isLoading}
+                        required
                       />
                     </CInputGroup>
                     <CInputGroup className="mb-4">
@@ -98,12 +117,19 @@ const Login = () => {
                         type="password"
                         placeholder="비밀번호"
                         autoComplete="current-password"
+                        disabled={isLoading}
+                        required
                       />
                     </CInputGroup>
                     <CRow>
                       <CCol xs={6}>
-                        <CButton type="submit" color="primary" className="px-4">
-                          로그인
+                        <CButton 
+                          type="submit" 
+                          color="primary" 
+                          className="px-4"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? '로그인 중...' : '로그인'}
                         </CButton>
                       </CCol>
                     </CRow>

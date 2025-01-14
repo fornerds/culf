@@ -22,23 +22,24 @@ def _process_attachments(attachments):
     return attachments
 
 
-def create_inquiry(db: Session, inquiry_data: schemas.InquiryCreate):
+def create_inquiry(db: Session, inquiry_data: dict):
     """문의사항 생성"""
-    db_inquiry = models.Inquiry(
-        type="GENERAL",
-        title=inquiry_data.title,
-        email=inquiry_data.email,
-        contact=inquiry_data.contact,
-        content=inquiry_data.content,
-        attachments=jsonable_encoder(inquiry_data.attachments) if inquiry_data.attachments else None,
-        status='PENDING'
-    )
-
     try:
+        db_inquiry = models.Inquiry(
+            type="GENERAL",  # 기본값으로 GENERAL 설정
+            title=inquiry_data["title"],
+            email=inquiry_data["email"],
+            contact=inquiry_data["contact"],
+            content=inquiry_data["content"],
+            attachments=inquiry_data["attachments"],  # URL 리스트
+            status='PENDING'
+        )
+
         db.add(db_inquiry)
         db.commit()
         db.refresh(db_inquiry)
         return db_inquiry
+
     except Exception as e:
         db.rollback()
         raise ValueError(f"Failed to create inquiry: {str(e)}")

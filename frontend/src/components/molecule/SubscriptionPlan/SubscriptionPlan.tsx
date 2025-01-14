@@ -1,7 +1,7 @@
 import { Tag } from '@/components/atom/Tag';
 import styles from './SubscriptionPlan.module.css';
 import { useNavigate } from 'react-router-dom';
-import { getPaymentImage, ImageType } from '@/utils/getPaymentImage';
+import { getPaymentImage } from '@/utils/getPaymentImage';
 import { Button } from '@/components/atom';
 
 interface SubscriptionPlanProps {
@@ -25,7 +25,7 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
     return `${year}년 ${parseInt(month, 10)}월 ${parseInt(day, 10)}일`;
   };
 
-  if (!subscription) {
+  if (!subscription || subscription.status !== 'ACTIVE') {
     return (
       <section className={styles.subscriptionPlanSection}>
         <div className={`${styles.sectionTop} font-card-title-1`}>
@@ -33,7 +33,10 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
         </div>
         <div className={styles.emptyState}>
           <p className={styles.emptyStateMessage}>
-            아직 구독 중인 서비스가 없습니다.
+            {!subscription 
+              ? '아직 구독 중인 서비스가 없습니다.' 
+              : '현재 활성화된 구독이 없습니다.'
+            }
           </p>
           <Button 
             size="size3" 
@@ -82,7 +85,6 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
           <button 
             className={styles.textButton}
             onClick={onCancelSubscription}
-            disabled={subscription.status !== 'ACTIVE'}
           >
             구독 취소
           </button>
@@ -90,7 +92,6 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
         <Button 
           size="size4" 
           onClick={() => navigate("/pricing")}
-          disabled={subscription.status !== 'ACTIVE'}
         >
           플랜 변경
         </Button>

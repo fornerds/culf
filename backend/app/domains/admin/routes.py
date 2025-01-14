@@ -1,26 +1,267 @@
-from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query, Body
 from pydantic import HttpUrl
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
+
+from app.core.security import get_password_hash
 from app.db.session import get_db
+from app.domains.admin import services, schemas
+from app.domains.admin.schemas import NotificationResponse, NotificationCreate, NotificationListResponse
+from app.domains.user import services as user_services
 from app.domains.banner import schemas as banner_schemas
 from app.domains.banner import services as banner_services
 from app.domains.curator import schemas as curator_schemas
 from app.domains.curator import services as curator_services
-from app.core.deps import get_current_active_superuser
+from app.core.deps import get_current_active_superuser, get_current_admin_user
 from app.domains.user.models import User
-from typing import List, Optional
+from typing import List, Optional, Dict
 from app.core.config import settings
+from datetime import datetime, date
+import logging
+
+from app.utils.s3_client import upload_file_to_s3, get_cloudfront_url
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-def get_current_admin_user(
-    current_user: User = Depends(get_current_active_superuser)
-) -> User:
-    if settings.DEV_MODE:
-        # In development mode, return a mock admin user
-        return User(user_id=1, email="admin@example.com", role="ADMIN")
-    return current_user
+@router.get("/users/search")
+async def search_users(
+    query: str = Query(..., description="이메일 또는 닉네임으로 검색"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    이메일 또는 닉네임으로 사용자를 검색합니다.
+    관리자가 수동 결제를 생성할 때 사용됩니다.
+    """
+    search_result = db.query(User).filter(
+        or_(
+            User.email.ilike(f"%{query}%"),
+            User.nickname.ilike(f"%{query}%")
+        ),
+        # 탈퇴한 사용자는 제외
+        User.status != 'WITHDRAWN'
+    ).all()
+
+    users = [
+        {
+            "user_id": str(user.user_id),
+            "email": user.email,
+            "nickname": user.nickname,
+            "status": user.status
+        }
+        for user in search_result
+    ]
+
+    return users
+
+@router.get("/users/export")
+async def export_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    전체 사용자 목록을 엑셀 다운로드용으로 조회합니다.
+    """
+    try:
+        users = services.get_admin_users_for_export(db)
+        return {"users": users}
+    except Exception as e:
+        logger.error(f"Error exporting users: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/users/stats")
+async def get_user_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자 통계 정보를 조회합니다."""
+    try:
+        stats = services.get_user_stats(db)
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting user stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/users")
+async def get_users(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = None,
+    sort: str = "created_at:desc",
+    status: str = "all",
+    token_filter: str = "all",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자 목록을 조회합니다."""
+    try:
+        result = services.get_admin_users(
+            db=db,
+            page=page,
+            limit=limit,
+            search=search,
+            sort=sort,
+            status=status,
+            token_filter=token_filter
+        )
+        return {
+            "users": result["users"],
+            "total_count": result["total_count"],
+            "page": page,
+            "limit": limit
+        }
+    except Exception as e:
+        logger.error(f"Error getting users: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.post("/users", response_model=schemas.AdminUserResponse)
+async def create_user(
+        user_data: schemas.AdminUserCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자가 새로운 사용자를 생성합니다."""
+    try:
+        # 이메일 중복 확인
+        if user_services.get_user_by_email(db, email=user_data.email):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "validation_error",
+                    "message": "이미 등록된 이메일 주소입니다."
+                }
+            )
+
+        # 닉네임 중복 확인
+        if user_services.get_user_by_nickname(db, nickname=user_data.nickname):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "validation_error",
+                    "message": "이미 등록된 닉네임입니다."
+                }
+            )
+
+        # 비밀번호 일치 확인
+        if user_data.password != user_data.password_confirmation:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "validation_error",
+                    "message": "비밀번호가 일치하지 않습니다."
+                }
+            )
+
+        # 사용자 생성
+        user = User(
+            email=user_data.email,
+            password=get_password_hash(user_data.password),
+            nickname=user_data.nickname,
+            phone_number=user_data.phone_number,
+            birthdate=user_data.birthdate,
+            gender=user_data.gender,
+            status=user_data.status,
+            role=user_data.role,
+            marketing_agreed=False  # 기본값으로 설정
+        )
+
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        return user
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Error creating user: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="내부 서버 오류가 발생했습니다."
+        )
+@router.get("/users/{user_id}")
+async def get_user_detail(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """특정 사용자의 상세 정보를 조회합니다."""
+    try:
+        user_detail = services.get_admin_user_detail(db, user_id)
+        if not user_detail:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user_detail
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error getting user detail: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.put("/users/{user_id}/role")
+async def update_user_role(
+    user_id: str,
+    role_update: schemas.UserRoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자의 권한을 변경합니다."""
+    try:
+        updated_user = services.update_user_role(db, user_id, role_update.role)
+        return {"message": "User role updated successfully", "user": updated_user}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error updating user role: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.put("/users/{user_id}/status")
+async def update_user_status(
+        user_id: str,
+        status_update: Dict[str, str] = Body(..., example={"status": "ACTIVE"}),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """
+    사용자의 상태를 변경합니다.
+
+    Parameters:
+    - user_id: 변경할 사용자의 ID
+    - status_update: 새로운 상태 정보 {'status': 'ACTIVE' | 'INACTIVE' | 'BANNED'}
+    """
+    try:
+        if 'status' not in status_update:
+            raise HTTPException(status_code=422, detail="Status field is required")
+
+        updated_user = services.update_user_status(db, user_id, status_update['status'])
+        return {"message": "User status updated successfully", "user": updated_user}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error updating user status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """사용자 계정을 비활성화합니다."""
+    try:
+        result = services.delete_user(db, user_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"message": "User has been deactivated successfully"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error deactivating user: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.post("/banners", response_model=banner_schemas.Banner)
 async def create_banner(
@@ -230,3 +471,195 @@ async def delete_curator(
     if not success:
         raise HTTPException(status_code=404, detail="Curator not found")
     return {"ok": True}
+
+@router.get("/notifications", response_model=NotificationListResponse)
+async def get_admin_notifications(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 알림 목록 조회"""
+    try:
+        notifications, total_count = services.get_admin_notifications(
+            db=db,
+            page=page,
+            limit=limit,
+            search=search
+        )
+        return {
+            "notifications": notifications,
+            "total_count": total_count,
+            "page": page,
+            "limit": limit
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/notifications", response_model=NotificationResponse)
+async def create_notification(
+    notification: NotificationCreate,  # NotificationCreate 스키마 사용
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """새로운 알림 생성"""
+    try:
+        created_notification = services.create_notification(
+            db=db,
+            notification_data=notification
+        )
+        return created_notification
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/notifications/{notification_id}", status_code=204)
+async def delete_notification(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """알림 삭제"""
+    if not services.delete_notification(db, notification_id):
+        raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다.")
+
+@router.put("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """알림 읽음 처리"""
+    if not services.mark_notification_as_read(db, notification_id, current_user.user_id):
+        raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다.")
+    return {"status": "success"}
+
+@router.put("/notices/{notice_id}/image", response_model=schemas.AdminNoticeResponse)
+async def update_notice_image(
+        notice_id: int,
+        image_file: UploadFile = File(...),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """공지사항 이미지 업데이트 API"""
+    try:
+        notice = services.get_admin_notice(db, notice_id)
+        if not notice:
+            raise HTTPException(status_code=404, detail="Notice not found")
+
+        file_extension = image_file.filename.split('.')[-1]
+        object_name = f"notices/{uuid.uuid4()}.{file_extension}"
+
+        if upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name):
+            image_url = get_cloudfront_url(object_name)
+            update_data = {"image_url": image_url}
+            updated_notice = services.update_admin_notice(db, notice_id, update_data)
+            return updated_notice
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/notices", response_model=schemas.AdminNoticeResponse)
+async def create_notice(
+        title: str = Form(...),
+        content: str = Form(...),
+        start_date: date = Form(...),
+        end_date: date = Form(...),
+        is_public: bool = Form(True),
+        is_important: bool = Form(False),
+        image_file: Optional[UploadFile] = File(None),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 공지사항 생성 API"""
+    try:
+        image_url = None
+        if image_file:
+            file_extension = image_file.filename.split('.')[-1]
+            object_name = f"notices/{uuid.uuid4()}.{file_extension}"
+            if upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name):
+                image_url = get_cloudfront_url(object_name)
+
+        notice_data = {
+            "title": title,
+            "content": content,
+            "start_date": start_date,
+            "end_date": end_date,
+            "is_public": is_public,
+            "is_important": is_important,
+            "image_url": image_url
+        }
+        notice = services.create_notice(db, notice_data)
+        return notice
+    except Exception as e:
+        logger.error(f"Error creating notice: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create notice")
+
+
+@router.get("/notices", response_model=List[schemas.AdminNoticeResponse])
+async def list_notices(
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100),
+        search: Optional[str] = None,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 공지사항 목록 조회 API"""
+    try:
+        result = services.get_admin_notices(
+            db=db,
+            page=page,
+            limit=limit,
+            search=search
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error getting notices: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get notices")
+
+
+@router.get("/notices/{notice_id}", response_model=schemas.AdminNoticeDetail)
+async def get_notice(
+        notice_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 공지사항 상세 조회 API"""
+    notice = services.get_admin_notice(db, notice_id)
+    if not notice:
+        raise HTTPException(status_code=404, detail="Notice not found")
+    return notice
+
+
+@router.put("/notices/{notice_id}", response_model=schemas.AdminNoticeResponse)
+async def update_notice(
+    notice_id: int,
+    notice_update: schemas.AdminNoticeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    try:
+        notice = services.get_admin_notice(db, notice_id)
+        if not notice:
+            raise HTTPException(status_code=404, detail="Notice not found")
+
+        update_data = notice_update.dict(exclude_unset=True)
+        updated_notice = services.update_admin_notice(db, notice_id, update_data)
+        return updated_notice
+    except Exception as e:
+        logger.error(f"Error updating notice: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update notice")
+
+
+@router.delete("/notices/{notice_id}")
+async def delete_notice(
+        notice_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 공지사항 삭제 API"""
+    notice = services.get_admin_notice(db, notice_id)
+    if not notice:
+        raise HTTPException(status_code=404, detail="Notice not found")
+
+    services.delete_admin_notice(db, notice_id)
+    return {"message": "Notice deleted successfully"}

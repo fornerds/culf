@@ -63,6 +63,14 @@ CREATE TABLE Tags (
     name VARCHAR(50) UNIQUE NOT NULL
 );
 
+-- CuratorTagHistory 테이블
+CREATE TABLE curator_tags_history (
+    history_id SERIAL PRIMARY KEY,
+    curator_id INTEGER NOT NULL REFERENCES curators(curator_id) ON DELETE CASCADE,
+    tag_names JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Curator_Tags 중간 테이블
 CREATE TABLE Curator_Tags (
     curator_id INTEGER REFERENCES Curators(curator_id) ON DELETE CASCADE,
@@ -139,7 +147,7 @@ CREATE TABLE tokens (
 );
 
 -- Token Usage History 테이블
-CREATE TABLE Token_Usage_History (
+CREATE TABLE token_usage_history (
     history_id SERIAL PRIMARY KEY,
     user_id UUID REFERENCES Users(user_id),
     conversation_id UUID REFERENCES Conversations(conversation_id),
@@ -269,20 +277,33 @@ CREATE TABLE User_Notice_Reads (
 -- Notifications 테이블
 CREATE TABLE Notifications (
     notification_id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES Users(user_id),
     type VARCHAR(50) NOT NULL,
     message TEXT NOT NULL,
-    is_read BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- user_notifications 테이블
+CREATE TABLE user_notifications (
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    notification_id INTEGER REFERENCES notifications(notification_id) ON DELETE CASCADE,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    read_at TIMESTAMPTZ,
+    PRIMARY KEY (user_id, notification_id)
 );
 
 -- UserNotificationSettings 테이블
 CREATE TABLE User_Notification_Settings (
     setting_id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES Users(user_id),
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
     notification_type VARCHAR(50) NOT NULL,
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- 인덱스 생성
+CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX idx_user_notifications_user_id ON user_notifications(user_id);
+CREATE INDEX idx_user_notifications_notification_id ON user_notifications(notification_id);
+CREATE INDEX idx_user_notification_settings_user_id ON user_notification_settings(user_id);
 
 -- Inquiries 테이블
 CREATE TABLE Inquiries (
@@ -378,6 +399,12 @@ CREATE TABLE Banners (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 배너 데이터 추가가
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (1, 'https://d21y711itn1wuo.cloudfront.net/banners/41289fdb-9476-4e65-97b5-83050a9e5330.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:55:54.058594', '2025-01-10 14:55:54.058594');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (2, 'https://d21y711itn1wuo.cloudfront.net/banners/4328f669-3066-47d9-bada-cc0247018d36.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:56:40.849256', '2025-01-10 14:56:40.849256');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (3, 'https://d21y711itn1wuo.cloudfront.net/banners/7cf06406-305f-4088-a8d9-9b70add696cc.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:03.812885', '2025-01-10 14:57:03.812885');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (4, 'https://d21y711itn1wuo.cloudfront.net/banners/da221356-16f8-4330-b9a6-970ebf960376.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:23.905582', '2025-01-10 14:57:23.905582');
+
 -- TermsAndConditions 테이블
 CREATE TABLE Terms_And_Conditions (
     terms_id SERIAL PRIMARY KEY,
@@ -404,6 +431,7 @@ INSERT INTO Users (user_id, email, password, nickname, phone_number, birthdate, 
 (uuid_generate_v4(), 'user1@example.com', 'hashedpassword1', '사용자1', '01012345678', '1990-01-01', 'M', 'ACTIVE', 'USER'),
 (uuid_generate_v4(), 'user2@example.com', 'hashedpassword2', '사용자2', '01023456789', '1992-02-02', 'F', 'ACTIVE', 'USER'),
 (uuid_generate_v4(), 'admin@example.com', 'hashedpassword3', '관리자', '01034567890', '1988-03-03', 'N', 'ACTIVE', 'ADMIN');
+INSERT INTO users (user_id, email, password, nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, role, delete_reason, is_corporate, marketing_agreed, provider, provider_id) VALUES ('d0d78f52-67fc-401b-8b90-791114b578bd', 'admin@culf.com', '$2b$12$JOQr4bGsquftq9C/onizk.g1888/jMF9pBj0t6lDLMmlAk/YpF6vq', 'Admin', '01012345678', '1990-01-01', 'N', '2024-12-12 13:38:22.157369', '2024-12-12 13:38:22.157369', NULL, NULL, 'ACTIVE', 'ADMIN', NULL, false, false, NULL, NULL);
 
 INSERT INTO public.users
 (user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed)
@@ -421,16 +449,16 @@ INSERT INTO Tags (name) VALUES
 
 -- 새로운 큐레이터 데이터 추가
 INSERT INTO Curators (name, persona, main_image, profile_image, introduction, category) VALUES
-('외계인 네오', '지구 예술에 푹 빠진 외계인 네오', 'alien_curator_main.jpg', 'alien_curator.jpg', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
-('레미', '19세기 출신 파리지앵 레미', 'remy_curator_main.jpg', 'remy_curator.jpg', '인상주의 작품들과 유럽 미술을 소개해드립니다.', '미술'),
-('두리', '감성 충만한 미술 애호가 두리', 'duri_curator_main.jpg', 'duri_curator.jpg', '한국의 현대미술과 동시대 작가들을 만나보세요.', '미술');
+('네오', '지구 예술에 푹 빠진 외계인 네오', 'https://d21y711itn1wuo.cloudfront.net/curators/profile01.png', 'https://d21y711itn1wuo.cloudfront.net/curators/curator01.png', '처음 만나는 미술! 여러분과 함께 미술 세계를 탐험하고 싶어요.', '미술'),
+('레미', '19세기 출신 파리지앵 레미', 'https://d21y711itn1wuo.cloudfront.net/curators/profile02.png', 'https://d21y711itn1wuo.cloudfront.net/curators/curator02.png', '인상주의 작품들과 유럽 미술을 소개해드립니다.', '미술'),
+('두리', '감성 충만한 미술 애호가 두리', 'https://d21y711itn1wuo.cloudfront.net/curators/profile03.png', 'https://d21y711itn1wuo.cloudfront.net/curators/curator03.png', '한국의 현대미술과 동시대 작가들을 만나보세요.', '미술');
 
 -- 큐레이터-태그 연결
 -- 외계인 네오의 태그
 INSERT INTO Curator_Tags (curator_id, tag_id)
 SELECT c.curator_id, t.tag_id
 FROM Curators c, Tags t
-WHERE c.name = '외계인 네오' AND t.name IN ('초보', '미술입문');
+WHERE c.name = '네오' AND t.name IN ('초보', '미술입문');
 
 -- 레미의 태그
 INSERT INTO Curator_Tags (curator_id, tag_id)
@@ -450,8 +478,7 @@ INSERT INTO Conversations (conversation_id, user_id, question, answer, question_
 (uuid_generate_v4(), (SELECT user_id FROM Users WHERE email='user2@example.com'), '현재 서울에서 열리는 주목할 만한 전시회가 있나요?', '서울에서는 현재 여러 주목할 만한 전시회가 열리고 있습니다. 국립현대미술관에서는 현대 미술의 흐름을 보여주는 "한국 현대미술의 지평" 전시가 진행 중입니다. 서울시립미술관에서는 세계적인 아티스트 데미안 허스트의 개인전 "Natural History"가 열리고 있어 많은 관심을 받고 있습니다. 또한, 예술의전당에서는 "빈센트 반 고흐: 새로운 시각" 전시가 열려 고흐의 작품을 새로운 관점에서 감상할 수 있습니다.', '2023-09-16 14:30:00', '2023-09-16 14:30:45', 180);
 
 -- Subscription_Plans 테이블 mock 데이터
-INSERT INTO Subscription_Plans (plan_id, plan_name, price, discounted_price, tokens_included, description, is_promotion) VALUES
-(1, '정기 구독', 20000, 15000, 0, '정기구독 플랜입니다.', true);
+INSERT INTO Subscription_Plans (plan_id, plan_name, price, discounted_price, tokens_included, description, is_promotion) VALUES (1, '베이직 구독', 9900, 9900, 100, '월 100토큰이 제공되는 베이직 구독 플랜입니다.', false), (2, '프리미엄 구독', 29900, 25000, 500, '월 500토큰이 제공되는 프리미엄 구독 플랜입니다.', true), (3, '프로페셔널 구독', 49900, 45000, 1000, '월 1000토큰이 제공되는 프로페셔널 구독 플랜입니다.', true);
 
 -- Tokens 테이블 mock 데이터
 INSERT INTO Tokens (user_id, total_tokens, used_tokens, last_charged_at, expires_at) VALUES
@@ -464,15 +491,14 @@ INSERT INTO Notices (title, content, image_url, start_date, end_date, view_count
 ('추석 연휴 고객센터 운영 안내', '추석 연휴 기간 동안 고객센터 운영 시간이 단축됩니다. 자세한 내용은 공지사항을 확인해주세요.', 'holiday_notice.jpg', '2023-09-25', '2023-10-05', 80, true);
 
 -- Notifications 테이블 더미 데이터
-INSERT INTO notifications (user_id, type, message, is_read, created_at) VALUES
-((SELECT user_id FROM users WHERE email='dev@example.com'), 'TOKEN_UPDATE', '50개의 토큰이 충전되었습니다. 현재 잔액을 확인해보세요.', true, NOW() - INTERVAL '5 days'),
-((SELECT user_id FROM users WHERE email='user2@example.com'), 'CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', false, NOW() - INTERVAL '1 day'),
-((SELECT user_id FROM users WHERE email='user2@example.com'), 'PAYMENT_UPDATE', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '3 days'),
-((SELECT user_id FROM users WHERE email='user1@example.com'), 'SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', false, NOW() - INTERVAL '12 hours'),
-((SELECT user_id FROM users WHERE email='user1@example.com'), 'TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', false, NOW() - INTERVAL '1 day'),
-((SELECT user_id FROM users WHERE email='admin@example.com'), 'CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', true, NOW() - INTERVAL '4 days'),
-((SELECT user_id FROM users WHERE email='user1@example.com'), 'PAYMENT_UPDATE', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', true, NOW() - INTERVAL '2 days'),
-((SELECT user_id FROM users WHERE email='admin@example.com'), 'SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', false, NOW() - INTERVAL '8 hours');
+INSERT INTO notifications (type, message, created_at) VALUES
+('CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', NOW() - INTERVAL '1 day'),
+('PAYMENT_UPDATE', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', NOW() - INTERVAL '3 days'),
+('SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', NOW() - INTERVAL '12 hours'),
+('TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', NOW() - INTERVAL '1 day'),
+('CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', NOW() - INTERVAL '4 days'),
+('PAYMENT_UPDATE', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', NOW() - INTERVAL '2 days'),
+('SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', NOW() - INTERVAL '8 hours');
 
 -- Token plans 테이블 mock 데이터
 INSERT INTO token_plans (tokens, price, discounted_price, discount_rate, is_promotion) VALUES
@@ -481,7 +507,6 @@ INSERT INTO token_plans (tokens, price, discounted_price, discount_rate, is_prom
 (200, 20000, 12000, 40.00, TRUE);
 
 -- 베타 테스터 추가
-
 INSERT INTO public.users
 (user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed, "provider", provider_id)
 VALUES('9bb162bd-3fce-4ff1-b615-f344be1c5632'::uuid, 'betauser1@culf.com', '$2b$12$EkkVkFKHJ.TWXoAXwPO3Z.naO2eH8dqnI/KivPSOsH46ms/9AU3qW', 'betatester', '01043219876', '2024-11-18', 'M'::public."gender_enum", '2024-11-18 14:19:25.832', '2024-11-18 14:19:25.832', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, false, NULL, NULL);
@@ -492,21 +517,48 @@ INSERT INTO public.users
 (user_id, email, "password", nickname, phone_number, birthdate, gender, created_at, updated_at, deleted_at, last_login_at, status, "role", delete_reason, is_corporate, marketing_agreed, "provider", provider_id)
 VALUES('5c44c876-4b74-4596-a24d-d1c9ab7ca638'::uuid, 'betauser3@culf.com', '$2b$12$OfPZQHO4Ie4thKAJmQfj4uqzwdnPRwLJ0zHh9zh3p0.yGfRxSIUSa', 'betatester3', '01065431098', '2024-11-18', 'M'::public."gender_enum", '2024-11-18 14:36:51.351', '2024-11-18 14:36:51.351', NULL, NULL, 'ACTIVE'::public."status_enum", 'USER'::public."role_enum", NULL, false, false, NULL, NULL);
 
+
+-- user_notifications mock 데이터 추가
+INSERT INTO user_notifications (user_id, notification_id, is_read, read_at)
+VALUES 
+-- culftester의 알림
+('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2', 1, true, CURRENT_TIMESTAMP - INTERVAL '12 hours'),
+('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2', 2, true, CURRENT_TIMESTAMP - INTERVAL '2 days'),
+('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2', 3, false, NULL),
+('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2', 4, false, NULL),
+
+-- betatester1의 알림
+('9bb162bd-3fce-4ff1-b615-f344be1c5632', 1, false, NULL),
+('9bb162bd-3fce-4ff1-b615-f344be1c5632', 5, true, CURRENT_TIMESTAMP - INTERVAL '3 days'),
+('9bb162bd-3fce-4ff1-b615-f344be1c5632', 6, false, NULL),
+
+-- betatester2의 알림
+('88e3d350-0e4c-4ecd-96ad-3fbf27671499', 2, true, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+('88e3d350-0e4c-4ecd-96ad-3fbf27671499', 3, true, CURRENT_TIMESTAMP - INTERVAL '6 hours'),
+('88e3d350-0e4c-4ecd-96ad-3fbf27671499', 7, false, NULL),
+
+-- betatester3의 알림
+('5c44c876-4b74-4596-a24d-d1c9ab7ca638', 4, true, CURRENT_TIMESTAMP - INTERVAL '2 days'),
+('5c44c876-4b74-4596-a24d-d1c9ab7ca638', 5, false, NULL),
+('5c44c876-4b74-4596-a24d-d1c9ab7ca638', 7, true, CURRENT_TIMESTAMP - INTERVAL '4 hours');
+
 -- 고정 채팅방 생성
-INSERT INTO Chat_Rooms (
-    room_id,
-    user_id,
-    curator_id,
-    title,
-    is_active,
-    created_at,
-    updated_at
-) VALUES (
+INSERT INTO Chat_Rooms (room_id, user_id, curator_id, title, is_active, created_at, updated_at) VALUES (
     'b39190ce-a097-4965-bf20-13100cb0420d'::uuid,  -- 고정된 UUID
     '1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid,  -- culftester의 user_id
-    3,  -- 두리 큐레이터의 ID (큐레이터 테이블 데이터 순서상 3번)
-    '두리와의 대화',
-    true,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-);
+    3,'두리와의 대화', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+-- Inquiry 데이터
+INSERT INTO Inquiries (user_id, type, title, email, contact, content, status, created_at) VALUES ('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2'::uuid, 'URGENT', '긴급: 서비스 접속 불가', 'user4@example.com', '010-5678-9012', '현재 서비스 접속이 되지 않습니다. 긴급 확인 부탁드립니다.', 'PENDING', CURRENT_TIMESTAMP - INTERVAL '30 minutes');
+
+-- 쿠폰 추가
+INSERT INTO coupons (coupon_code, discount_type, discount_value, valid_from, valid_to, max_usage, used_count) VALUES ('WELCOME2024', 'AMOUNT', 5000, '2024-01-01', '2024-12-31', 1000, 150), ('SPRING30', 'RATE', 30, '2024-03-01', '2024-05-31', 500, 0), ('NEWUSER', 'AMOUNT', 3000, '2024-01-01', '2024-12-31', NULL, 45);
+
+-- culftester와 betatester의 결제 내역 추가
+INSERT INTO payments (payment_id, user_id, token_plan_id, payment_number, transaction_number, tokens_purchased, amount, payment_method, payment_date, status) VALUES (uuid_generate_v4(), '1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2', 1, 'PAY_20240110_001', 'TID_20240110_001', 100, 10000, 'kakaopay', '2024-01-10 10:00:00', 'SUCCESS'), (uuid_generate_v4(), '1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2', 2, 'PAY_20240112_001', 'TID_20240112_001', 300, 25000, 'kakaopay', '2024-01-12 15:30:00', 'SUCCESS');
+
+-- 환불 요청을 위한 문의사항 추가
+INSERT INTO inquiries (user_id, type, title, email, contact, content, status) VALUES ('1e01b80f-95e8-4e6c-8dd7-9ce9a94ceda2', 'PAYMENT', '결제 취소 요청', 'betauser1@culf.com', '01043219876', '결제 취소를 요청드립니다.', 'PENDING');
+
+-- 환불 내역 추가
+INSERT INTO Refunds (payment_id, user_id, inquiry_id, amount, reason, status, created_at) SELECT p.payment_id, p.user_id, i.inquiry_id, p.amount, '고객 변심', 'PENDING', CURRENT_TIMESTAMP FROM Payments p JOIN Inquiries i ON i.user_id = p.user_id WHERE p.payment_number = 'PAY_20240112_001' LIMIT 1;
