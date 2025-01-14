@@ -202,8 +202,10 @@ export function ChatDetail() {
             {
               type: 'user' as const,
               content: conv.question,
-              imageUrls: conv.question_images ? [conv.question_images].flat() : undefined,
-              imageSizeInfo: conv.image_size_info
+              ...(conv.question_images && conv.question_images.length > 0 && {
+                imageUrls: [conv.question_images].flat(),
+                imageSizeInfo: conv.image_size_info
+              })
             },
             {
               type: 'ai' as const,
