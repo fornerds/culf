@@ -1,6 +1,5 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import { notification } from '@/api';
-import { notice } from '@/api';
+import { notice, notification } from '@/api';
 import { AxiosError } from 'axios';
 
 export interface Notification {
@@ -78,12 +77,25 @@ export const useNotifications = ({ page = 1, limit = 10 }: UseNotificationsParam
   });
 };
 
-export const useNoticeDetail = (noticeId: number) => {
+export const useNoticeDetail = (noticeId: number, enabled: boolean = true) => {
   return useQuery({
     queryKey: ['notice', noticeId],
     queryFn: async () => {
       const response = await notice.getNoticeById(noticeId);
       return response.data;
-    }
+    },
+    enabled: enabled
   });
 };
+
+export const useNotificationDetail = (notificationId: number, enabled: boolean = false) => {
+  return useQuery({
+    queryKey: ['notification', notificationId],
+    queryFn: async () => {
+      const response = await notification.getNotificationById(notificationId);
+      return response.data;
+    },
+    enabled: enabled
+  });
+};
+

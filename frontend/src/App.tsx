@@ -28,7 +28,7 @@ import { Pricing } from './pages/Pricing';
 import { Payment, Result } from './pages/Payment';
 import { CancelPayment } from './pages/CancelPayment/[payment_id]';
 import { DeleteAccount } from './pages/DeleteAccount';
-import { Notification } from './pages/Notification';
+import { PublicNotification, PrivateNotification, NoticeDetail, NotificationDetail } from './pages/Notification';
 import { CustomerInquiry } from './pages/CustomerInquiry';
 import logoimage from './assets/images/culf.png';
 import axios from 'axios';
@@ -37,7 +37,6 @@ import { OAuthCallback } from './pages/OAuthCallback';
 import { tokenService } from './utils/tokenService';
 import { useAuthStore } from './state/client/authStore';
 import { LoadingAnimation } from './components/atom';
-import { NoticeDetail } from './pages/Notification/Notice/[notice_id]';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -241,7 +240,7 @@ function AppRoutes() {
       setTitle('알림 상세');
       setShowBackButton(true);
       setShowMenuButton(false);
-    } else if (matchPath('/notification/my-notice/:notice_id', pathname)) {
+    } else if (matchPath('/notification/my-notice/:notification_id', pathname)) {
       setUseHeader(true);
       setTitle('알림 상세');
       setShowBackButton(true);
@@ -315,7 +314,7 @@ function AppRoutes() {
         <Route path="/inquiry" element={<CustomerInquiry />} />
         <Route path="/notification">
           <Route index element={<Navigate to="/notification/notice" replace />} />
-          <Route path="notice" element={<Notification />} />
+          <Route path="notice" element={<PublicNotification />} />
           <Route path="notice/:notice_id" element={<NoticeDetail />} />
         </Route>
 
@@ -333,7 +332,8 @@ function AppRoutes() {
           <Route path="/payment/result" element={<Result />} />
           <Route path="/cancel-payment/:payment_id" element={<CancelPayment />} />
           <Route path="/delete-account" element={<DeleteAccount />} />
-          <Route path="/notification/:tab" element={<Notification />} />
+          <Route path="/notification/my-notice" element={<PrivateNotification />} />
+          <Route path="/notification/my-notice/:notification_id" element={<NotificationDetail />} />
         </Route>
       </Routes>
     </Layout>

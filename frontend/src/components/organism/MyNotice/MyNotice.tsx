@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '@/hooks/notice/useNotice';
 import { NoticeList } from '@/components/molecule';
 import styles from './MyNotice.module.css';
@@ -6,6 +7,7 @@ import { LoadingAnimation } from '@/components/atom';
 import logoimage from '@/assets/images/culf.png';
 
 export function MyNotice() {
+  const navigate = useNavigate();
   const { data, isLoading, error } = useNotifications({});
 
   if (isLoading) {
@@ -35,6 +37,10 @@ export function MyNotice() {
     })
   })) || [];
 
+  const handleNoticeClick = (noticeId: string) => {
+    navigate(`/notification/my-notice/${noticeId}`);
+  };
+
   if (!data?.notifications.length) {
     return (
       <div className={styles.empty}>
@@ -43,5 +49,5 @@ export function MyNotice() {
     );
   }
 
-  return <NoticeList notices={formattedNotices} />;
+  return <NoticeList notices={formattedNotices} onNoticeClick={handleNoticeClick} />;
 }
