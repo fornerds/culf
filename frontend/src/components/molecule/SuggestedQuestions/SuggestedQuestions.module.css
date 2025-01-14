@@ -9,7 +9,7 @@
     box-sizing: border-box;
     padding: 12px 20px;
     transition: all 0.3s ease;
-    z-index: 99;
+    z-index: 97;
   }
   
   .label {
@@ -61,8 +61,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
-    word-break: keep-all;
-    word-wrap: break-word;
+    word-break: break-all;
   }
   
   .questionButton:hover {

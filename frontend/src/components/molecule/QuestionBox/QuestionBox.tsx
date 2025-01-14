@@ -1,4 +1,3 @@
-// QuestionBox.tsx
 import React, { ReactNode } from 'react';
 import styles from './QuestionBox.module.css';
 
@@ -9,9 +8,10 @@ const formatFileSize = (bytes: number): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
+
 interface BaseQuestionBoxProps {
   content: ReactNode;
-  imageUrls?: string[];  // 단일 imageUrl 대신 imageUrls 배열로 변경
+  imageUrls?: string[];
   imageSizeInfo?: Array<{
     originalSize: number;
     resizedSize: number;
@@ -24,17 +24,11 @@ interface AIQuestionBoxProps extends BaseQuestionBoxProps {
   isLoading?: boolean;
 }
 
-
-function AIQuestionBox({ content, image, imageUrl, isStreaming, isLoading }: AIQuestionBoxProps) {
+function AIQuestionBox({ content, image, isStreaming, isLoading }: AIQuestionBoxProps) {
   return (
     <div className={styles.aiContainer}>
       {image && <img src={image} alt="AI" className={styles.aiImage} />}
       <div className={`${styles.box} ${styles.ai}`}>
-        {imageUrl && (
-          <div className={styles.imageWrapper}>
-            <img src={imageUrl} alt="Response" className={styles.messageImage} />
-          </div>
-        )}
         <div className={styles.content}>
           {isLoading ? (
             <div className={styles.loadingIndicator}>
@@ -50,21 +44,37 @@ function AIQuestionBox({ content, image, imageUrl, isStreaming, isLoading }: AIQ
 }
 
 function UserQuestionBox({ content, imageUrls, imageSizeInfo }: BaseQuestionBoxProps) {
+  // Filter out any null, undefined, or empty string URLs
+  const validImageUrls = imageUrls?.filter(url => url && url.trim() !== '') || [];
+
   return (
     <div className={styles.userContainer}>
-      {imageUrls && imageUrls.length > 0 && (
+      {validImageUrls.length > 0 && (
         <div className={styles.imagesGrid}>
-          {imageUrls.map((url, index) => (
-            <div key={index} className={styles.imageWrapper}>
-              <img src={url} alt={`Uploaded ${index + 1}`} className={styles.messageImage} />
-              {/* {imageSizeInfo && imageSizeInfo[index] && (
-                <div className={styles.imageSizeInfo}>
-                  <span>원본: {formatFileSize(imageSizeInfo[index].originalSize)}</span>
-                  <span>변환: {formatFileSize(imageSizeInfo[index].resizedSize)}</span>
-                </div>
-              )} */}
-            </div>
-          ))}
+          {validImageUrls.map((url, index) => {
+            // Try to parse the URL if it's a JSON string
+            let imageUrl = url;
+            try {
+              const parsedData = JSON.parse(url);
+              if (parsedData.images && parsedData.images[0]?.url) {
+                imageUrl = parsedData.images[0].url;
+              }
+            } catch (e) {
+              // URL is not a JSON string, use it as is
+            }
+
+            return (
+              <div key={index} className={styles.imageWrapper}>
+                <img src={imageUrl} alt={`Uploaded ${index + 1}`} className={styles.messageImage} />
+                {imageSizeInfo && imageSizeInfo[index] && (
+                  <div className={styles.imageSizeInfo}>
+                    <span>원본: {formatFileSize(imageSizeInfo[index].originalSize)}</span>
+                    <span>변환: {formatFileSize(imageSizeInfo[index].resizedSize)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       <div className={styles.content}>{content}</div>
