@@ -8,7 +8,7 @@ import logging
 
 from app.domains.token.models import TokenPlan, Token
 from app.domains.payment.models import Payment, Coupon, PaymentCache, UserCoupon, Refund
-from app.domains.payment import services as payment_service
+from app.domains.payment import services, schemas
 from app.domains.subscription.models import SubscriptionPlan, UserSubscription
 from app.core.config import settings
 
@@ -28,7 +28,7 @@ def initiate_one_time_payment(payment_request, db: Session, current_user):
     coupon = None
     if payment_request.coupon_code:
         coupon = db.query(Coupon).filter(Coupon.coupon_code == payment_request.coupon_code).first()
-        coupon_validation = payment_service.validate_coupon(db, payment_request.coupon_code, current_user.user_id)
+        coupon_validation = services.validate_coupon(db, payment_request.coupon_code, current_user.user_id)
         if not coupon_validation["is_valid"]:
             raise HTTPException(status_code=400, detail=coupon_validation["message"])
         discount_amount = coupon_validation["discount_value"]
@@ -117,7 +117,7 @@ def initiate_subscription_payment(subscription_request, db: Session, current_use
     coupon = None
     if subscription_request.coupon_code:
         coupon = db.query(Coupon).filter(Coupon.coupon_code == subscription_request.coupon_code).first()
-        coupon_validation = payment_service.validate_coupon(db, subscription_request.coupon_code, current_user.user_id)
+        coupon_validation = services.validate_coupon(db, subscription_request.coupon_code, current_user.user_id)
         if not coupon_validation["is_valid"]:
             raise HTTPException(status_code=400, detail=coupon_validation["message"])
         discount_amount = coupon_validation["discount_value"]
@@ -195,7 +195,7 @@ def get_portone_token():
     return response.json()["response"]["access_token"]
 
 def get_portone_payment_info(imp_uid, token):
-    """결제 상태 조회"""
+    """결제 상세 조회"""
     response = requests.get(
         f"{settings.PORTONE_API_URL}/payments/{imp_uid}",
         headers={"Authorization": f"Bearer {token}"},
@@ -432,6 +432,7 @@ def schedule_subscription_payment(subscription_id, db: Session):
                 "schedule_at": int(next_billing_date.timestamp()),
                 "amount": float(subscription_plan.discounted_price or subscription_plan.price),
                 "name": subscription_plan.plan_name,
+                "notice_url": settings.PORTONE_WEPHOOK_URL,
             }
         ],
     }
@@ -542,4 +543,141 @@ def process_single_payment(payment_info, db: Session):
     db.add(payment_record)
     db.commit()
     logging.info(f"Single payment processed and saved. Merchant UID: {payment_info['merchant_uid']}")
+
+def handle_failed_subscription_payment(payment_info, db: Session):
+    """
+    실패한 구독 결제 처리 로직.
+    """
+    subscription = db.query(UserSubscription).filter(
+        UserSubscription.subscription_number == payment_info["customer_uid"]
+    ).first()
+
+    if not subscription:
+        logging.warning(f"Subscription not found for customer_uid: {payment_info['customer_uid']}")
+        return
+
+    # 구독 상태를 CANCELLED로 업데이트
+    subscription.status = "CANCELLED"
+    db.add(subscription)
+
+    # 결제 실패 내역 저장
+    failed_payment = Payment(
+        payment_id=payment_info["merchant_uid"],
+        user_id=subscription.user_id,
+        subscription_id=subscription.subscription_id,
+        payment_number=payment_info["imp_uid"],
+        transaction_number=payment_info.get("pg_tid"),
+        tokens_purchased=None,
+        amount=payment_info["amount"],
+        payment_method=payment_info["pay_method"],
+        payment_date=datetime.fromtimestamp(payment_info["paid_at"]),
+        status="FAILED",
+        manual_payment_reason="결제 실패로 인한 구독 취소",
+    )
+    db.add(failed_payment)
+
+    db.commit()
+    logging.info(f"Failed subscription payment processed and subscription cancelled. Subscription ID: {subscription.subscription_id}")
+
+def change_subscription_plan(change_request: schemas.SubscriptionChangeRequest, db: Session):
+    """
+    사용자의 구독 플랜 변경.
+    """
+    # 기존 구독 정보 조회
+    subscription = db.query(UserSubscription).filter(
+        UserSubscription.user_id == change_request.user_id,
+        UserSubscription.status == "ACTIVE",
+    ).first()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="활성화된 구독을 찾을 수 없습니다.")
+
+    # 새 구독 플랜 확인
+    new_plan = db.query(SubscriptionPlan).filter(
+        SubscriptionPlan.plan_id == change_request.new_plan_id
+    ).first()
+
+    if not new_plan:
+        raise HTTPException(status_code=404, detail="새 구독 플랜을 찾을 수 없습니다.")
+
+    # 기존 구독 상태를 CANCELLED로 변경
+    subscription.status = "CANCELLED"
+    db.add(subscription)
+    db.commit()
+
+    # 새 구독 정보 생성
+    new_subscription = UserSubscription(
+        user_id=change_request.user_id,
+        plan_id=new_plan.plan_id,
+        start_date=datetime.now().date(),
+        next_billing_date=(datetime.now() + timedelta(days=30)).date(),
+        status="ACTIVE",
+        subscription_number=subscription.subscription_number,  # 기존 빌링키 재사용
+        subscriptions_method=subscription.subscriptions_method,
+    )
+    db.add(new_subscription)
+    db.commit()
+    db.refresh(new_subscription)
+
+    logging.info(f"Subscription plan changed. New subscription ID: {new_subscription.subscription_id}")
+
+    return new_subscription
+
+def initiate_change_payment_method(change_request, db: Session, current_user):
+    """
+    구독 결제 방식 변경 요청 초기화.
+    """
+    # 현재 활성화된 구독 확인
+    active_subscription = db.query(UserSubscription).filter(
+        UserSubscription.user_id == current_user.user_id,
+        UserSubscription.status == "ACTIVE"
+    ).first()
+
+    if not active_subscription:
+        raise HTTPException(
+            status_code=404,
+            detail="현재 활성화된 구독이 없습니다. 새로운 구독을 생성하세요."
+        )
+
+    subscription_plan = db.query(SubscriptionPlan).filter(
+        SubscriptionPlan.plan_id == active_subscription.plan_id,
+    ).first()
+
+    if not subscription_plan:
+        raise HTTPException(status_code=404, detail="구독 플랜 정보를 찾을 수 없습니다.")
+
+    # 고유 `merchant_uid`와 `customer_uid` 생성
+    merchant_uid = str(uuid.uuid4())  # 'change_' 제거
+    customer_uid = f"{current_user.user_id}-customer"
+
+    payment_data = {
+        "channelKey": settings.PORTONE_KAKAOPAY_SUB_KEYS
+        if change_request.pg == "kakaopay"
+        else settings.PORTONE_DANAL_TPAY_KEYS,
+        "merchant_uid": merchant_uid,
+        "customer_uid": customer_uid,
+        "name": f"{subscription_plan.plan_name} 결제 방식 변경",  # 명확한 구분
+        "amount": 0,  # 결제 금액은 0원
+        "buyer_email": current_user.email,
+        "buyer_name": current_user.nickname,
+        "buyer_tel": current_user.phone_number,
+        "m_redirect_url": settings.PORTONE_KAKAOPAY_M_REDIRECT_URL,
+        "notice_url": settings.PORTONE_WEPHOOK_URL,
+    }
+
+    # 결제 캐시 생성
+    payment_cache = PaymentCache(
+        user_id=current_user.user_id,
+        merchant_uid=merchant_uid,
+        payment_method="change_payment_method",
+        subscription_plan_id=subscription_plan.plan_id,
+        created_at=datetime.now(),
+        expires_at=datetime.now() + timedelta(hours=1),
+    )
+    db.add(payment_cache)
+    db.commit()
+
+    logging.info(f"Initialized payment method change for user_id: {current_user.user_id}, merchant_uid: {merchant_uid}")
+    return payment_data
+
 
