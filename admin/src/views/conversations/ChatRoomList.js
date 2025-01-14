@@ -208,7 +208,7 @@ const ChatRoomList = () => {
                 {chatRooms.map((room) => (
                   <CTableRow 
                     key={room.room_id} 
-                    onClick={() => navigate(`/admin/chat-rooms/${room.room_id}`)}
+                    onClick={() => navigate(`/conversations/${room.room_id}`)}
                     style={{ cursor: 'pointer' }}
                   >
                     <CTableDataCell>{room.user_name}</CTableDataCell>

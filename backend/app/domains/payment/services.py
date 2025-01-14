@@ -46,9 +46,6 @@ def get_me_payments(db: Session, user_id: int, page: int = 1, limit: int = 10, y
 
     return query.offset(offset).limit(limit).all()
 
-def get_payment_detail(db: Session, payment_id: int):
-    return db.query(Payment).filter(Payment.payment_id == payment_id).first()
-
 def cancel_payment_with_inquiry(db: Session, payment_id: UUID, user_id: UUID, inquiry_data: inquiry_schemas.InquiryCreate):
     payment = db.query(Payment).filter(
         Payment.payment_id == payment_id,
@@ -141,6 +138,7 @@ def validate_coupon(db: Session, coupon_code: str, user_id: str):
         "message": "유효한 쿠폰입니다."
     }
 
+
 def get_payment_detail(db: Session, payment_id: UUID):
     payment = (
         db.query(Payment)
@@ -156,22 +154,23 @@ def get_payment_detail(db: Session, payment_id: UUID):
         return None
 
     refund = None
-    if payment.refunds:
-        refund_obj = payment.refunds[0]
-        refund = {
-            "refund_id": refund_obj.refund_id,
-            "payment_id": refund_obj.payment_id,
-            "amount": refund_obj.amount,
-            "reason": refund_obj.reason,
-            "status": refund_obj.status,
-            "processed_at": refund_obj.processed_at,
-            "created_at": refund_obj.created_at,
-        }
-
     inquiries = []
-    if payment.refunds:
-            if refund.inquiry:
-                inquiry = refund.inquiry
+    if payment.refunds:  # 리스트로 반환되므로 첫 번째 항목 사용
+        refund_obj = payment.refunds[0] if payment.refunds else None
+        if refund_obj:
+            refund = {
+                "refund_id": refund_obj.refund_id,
+                "payment_id": refund_obj.payment_id,
+                "amount": refund_obj.amount,
+                "reason": refund_obj.reason,
+                "status": refund_obj.status,
+                "processed_at": refund_obj.processed_at,
+                "created_at": refund_obj.created_at,
+            }
+
+            # 관련 문의사항 조회
+            inquiry = db.query(Inquiry).filter(Inquiry.inquiry_id == refund_obj.inquiry_id).first()
+            if inquiry:
                 inquiries.append({
                     "inquiry_id": inquiry.inquiry_id,
                     "type": inquiry.type,
@@ -195,47 +194,41 @@ def get_payment_detail(db: Session, payment_id: UUID):
         "inquiries": inquiries,
     }
 
+
 def create_manual_payment(db: Session, payment_data: dict) -> Payment:
-    user = db.query(User).filter(User.user_id == payment_data["user_id"]).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if not payment_data.get('subscription_id') and not payment_data.get('token_plan_id'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either 'subscription_id' or 'token_plan_id' must be provided."
+        )
 
     payment = Payment(
         payment_id=uuid.uuid4(),
-        user_id=payment_data["user_id"],
-        payment_number=str(uuid.uuid4()),
-        payment_method="manual",
-        manual_payment_reason=payment_data["manual_payment_reason"],
+        user_id=payment_data['user_id'],
+        payment_number=f'MAN{datetime.now().strftime("%Y%m%d%H%M%S")}',  # MAN + YYYYMMDDhhmmss 형식으로 변경
+        payment_method='수동결제',
+        manual_payment_reason=payment_data['manual_payment_reason'],
         payment_date=datetime.now(),
-        status="SUCCESS",
+        status='SUCCESS',
         amount=0,
     )
 
-    if payment_data.get("subscription_id"):
-        subscription_plan = db.query(SubscriptionPlan).filter(
-            SubscriptionPlan.plan_id == payment_data["subscription_id"]
-        ).first()
-        if not subscription_plan:
-            raise HTTPException(status_code=404, detail="Subscription plan not found")
-        
-        payment.subscription_id = subscription_plan.plan_id
-        payment.amount = Decimal(subscription_plan.discounted_price or subscription_plan.price)
-
-    elif payment_data.get("token_plan_id"):
+    if payment_data.get('token_plan_id'):
         token_plan = db.query(TokenPlan).filter(
-            TokenPlan.token_plan_id == payment_data["token_plan_id"]
+            TokenPlan.token_plan_id == payment_data['token_plan_id']
         ).first()
         if not token_plan:
-            raise HTTPException(status_code=404, detail="Token plan not found")
-        
+            raise HTTPException(status_code=404, detail="Token plan not found.")
+
         payment.token_plan_id = token_plan.token_plan_id
-        payment.amount = Decimal(token_plan.discounted_price or token_plan.price)
+        payment.amount = float(token_plan.discounted_price or token_plan.price)
         payment.tokens_purchased = token_plan.tokens
 
-        token = db.query(Token).filter(Token.user_id == payment_data["user_id"]).first()
+        # 토큰 지급 처리
+        token = db.query(Token).filter(Token.user_id == payment_data['user_id']).first()
         if not token:
             token = Token(
-                user_id=payment_data["user_id"],
+                user_id=payment_data['user_id'],
                 total_tokens=token_plan.tokens,
                 used_tokens=0,
                 last_charged_at=datetime.now(),
@@ -246,6 +239,58 @@ def create_manual_payment(db: Session, payment_data: dict) -> Payment:
             token.total_tokens += token_plan.tokens
             token.last_charged_at = datetime.now()
             token.expires_at = datetime.now() + timedelta(days=365)
+
+    elif payment_data.get('subscription_id'):
+        subscription_plan = db.query(SubscriptionPlan).filter(
+            SubscriptionPlan.plan_id == payment_data['subscription_id']
+        ).first()
+        if not subscription_plan:
+            raise HTTPException(status_code=404, detail="Subscription plan not found.")
+
+        # 기존 구독 확인
+        existing_subscription = db.query(UserSubscription).filter(
+            UserSubscription.user_id == payment_data['user_id'],
+            UserSubscription.status == 'ACTIVE'
+        ).first()
+        if existing_subscription:
+            raise HTTPException(
+                status_code=400,
+                detail="User already has an active subscription."
+            )
+
+        # 새 구독 생성
+        subscription = UserSubscription(
+            user_id=payment_data['user_id'],
+            plan_id=subscription_plan.plan_id,
+            start_date=datetime.now().date(),
+            next_billing_date=(datetime.now() + timedelta(days=30)).date(),
+            status='ACTIVE',
+            subscription_number=f"SUB{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            subscriptions_method='수동결제'
+        )
+        db.add(subscription)
+        db.flush()  # subscription_id를 얻기 위해 flush
+
+        payment.subscription_id = subscription.subscription_id
+        payment.amount = float(subscription_plan.discounted_price or subscription_plan.price)
+
+        # 구독 시 제공되는 토큰이 있다면 처리
+        if subscription_plan.tokens_included:
+            payment.tokens_purchased = subscription_plan.tokens_included
+            token = db.query(Token).filter(Token.user_id == payment_data['user_id']).first()
+            if not token:
+                token = Token(
+                    user_id=payment_data['user_id'],
+                    total_tokens=subscription_plan.tokens_included,
+                    used_tokens=0,
+                    last_charged_at=datetime.now(),
+                    expires_at=datetime.now() + timedelta(days=365),
+                )
+                db.add(token)
+            else:
+                token.total_tokens += subscription_plan.tokens_included
+                token.last_charged_at = datetime.now()
+                token.expires_at = datetime.now() + timedelta(days=365)
 
     try:
         db.add(payment)
@@ -262,9 +307,11 @@ def get_admin_payments(
     query: Optional[str],
     start_date: Optional[datetime],
     end_date: Optional[datetime],
+    payment_method: Optional[str],
     page: int,
     limit: int,
-    sort: str
+    sort: str,
+    status: Optional[str] = None
 ) -> List[payment_schemas.PaymentListResponse]:
     query_builder = db.query(
         Payment,
@@ -277,17 +324,30 @@ def get_admin_payments(
     if query:
         query_builder = query_builder.filter(
             or_(
-                Payment.payment_id.ilike(f"%{query}%"),
                 User.nickname.ilike(f"%{query}%"),
                 Payment.payment_method.ilike(f"%{query}%"),
-                Payment.manual_payment_reason.ilike(f"%{query}%") 
+                Payment.manual_payment_reason.ilike(f"%{query}%"),
+                Payment.payment_number.ilike(f"%{query}%")
             )
         )
+
+    # 결제 수단 필터
+    if payment_method:
+        if payment_method == 'manual':
+            query_builder = query_builder.filter(Payment.payment_method == 'manual')
+        elif payment_method == 'kakaopay':
+            query_builder = query_builder.filter(Payment.payment_method == "kakaopay")
+
+    if status:
+        query_builder = query_builder.filter(Payment.status == status)
 
     if start_date and end_date:
         query_builder = query_builder.filter(
             Payment.payment_date.between(start_date, end_date)
         )
+
+    # 전체 개수를 먼저 구합니다
+    total_count = query_builder.count()
 
     sort_column, sort_direction = sort.split(":")
     if sort_direction == "desc":
@@ -299,11 +359,25 @@ def get_admin_payments(
 
     payments = []
     for payment, user_nickname, refund in results:
+        # product_name 구성 로직 추가
+        product_name = None
+        payment_number = payment.payment_number
+
+        if payment.token_plan_id:
+            token_plan = db.query(TokenPlan).get(payment.token_plan_id)
+            if token_plan:
+                product_name = f"{token_plan.tokens} 토큰"
+        elif payment.subscription_id:
+            subscription = db.query(UserSubscription).get(payment.subscription_id)
+            if subscription and subscription.subscription_plan:
+                product_name = subscription.subscription_plan.plan_name
+
         payments.append(
             payment_schemas.PaymentListResponse(
                 payment_id=payment.payment_id,
                 user_nickname=user_nickname,
-                product_name=None, 
+                product_name=product_name,
+                payment_number=payment_number,
                 amount=payment.amount,
                 payment_method=payment.payment_method,
                 status=payment.status,
@@ -312,7 +386,9 @@ def get_admin_payments(
             )
         )
 
-    return payments
+    # 헤더에 전체 개수를 포함하여 반환
+    return payments, total_count
+
 # 쿠폰 사용 관련 서비스 코드
 def create_coupon(db: Session, coupon_data: payment_schemas.CouponCreate):
     coupon = Coupon(**coupon_data.dict())
@@ -970,6 +1046,10 @@ class PaymentService:
         refund.status = "APPROVED"
         refund.processed_at = datetime.now()
         refund.processed_by = None  # 나중에 관리자 토큰 연결시 관리자 user_id 입력
+
+        # 결제 상태 환불로 변경
+        payment.status = "REFUNDED"
+
         db.commit()
         db.refresh(refund)
 

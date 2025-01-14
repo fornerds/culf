@@ -5,8 +5,13 @@ import {
   cilPeople,
   cilImage,
   cilCommentSquare,
+  cilNewspaper,
+  cilBell,
+  cilEnvelopeClosed,
+  cilDollar,
+  cilSettings
 } from '@coreui/icons'
-import { CNavItem } from '@coreui/react'
+import { CNavItem, CNavGroup } from '@coreui/react'
 
 const _nav = [
   {
@@ -33,6 +38,36 @@ const _nav = [
     to: '/conversations',
     icon: <CIcon icon={cilCommentSquare} customClassName="nav-icon" />,
   },
+  {
+    component: CNavItem,
+    name: '알림 관리',
+    to: '/notifications',
+    icon: <CIcon icon={cilBell} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavItem,
+    name: '공지사항 관리',
+    to: '/notices',
+    icon: <CIcon icon={cilNewspaper} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavItem,
+    name: '문의사항 관리',
+    to: '/inquiries',
+    icon: <CIcon icon={cilEnvelopeClosed} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavItem,
+    name: '결제 관리',
+    to: '/payments',
+    icon: <CIcon icon={cilDollar} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavItem,
+    name: '시스템 설정',
+    to: '/settings',
+    icon: <CIcon icon={cilSettings} customClassName="nav-icon" />,
+  }
 ]
 
 export default _nav

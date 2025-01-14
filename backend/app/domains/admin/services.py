@@ -1,25 +1,29 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, desc, asc, case, distinct
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+from app.domains.admin.schemas import NotificationCreate
+from app.domains.notice.models import Notice
+from app.domains.notification.models import Notification, UserNotification
 from app.domains.user.models import User
 from app.domains.token.models import Token, TokenUsageHistory
 from app.domains.payment.models import Payment
 import logging
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
 
 def get_admin_users(
-    db: Session,
-    page: int = 1,
-    limit: int = 10,
-    search: str = None,
-    sort: str = "created_at:desc",
-    status: str = "all",
-    token_filter: str = "all"
+        db: Session,
+        page: int = 1,
+        limit: int = 10,
+        search: str = None,
+        sort: str = "created_at:desc",
+        status: str = "all",
+        token_filter: str = "all"
 ) -> Dict:
-    
     # Base query
     query = db.query(
         User,
@@ -102,6 +106,7 @@ def get_admin_users(
         "limit": limit
     }
 
+
 def get_admin_users_for_export(db: Session) -> List[Dict]:
     """전체 사용자 목록을 엑셀 다운로드용으로 조회합니다."""
     query = db.query(
@@ -159,6 +164,7 @@ def update_user_status(db: Session, user_id: str, status: str) -> User:
         logger.error(f"Error updating user status: {str(e)}")
         raise e
 
+
 def update_user_role(db: Session, user_id: str, role: str) -> User:
     """사용자의 권한을 업데이트합니다."""
     try:
@@ -185,6 +191,7 @@ def update_user_role(db: Session, user_id: str, role: str) -> User:
         db.rollback()
         logger.error(f"Error updating user role: {str(e)}")
         raise e
+
 
 def get_admin_user_detail(db: Session, user_id: str) -> Optional[Dict]:
     """관리자용 사용자 상세 정보를 조회합니다."""
@@ -354,3 +361,171 @@ def delete_user(db: Session, user_id: str) -> bool:
         db.rollback()
         logger.error(f"Error deactivating user: {str(e)}")
         raise
+
+def get_admin_notifications(
+        db: Session,
+        page: int = 1,
+        limit: int = 10,
+        search: Optional[str] = None,
+) -> Tuple[List[dict], int]:
+    """관리자용 알림 목록 조회"""
+    query = db.query(Notification)
+
+    if search:
+        query = query.filter(Notification.message.ilike(f"%{search}%"))
+
+    # 전체 개수 조회
+    total = query.count()
+
+    # 알림 목록 조회 with 통계
+    notifications = []
+    query_results = query.order_by(Notification.created_at.desc()) \
+        .offset((page - 1) * limit) \
+        .limit(limit) \
+        .all()
+
+    for notif in query_results:
+        # 각 알림별 읽음 상태 통계 조회
+        # case when 구문 수정
+        stats = db.query(
+            func.count(UserNotification.user_id).label('total_recipients'),
+            func.sum(case(
+                (UserNotification.is_read == True, 1),
+                else_=0
+            )).label('read_count')
+        ).filter(
+            UserNotification.notification_id == notif.notification_id
+        ).first()
+
+        notifications.append({
+            "notification_id": notif.notification_id,
+            "type": notif.type.value,
+            "message": notif.message,
+            "created_at": notif.created_at,
+            "total_recipients": stats.total_recipients or 0,
+            "read_count": int(stats.read_count or 0)  # None 처리를 위해 int 변환
+        })
+
+    return notifications, total
+
+def create_notification(
+        db: Session,
+        notification_data: NotificationCreate,
+) -> Notification:
+    """새로운 알림 생성"""
+    try:
+        # 알림 생성
+        db_notification = Notification(
+            type=notification_data.type,
+            message=notification_data.message
+        )
+        db.add(db_notification)
+        db.flush()
+
+        # 수신자 지정
+        if notification_data.user_ids:
+            # 특정 사용자들에게만 알림 전송
+            for user_id_str in notification_data.user_ids:
+                user_id = UUID(user_id_str)
+                user_notification = UserNotification(
+                    user_id=user_id,
+                    notification_id=db_notification.notification_id
+                )
+                db.add(user_notification)
+        else:
+            # 전체 사용자에게 알림 전송
+            users = db.query(User).filter(User.status == 'ACTIVE').all()
+            for user in users:
+                user_notification = UserNotification(
+                    user_id=user.user_id,
+                    notification_id=db_notification.notification_id
+                )
+                db.add(user_notification)
+
+        db.commit()
+        db.refresh(db_notification)
+        return db_notification
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating notification: {str(e)}")
+        raise
+
+
+def delete_notification(
+        db: Session,
+        notification_id: int
+) -> bool:
+    """알림 삭제"""
+    notification = db.query(Notification).filter(
+        Notification.notification_id == notification_id
+    ).first()
+
+    if notification:
+        db.delete(notification)
+        db.commit()
+        return True
+    return False
+
+
+def mark_notification_as_read(
+        db: Session,
+        notification_id: int,
+        user_id: UUID
+) -> bool:
+    """알림을 읽음 처리"""
+    user_notification = db.query(UserNotification).filter(
+        UserNotification.notification_id == notification_id,
+        UserNotification.user_id == user_id
+    ).first()
+
+    if user_notification:
+        user_notification.is_read = True
+        user_notification.read_at = datetime.now()
+        db.commit()
+        return True
+    return False
+
+
+def get_admin_notices(db: Session, page: int = 1, limit: int = 10, search: Optional[str] = None):
+    query = db.query(Notice)
+
+    if search:
+        query = query.filter(
+            or_(
+                Notice.title.ilike(f"%{search}%"),
+                Notice.content.ilike(f"%{search}%")
+            )
+        )
+
+    total_count = query.count()
+    notices = query.order_by(desc(Notice.created_at)).offset((page - 1) * limit).limit(limit).all()
+
+    return notices
+
+
+def get_admin_notice(db: Session, notice_id: int):
+    return db.query(Notice).filter(Notice.notice_id == notice_id).first()
+
+
+def create_notice(db: Session, notice_data: dict):
+    notice = Notice(**notice_data)
+    db.add(notice)
+    db.commit()
+    db.refresh(notice)
+    return notice
+
+
+def update_admin_notice(db: Session, notice_id: int, update_data: dict):
+    notice = get_admin_notice(db, notice_id)
+    for key, value in update_data.items():
+        setattr(notice, key, value)
+    db.commit()
+    db.refresh(notice)
+    return notice
+
+
+def delete_admin_notice(db: Session, notice_id: int):
+    notice = get_admin_notice(db, notice_id)
+    db.delete(notice)
+    db.commit()
