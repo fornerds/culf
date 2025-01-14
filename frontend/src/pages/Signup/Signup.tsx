@@ -256,16 +256,18 @@ export function Signup() {
       />
       <div>
         <Label label="성별" id="gender" />
-        {genderOptions.map((option) => (
-          <RadioButton
-            key={option.id}
-            id={option.id}
-            name="gender"
-            label={option.label}
-            onChange={handleRadioChange}
-            checked={form.gender === option.id}
-          />
-        ))}
+        <div className={styles.genderOptionsWrap}>
+          {genderOptions.map((option) => (
+            <RadioButton
+              key={option.id}
+              id={option.id}
+              name="gender"
+              label={option.label}
+              onChange={handleRadioChange}
+              checked={form.gender === option.id}
+            />
+          ))}
+        </div>
       </div>
       <div className={styles.inputGroup}>
         <InputBox

@@ -90,7 +90,7 @@ export const usePayment = () => {
   const payMethods = PAYMENT_CONFIG.payMethods;
 
   // 상품 목록 조회
-  const getProductsQuery = useQuery<ProductsResponse>({
+  const getProducts = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
       const response = await payment.getProducts();
@@ -124,58 +124,38 @@ export const usePayment = () => {
   };
 
   // 쿠폰 검증 mutation
-  const validateCouponMutation = useMutation<CouponValidationResponse, Error, string>({
-    mutationFn: async (couponCode) => {
+  const validateCouponMutation = useMutation({
+    mutationFn: async (couponCode: string) => {
       try {
         const response = await payment.validateCoupon(couponCode);
         return response.data;
       } catch (error: any) {
-        console.error('Coupon validation failed:', {
-          error: error,
-          response: error.response?.data
-        });
         throw new Error(error.response?.data?.message || '쿠폰 검증에 실패했습니다.');
       }
     },
   });
 
-  const handlePaymentCompletion = async (rsp: any) => {
-    paymentLogger.debug('Payment response received:', rsp);
-    
+  const handlePaymentResult = async (rsp: any) => {
     if (rsp.success) {
       try {
-        paymentLogger.debug('Verifying payment:', {
-          imp_uid: rsp.imp_uid,
-          merchant_uid: rsp.merchant_uid
-        });
-
         const verifyResponse = await payment.verifyPayment({
           imp_uid: rsp.imp_uid,
           merchant_uid: rsp.merchant_uid
         });
         
-        paymentLogger.debug('Payment verification response:', verifyResponse);
-        
         if (verifyResponse.status === 200) {
-          navigate('/payment/result?success');
-          return true;
+          navigate('/payment/result?success=true');
         } else {
           throw new Error('결제 검증에 실패했습니다.');
         }
       } catch (error: any) {
-        paymentLogger.error('Payment verification failed:', error);
         setErrorMessage(error.message || '결제 검증 중 오류가 발생했습니다.');
         setShowErrorPopup(true);
-        return false;
       }
     } else {
-      paymentLogger.error('Payment failed:', {
-        error_code: rsp.error_code,
-        error_msg: rsp.error_msg
-      });
       setErrorMessage(rsp.error_msg || '결제에 실패했습니다.');
       setShowErrorPopup(true);
-      return false;
+      navigate(`/payment/result?fail&reason=${rsp.error_msg || "결제에 실패했습니다"}`);
     }
   };
 
@@ -256,31 +236,50 @@ export const usePayment = () => {
   const validateCoupon = async (couponCode: string) => {
     setIsLoading(true);
     try {
-      console.log('Validating coupon:', couponCode);
       const result = await validateCouponMutation.mutateAsync(couponCode);
-      console.log('Coupon validation result:', result);
       return result;
-    } catch (error) {
-      console.error('Coupon validation error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const processSinglePayment = async (paymentData: any) => {
+    setIsLoading(true);
+    try {
+      const response = await payment.createSinglePayment(paymentData);
+      if (!response?.data?.payment_data) {
+        throw new Error('결제 데이터가 올바르지 않습니다.');
+      }
+
+      const { IMP } = window;
+      if (!IMP) throw new Error('포트원 SDK가 로드되지 않았습니다.');
+
+      IMP.request_pay(response.data.payment_data, handlePaymentResult);
+    } catch (error: any) {
+      setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
+      setShowErrorPopup(true);
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const processSinglePayment = async (paymentData: PaymentData) => {
+  const processSubscription = async (subscriptionData: any) => {
     setIsLoading(true);
     try {
-      await processSinglePaymentMutation.mutateAsync(paymentData);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const response = await payment.createSubscription(subscriptionData);
+      if (!response?.data?.payment_data) {
+        throw new Error('결제 데이터가 올바르지 않습니다.');
+      }
 
-  const processSubscription = async (subscriptionData: PaymentData) => {
-    setIsLoading(true);
-    try {
-      await processSubscriptionMutation.mutateAsync(subscriptionData);
+      const { IMP } = window;
+      if (!IMP) throw new Error('포트원 SDK가 로드되지 않았습니다.');
+
+      IMP.request_pay(response.data.payment_data, handlePaymentResult);
+    } catch (error: any) {
+      setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
+      setShowErrorPopup(true);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -290,13 +289,11 @@ export const usePayment = () => {
     isLoading,
     pgProviders,
     payMethods,
-    getProducts: getProductsQuery,
+    getProducts,
     getProductById,
     validateCoupon,
     processSinglePayment,
     processSubscription,
-    selectedPayment,
-    setSelectedPayment,
     errorMessage,
     setErrorMessage,
     showErrorPopup,
