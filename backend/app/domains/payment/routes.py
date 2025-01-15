@@ -588,7 +588,7 @@ async def handle_mobile_redirect(
         logging.error(f"예상치 못한 오류 - 리다이렉트 URL: {error_url} - 오류: {str(e)}")
         return RedirectResponse(error_url)
 
-@router.post("/portone/change-subscription")
+@router.post("/portone/subscription/change")
 async def change_subscription_payment_method(
     change_request: schemas.SubscriptionPaymentRequest,
     db: Session = Depends(get_db),
