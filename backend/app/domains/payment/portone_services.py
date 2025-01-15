@@ -324,14 +324,12 @@ def validate_payment_info(payment_request, db):
         logging.info(f"Duplicate payment request detected for {payment_request.merchant_uid}. Skipping processing.")
         return {"status": "duplicate", "message": "이미 처리된 결제 요청입니다."}
 
-    # 결제 캐시 조회
     payment_cache = db.query(PaymentCache).filter(
         PaymentCache.merchant_uid == payment_request.merchant_uid
     ).first()
     if not payment_cache:
         raise HTTPException(status_code=404, detail="결제 캐시를 찾을 수 없습니다.")
 
-    # 예상 결제 금액 계산
     expected_amount = None
     if payment_cache.token_plan_id:
         token_plan = db.query(TokenPlan).filter(
@@ -340,6 +338,7 @@ def validate_payment_info(payment_request, db):
         if not token_plan:
             raise HTTPException(status_code=404, detail="토큰 플랜을 찾을 수 없습니다.")
         expected_amount = float(token_plan.discounted_price or token_plan.price)
+
     elif payment_cache.subscription_plan_id:
         subscription_plan = db.query(SubscriptionPlan).filter(
             SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
@@ -351,6 +350,24 @@ def validate_payment_info(payment_request, db):
     if expected_amount is None:
         raise HTTPException(status_code=400, detail="유효하지 않은 결제 유형입니다.")
 
+    # 쿠폰 정보가 있을 경우 할인 로직 적용
+    if payment_cache.coupon_id:
+        coupon = db.query(Coupon).filter(
+            Coupon.coupon_id == payment_cache.coupon_id
+        ).first()
+        if not coupon:
+            raise HTTPException(status_code=404, detail="쿠폰 정보를 찾을 수 없습니다.")
+
+        # 할인 금액 계산
+        if coupon.discount_type == 'RATE':
+            discount_amount = expected_amount * coupon.discount_value
+        elif coupon.discount_type == 'AMOUNT':
+            discount_amount = coupon.discount_value
+        else:
+            discount_amount = 0 
+
+        expected_amount = max(0, expected_amount - discount_amount)
+
     # 금액 검증
     if payment_info["amount"] != expected_amount:
         raise HTTPException(
@@ -359,6 +376,7 @@ def validate_payment_info(payment_request, db):
         )
 
     return payment_info, payment_cache
+
 
 def verify_and_save_payment(payment_request, db):
     """결제 검증 및 저장"""
@@ -467,7 +485,7 @@ def identify_payment_type(merchant_uid: str) -> str:
 
 def process_subscription_payment(payment_info, db: Session):
     """
-    정기 결제 처리 로직. 중복 처리 방지 포함.
+    정기 결제 처리 로직. 중복 처리 방지 포함
     """
     existing_payment = db.query(Payment).filter(
         Payment.payment_number == payment_info["imp_uid"]
@@ -512,7 +530,7 @@ def process_subscription_payment(payment_info, db: Session):
 
 def process_single_payment(payment_info, db: Session):
     """
-    단건 결제 처리 로직. 중복 처리 방지 포함.
+    단건 결제 처리 로직. 중복 처리 방지 포함
     """
     existing_payment = db.query(Payment).filter(
         Payment.payment_number == payment_info["imp_uid"]
@@ -548,7 +566,7 @@ def process_single_payment(payment_info, db: Session):
 
 def handle_failed_subscription_payment(payment_info, db: Session):
     """
-    실패한 구독 결제 처리 로직.
+    실패한 구독 결제 처리 로직
     """
     subscription = db.query(UserSubscription).filter(
         UserSubscription.subscription_number == payment_info["customer_uid"]
@@ -583,7 +601,7 @@ def handle_failed_subscription_payment(payment_info, db: Session):
 
 def change_subscription_plan(change_request: schemas.SubscriptionChangeRequest, db: Session):
     """
-    사용자의 구독 플랜 변경.
+    사용자의 구독 플랜 변경
     """
     # 기존 구독 정보 조회
     subscription = db.query(UserSubscription).filter(
@@ -627,9 +645,8 @@ def change_subscription_plan(change_request: schemas.SubscriptionChangeRequest, 
 
 def initiate_change_payment_method(change_request, db: Session, current_user):
     """
-    구독 결제 방식 변경 요청 초기화.
+    구독 결제 방식 변경 요청 초기화
     """
-    # 현재 활성화된 구독 확인
     active_subscription = db.query(UserSubscription).filter(
         UserSubscription.user_id == current_user.user_id,
         UserSubscription.status == "ACTIVE"
@@ -648,8 +665,7 @@ def initiate_change_payment_method(change_request, db: Session, current_user):
     if not subscription_plan:
         raise HTTPException(status_code=404, detail="구독 플랜 정보를 찾을 수 없습니다.")
 
-    # 고유 `merchant_uid`와 `customer_uid` 생성
-    merchant_uid = str(uuid.uuid4())  # 'change_' 제거
+    merchant_uid = str(uuid.uuid4())
     customer_uid = f"{current_user.user_id}-customer"
 
     payment_data = {
@@ -658,8 +674,8 @@ def initiate_change_payment_method(change_request, db: Session, current_user):
         else settings.PORTONE_DANAL_TPAY_KEYS,
         "merchant_uid": merchant_uid,
         "customer_uid": customer_uid,
-        "name": f"{subscription_plan.plan_name} 결제 방식 변경",  # 명확한 구분
-        "amount": 0,  # 결제 금액은 0원
+        "name": f"{subscription_plan.plan_name} 결제 방식 변경",
+        "amount": 0,
         "buyer_email": current_user.email,
         "buyer_name": current_user.nickname,
         "buyer_tel": current_user.phone_number,
@@ -667,7 +683,6 @@ def initiate_change_payment_method(change_request, db: Session, current_user):
         "notice_url": settings.PORTONE_WEPHOOK_URL,
     }
 
-    # 결제 캐시 생성
     payment_cache = PaymentCache(
         user_id=current_user.user_id,
         merchant_uid=merchant_uid,
