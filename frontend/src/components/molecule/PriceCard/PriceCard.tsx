@@ -29,6 +29,10 @@ export function PriceCard(props: PriceCardProps) {
     onClick,
   } = props;
 
+  const shouldShowDiscount = discountPercentage > 0;
+
+  const roundedDiscountPercentage = Math.round(discountPercentage);
+
   return (
     <div
       className={`${styles.card} ${isSelected ? styles.selected : ''}`}
@@ -51,11 +55,11 @@ export function PriceCard(props: PriceCardProps) {
             />
           </div>
           <div className={styles.priceSection}>
-            {discountPercentage && (
+            {shouldShowDiscount ? (
               <div className={`${styles.discount} font-card-title-2`}>
-                {discountPercentage}% OFF
+                {roundedDiscountPercentage}% OFF
               </div>
-            )}
+            ): <div className={`${styles.discount} font-card-title-2`}></div>}
             <div>
               {originalPrice && (
                 <p className={styles.originalPrice}>
