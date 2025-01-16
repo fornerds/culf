@@ -21,9 +21,7 @@ interface Banner {
   is_public: boolean;
 }
 
-const getImageUrl = (name: string): string => {
-  return new URL(`../../assets/images/${name}`, import.meta.url).href;
-};
+// https://pf.kakao.com/_KxoAdn (컬프 공식 카카오톡 채널 주소)
 
 export function Homepage() {
   const isAuthenticated = !!tokenService.getAccessToken();

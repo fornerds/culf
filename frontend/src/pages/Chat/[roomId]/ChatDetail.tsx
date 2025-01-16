@@ -15,6 +15,7 @@ import CloseIcon from '@/assets/icons/close.svg?react';
 import AlbumIcon from '@/assets/icons/album.svg?react';
 import { chat, token, subscription } from '@/api';
 import { useChatRoomStore } from '@/state/client/chatRoomStore';
+import { useHeaderStore } from '@/state/client/useHeaderStore';
 
 type MessageType = {
   type: 'user' | 'ai';
@@ -127,6 +128,7 @@ export function ChatDetail() {
   const isMobile = window.innerWidth < 425;
   const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const { setTitle } = useHeaderStore();
 
   // 채팅방 데이터 조회
   const { data: roomData } = useQuery({
@@ -182,6 +184,7 @@ export function ChatDetail() {
             persona: curatorData.curator.persona
           }
         });
+        setTitle(curatorData.curator.name);
         setShowSuggestions(true);
         setMessages([]);
       } 
@@ -196,6 +199,7 @@ export function ChatDetail() {
             persona: roomData.curator.persona
           }
         });
+        setTitle(roomData.curator.name);
 
         if (roomData.conversations) {
           const messages = roomData.conversations.map(conv => [
