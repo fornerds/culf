@@ -94,13 +94,13 @@ export function Payment() {
       method: '',
       disabled: productType === 'subscription'
     },
-    {
-      id: 'kakaopay_subscription',
-      label: '카카오페이 정기결제',
-      pg: pgProviders.KAKAO_SUBSCRIPTION,
-      method: '',
-      disabled: productType === 'token'
-    },
+    // {
+    //   id: 'kakaopay_subscription',
+    //   label: '카카오페이 정기결제',
+    //   pg: pgProviders.KAKAO_SUBSCRIPTION,
+    //   method: '',
+    //   disabled: productType === 'token'
+    // },
     {
       id: 'card',
       label: '신용카드',
@@ -113,14 +113,14 @@ export function Payment() {
       label: '실시간 계좌이체',
       pg: pgProviders.DANAL_TPAY,
       method: payMethods.TRANS,
-      disabled: productType === 'subscription'
+      disabled: false
     },
     {
       id: 'vbank',
       label: '가상계좌',
       pg: pgProviders.DANAL_TPAY,
       method: payMethods.VBANK,
-      disabled: productType === 'subscription'
+      disabled: false
     },
     {
       id: 'phone',
