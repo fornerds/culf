@@ -4,7 +4,7 @@ import styles from './Homepage.module.css';
 import { Header, Cards, ChatList } from '@/components/organism';
 import { Footer } from '@/components/molecule';
 import { HeroBanner } from '@/modules';
-import { chat, curator } from '@/api';
+import { chat, curator, banner } from '@/api';
 import { LoadingAnimation } from '@/components/atom';
 import logoimage from '@/assets/images/culf.png';
 import { tokenService } from '@/utils/tokenService';
@@ -14,12 +14,33 @@ interface SlideItem {
   link: string;
 }
 
+interface Banner {
+  target_url: string;
+  image_url: string;
+  banner_id: number;
+  is_public: boolean;
+}
+
 const getImageUrl = (name: string): string => {
   return new URL(`../../assets/images/${name}`, import.meta.url).href;
 };
 
 export function Homepage() {
   const isAuthenticated = !!tokenService.getAccessToken();
+
+  const { data: banners, isLoading: isBannersLoading } = useQuery({
+    queryKey: ['banners'],
+    queryFn: async () => {
+      try {
+        const response = await banner.getBanners();
+        return response.data;
+      } catch (error) {
+        console.log('Banner fetch error:', error);
+        return [];
+      }
+    },
+    retry: false,
+  });
 
   const { data: curators, isLoading: isCuratorsLoading } = useQuery({
     queryKey: ['curators'],
@@ -51,12 +72,10 @@ export function Homepage() {
     retry: false, // API 호출 실패시 재시도 하지 않음
   });
 
-  const slides: SlideItem[] = [
-    { imageUrl: getImageUrl('herobanner01.png'), link: 'http://pf.kakao.com/_KxoAdn' },
-    { imageUrl: getImageUrl('herobanner02.png'), link: '/' },
-    { imageUrl: getImageUrl('herobanner03.png'), link: '/' },
-    { imageUrl: getImageUrl('herobanner04.png'), link: '/' },
-  ];
+  const slides = banners?.map((banner: Banner) => ({
+    imageUrl: banner.image_url,
+    link: banner.target_url,
+  })) || [];
 
   // Format curator data for Cards component
   const cardsData = curators?.map(curator => ({

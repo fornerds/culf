@@ -4,6 +4,7 @@ import { Card } from '../../molecule/Card';
 import styles from './Cards.module.css';
 import { chat } from '@/api';
 import { useChatRoomStore } from '@/state/client/chatRoomStore';
+import { tokenService } from '@/utils/tokenService';
 
 interface CardsProps {
   cards: {
@@ -28,6 +29,13 @@ export function Cards({ cards }: CardsProps) {
   const clickStartTimeRef = useRef(0);
 
   const handleCardClick = async (curatorId: number) => {
+    const isAuthenticated = !!tokenService.getAccessToken();
+    
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
     try {
       const response = await chat.createChatRoom(curatorId);
       const { room_id, curator } = response.data;
