@@ -97,6 +97,11 @@ api.interceptors.response.use(
   },
 );
 
+// Banner
+export const banner = {
+  getBanners: () => api.get('/banners'),
+};
+
 // Auth API
 export const auth = {
   login: (email: string, password: string) => {
