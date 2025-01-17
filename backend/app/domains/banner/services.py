@@ -86,3 +86,14 @@ def delete_banner(db: Session, banner_id: int):
             db.commit()
             return True
     return False
+
+def increment_banner_click(db: Session, banner_id: int):
+    """배너 클릭 횟수 증가"""
+    banner = db.query(models.Banner).filter(models.Banner.banner_id == banner_id).first()
+    if banner:
+        banner.click_count += 1
+        db.add(banner)
+        db.commit()
+        db.refresh(banner)
+        return banner
+    return None

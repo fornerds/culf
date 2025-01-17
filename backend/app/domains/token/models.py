@@ -43,3 +43,17 @@ class TokenPlan(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     payments = relationship("Payment", back_populates="token_plan")
+
+
+class TokenGrant(Base):
+    __tablename__ = "token_grants"
+
+    token_grant_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False)
+    amount = Column(Integer, nullable=False)
+    reason = Column(String(255), nullable=False)
+    granted_by = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", foreign_keys=[user_id], backref="received_grants")
+    admin = relationship("User", foreign_keys=[granted_by], backref="granted_tokens")

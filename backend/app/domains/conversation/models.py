@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey, Boolean, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -16,6 +16,12 @@ class ChatRoom(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # 스톤 사용량 관련 필드 추가
+    total_tokens_used = Column(Integer, default=0)  # 총 사용된 스톤 수
+    conversation_count = Column(Integer, default=0)  # 총 대화 수
+    average_tokens_per_conversation = Column(Float, default=0.0)  # 대화당 평균 스톤 수
+    last_token_update = Column(DateTime(timezone=True))  # 마지막 스톤 업데이트 시간
+
     user = relationship("User", back_populates="chat_rooms")
     curator = relationship("Curator")
     conversations = relationship(
@@ -26,13 +32,8 @@ class ChatRoom(Base):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._conversation_count = 0
         self._last_conversation = None
         self._conversations_list = []
-
-    @property
-    def conversation_count(self):
-        return getattr(self, '_conversation_count', 0)
 
     @property
     def last_conversation(self):
@@ -41,6 +42,14 @@ class ChatRoom(Base):
     @property
     def conversations_response(self):
         return getattr(self, '_conversations_list', [])
+
+    def update_token_stats(self, tokens_used: int):
+        """대화방의 스톤 통계를 업데이트합니다."""
+        self.total_tokens_used += tokens_used
+        self.conversation_count += 1
+        if self.conversation_count > 0:
+            self.average_tokens_per_conversation = round(self.total_tokens_used / self.conversation_count, 2)
+        self.last_token_update = func.now()
 
 class Conversation(Base):
     __tablename__ = "conversations"

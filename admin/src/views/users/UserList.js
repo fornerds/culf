@@ -91,15 +91,18 @@ const UserList = () => {
     try {
       setLoading(true);
       const { data } = await httpClient.get('/admin/users/export');
-      
+
       const exportData = data.users.map(user => ({
         '닉네임': user.nickname,
         '이메일': user.email,
         '가입일': format(new Date(user.created_at), 'yyyy-MM-dd HH:mm:ss'),
+        '마지막 채팅일': user.last_chat_at
+          ? format(new Date(user.last_chat_at), 'yyyy-MM-dd HH:mm:ss')
+          : '-',
         '상태': user.status,
         '권한': user.role,
-        '토큰 잔액': user.total_tokens,
-        '월간 토큰 사용량': user.monthly_token_usage,
+        '스톤 잔액': user.total_tokens,
+        '월간 스톤 사용량': user.monthly_token_usage,
       }));
 
       const wb = XLSX.utils.book_new();
@@ -145,14 +148,14 @@ const UserList = () => {
           <CCardHeader className="d-flex justify-content-between align-items-center">
             <strong>사용자 관리</strong>
             <div className="d-flex gap-2">
-              <CButton 
+              <CButton
                 color="primary"
                 size="sm"
                 onClick={() => navigate('/users/create')}
               >
                 + 사용자 생성
               </CButton>
-              <CButton 
+              <CButton
                 color="secondary"
                 size="sm"
                 onClick={handleExportExcel}
@@ -190,12 +193,12 @@ const UserList = () => {
 
             <div className="mb-3 d-flex justify-content-between align-items-center">
               <div className="d-flex gap-2">
-                <CFormSelect 
+                <CFormSelect
                   style={{ width: '200px' }}
                   value={tokenFilter}
                   onChange={(e) => setTokenFilter(e.target.value)}
                 >
-                  <option value="all">전체 토큰 사용량</option>
+                  <option value="all">전체 스톤 사용량</option>
                   <option value="high">높은 사용량 (1000+)</option>
                   <option value="medium">중간 사용량 (500-1000)</option>
                   <option value="low">낮은 사용량 (0-500)</option>
@@ -208,8 +211,8 @@ const UserList = () => {
                   onChange={(e) => setTempSearchQuery(e.target.value)}
                   onKeyPress={handleKeyPress}
                 />
-                <CButton 
-                  color="primary" 
+                <CButton
+                  color="primary"
                   variant="outline"
                   onClick={handleSearch}
                 >
@@ -230,28 +233,36 @@ const UserList = () => {
                   <CTableHeaderCell onClick={() => handleSort('created_at')} style={{ cursor: 'pointer' }}>
                     가입일
                   </CTableHeaderCell>
+                  <CTableHeaderCell onClick={() => handleSort('last_chat_at')} style={{ cursor: 'pointer' }}>
+                    마지막 채팅 시간
+                  </CTableHeaderCell>
                   <CTableHeaderCell onClick={() => handleSort('status')} style={{ cursor: 'pointer' }}>
                     상태
                   </CTableHeaderCell>
                   <CTableHeaderCell onClick={() => handleSort('total_tokens')} style={{ cursor: 'pointer' }}>
-                    토큰 잔액
+                    스톤 잔액
                   </CTableHeaderCell>
                   <CTableHeaderCell onClick={() => handleSort('monthly_token_usage')} style={{ cursor: 'pointer' }}>
-                    월간 토큰 사용량
+                    월간 스톤 사용량
                   </CTableHeaderCell>
                   <CTableHeaderCell>권한</CTableHeaderCell>
                 </CTableRow>
               </CTableHead>
               <CTableBody>
                 {users.map((user) => (
-                  <CTableRow 
-                    key={user.user_id} 
+                  <CTableRow
+                    key={user.user_id}
                     onClick={() => navigate(`/users/${user.user_id}`)}
                     style={{ cursor: 'pointer' }}
                   >
                     <CTableDataCell>{user.nickname}</CTableDataCell>
                     <CTableDataCell>{user.email}</CTableDataCell>
                     <CTableDataCell>{format(new Date(user.created_at), 'yyyy-MM-dd HH:mm')}</CTableDataCell>
+                    <CTableDataCell>
+                      {user.last_chat_at
+                        ? format(new Date(user.last_chat_at), 'yyyy-MM-dd HH:mm')
+                        : '-'}
+                    </CTableDataCell>
                     <CTableDataCell>{getStatusBadge(user.status)}</CTableDataCell>
                     <CTableDataCell>{user.total_tokens.toLocaleString()}</CTableDataCell>
                     <CTableDataCell>{user.monthly_token_usage.toLocaleString()}</CTableDataCell>
@@ -262,7 +273,7 @@ const UserList = () => {
             </CTable>
 
             <CPagination align="center" aria-label="Page navigation">
-              <CPaginationItem 
+              <CPaginationItem
                 aria-label="Previous"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}

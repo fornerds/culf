@@ -3,11 +3,14 @@ from sqlalchemy import func, or_, desc, asc, case, distinct
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from app.domains.admin.schemas import NotificationCreate
+from app.domains.admin.models import SystemSetting
+from app.domains.admin.schemas import NotificationCreate, TokenPlanUpdate, SubscriptionPlanUpdate
 from app.domains.notice.models import Notice
 from app.domains.notification.models import Notification, UserNotification
+from app.domains.subscription.models import SubscriptionPlan
 from app.domains.user.models import User
-from app.domains.token.models import Token, TokenUsageHistory
+from app.domains.token.models import Token, TokenUsageHistory, TokenGrant, TokenPlan
+from app.domains.conversation.models import Conversation
 from app.domains.payment.models import Payment
 import logging
 from uuid import UUID
@@ -28,13 +31,17 @@ def get_admin_users(
     query = db.query(
         User,
         Token.total_tokens,
-        func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).label('monthly_token_usage')
+        func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).label('monthly_token_usage'),
+        func.max(Conversation.question_time).label('question_time')
     ).outerjoin(
         Token, User.user_id == Token.user_id
     ).outerjoin(
         TokenUsageHistory,
         (User.user_id == TokenUsageHistory.user_id) &
         (TokenUsageHistory.used_at >= datetime.now() - timedelta(days=30))
+    ).outerjoin(
+        Conversation,
+        User.user_id == Conversation.user_id
     ).group_by(User.user_id, Token.total_tokens)
 
     # Search filter
@@ -87,7 +94,7 @@ def get_admin_users(
 
     results = query.all()
     users = []
-    for user, total_tokens, monthly_usage in results:
+    for user, total_tokens, monthly_usage, question_time in results:
         users.append({
             "user_id": str(user.user_id),
             "nickname": user.nickname,
@@ -96,7 +103,8 @@ def get_admin_users(
             "status": user.status,
             "role": user.role,
             "total_tokens": total_tokens or 0,
-            "monthly_token_usage": int(monthly_usage or 0)
+            "monthly_token_usage": int(monthly_usage or 0),
+            "last_chat_at": question_time
         })
 
     return {
@@ -112,22 +120,27 @@ def get_admin_users_for_export(db: Session) -> List[Dict]:
     query = db.query(
         User,
         Token.total_tokens,
-        func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).label('monthly_token_usage')
+        func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).label('monthly_token_usage'),
+        func.max(Conversation.question_time).label('question_time')
     ).outerjoin(
         Token, User.user_id == Token.user_id
     ).outerjoin(
         TokenUsageHistory,
         (User.user_id == TokenUsageHistory.user_id) &
         (TokenUsageHistory.used_at >= datetime.now() - timedelta(days=30))
+    ).outerjoin(
+        Conversation,
+        User.user_id == Conversation.user_id
     ).group_by(User.user_id, Token.total_tokens)
 
     results = query.all()
     users = []
-    for user, total_tokens, monthly_usage in results:
+    for user, total_tokens, monthly_usage, question_time in results:
         users.append({
             "nickname": user.nickname,
             "email": user.email,
             "created_at": user.created_at,
+            "last_chat_at": question_time,
             "status": user.status,
             "role": user.role,
             "total_tokens": total_tokens or 0,
@@ -487,6 +500,35 @@ def mark_notification_as_read(
     return False
 
 
+def get_notification_read_status(db: Session, notification_id: int) -> List[dict]:
+    """알림의 읽음 상태 상세 정보를 조회합니다."""
+    query = db.query(
+        UserNotification,
+        User
+    ).join(
+        User,
+        UserNotification.user_id == User.user_id
+    ).filter(
+        UserNotification.notification_id == notification_id
+    ).order_by(
+        UserNotification.read_at.desc().nullsfirst(),
+        User.nickname
+    )
+
+    results = query.all()
+
+    status_details = []
+    for user_notification, user in results:
+        status_details.append({
+            "user_id": str(user.user_id),
+            "email": user.email,
+            "nickname": user.nickname,
+            "is_read": user_notification.is_read or False,
+            "read_at": user_notification.read_at
+        })
+
+    return status_details
+
 def get_admin_notices(db: Session, page: int = 1, limit: int = 10, search: Optional[str] = None):
     query = db.query(Notice)
 
@@ -529,3 +571,140 @@ def delete_admin_notice(db: Session, notice_id: int):
     notice = get_admin_notice(db, notice_id)
     db.delete(notice)
     db.commit()
+
+
+def get_welcome_tokens(db: Session) -> Dict[str, int]:
+    """가입 축하 스톤 설정을 조회합니다."""
+    setting = db.query(SystemSetting).filter(
+        SystemSetting.key == 'welcome_tokens'
+    ).first()
+    return {"welcome_tokens": int(setting.value) if setting else 0}
+
+
+def update_welcome_tokens(db: Session, tokens: int) -> Dict[str, int]:
+    """가입 축하 스톤 설정을 업데이트합니다."""
+    try:
+        setting = db.query(SystemSetting).filter(
+            SystemSetting.key == 'welcome_tokens'
+        ).first()
+
+        if setting:
+            setting.value = str(tokens)
+            setting.updated_at = datetime.now()
+        else:
+            setting = SystemSetting(
+                key='welcome_tokens',
+                value=str(tokens),
+                updated_at=datetime.now()
+            )
+            db.add(setting)
+
+        db.commit()
+        return {"welcome_tokens": tokens}
+    except Exception as e:
+        db.rollback()
+        raise e
+def grant_tokens_to_user(
+    db: Session,
+    email: str,  # UUID 대신 email로 변경
+    amount: int,
+    reason: str,
+    admin_id: UUID
+) -> Dict:
+    """특정 사용자에게 스톤을 지급합니다."""
+    try:
+        # 이메일로 사용자 조회
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise ValueError("해당 이메일의 사용자를 찾을 수 없습니다.")
+
+        if user.status != 'ACTIVE':
+            raise ValueError("비활성 사용자에게는 스톤을 지급할 수 없습니다.")
+
+        # 토큰 정보 조회 또는 생성
+        token = db.query(Token).filter(Token.user_id == user.user_id).first()
+        if not token:
+            token = Token(user_id=user.user_id, total_tokens=0)
+            db.add(token)
+
+        # 토큰 지급 이력 생성
+        token_grant = TokenGrant(
+            user_id=user.user_id,
+            amount=amount,
+            reason=reason,
+            granted_by=admin_id
+        )
+        db.add(token_grant)
+
+        # 토큰 잔액 업데이트
+        token.total_tokens += amount
+        token.last_charged_at = datetime.now()
+
+        db.commit()
+        db.refresh(token)
+        db.refresh(token_grant)
+
+        return {
+            "token_grant_id": token_grant.token_grant_id,
+            "user_email": user.email,
+            "amount": amount,
+            "reason": reason,
+            "granted_by": admin_id,
+            "created_at": token_grant.created_at,
+            "user_nickname": user.nickname,
+            "current_balance": token.total_tokens
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def update_subscription_plan(
+        db: Session,
+        plan_id: int,
+        plan_update: SubscriptionPlanUpdate
+) -> SubscriptionPlan:
+    """구독 상품을 수정합니다."""
+    try:
+        plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.plan_id == plan_id).first()
+        if not plan:
+            raise ValueError("해당 상품을 찾을 수 없습니다.")
+
+        update_data = plan_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(plan, field, value)
+
+        plan.updated_at = datetime.now()
+
+        db.commit()
+        db.refresh(plan)
+        return plan
+    except Exception as e:
+        db.rollback()
+        raise e
+
+
+def update_token_plan(
+        db: Session,
+        plan_id: int,
+        plan_update: TokenPlanUpdate
+) -> TokenPlan:
+    """일반 상품을 수정합니다."""
+    try:
+        plan = db.query(TokenPlan).filter(TokenPlan.token_plan_id == plan_id).first()
+        if not plan:
+            raise ValueError("해당 상품을 찾을 수 없습니다.")
+
+        update_data = plan_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(plan, field, value)
+
+        plan.updated_at = datetime.now()
+
+        db.commit()
+        db.refresh(plan)
+        return plan
+    except Exception as e:
+        db.rollback()
+        raise e

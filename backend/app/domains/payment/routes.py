@@ -453,6 +453,11 @@ def admin_process_refund(inquiry_id: int, db: Session = Depends(get_db)):
 
 
 # 쿠폰 관련 엔드포인트
+@router.get("/admin/coupons", response_model=List[schemas.CouponResponse])
+async def list_coupons(db: Session = Depends(get_db)):
+    """쿠폰 목록을 조회합니다."""
+    return services.get_coupons(db)
+
 @router.post("/admin/coupons", response_model=schemas.CouponResponse, status_code=status.HTTP_201_CREATED)
 def create_coupon(coupon_data: schemas.CouponCreate, db: Session = Depends(get_db)):
     return services.create_coupon(db, coupon_data)

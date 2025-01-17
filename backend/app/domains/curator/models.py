@@ -36,6 +36,8 @@ class Curator(Base):
     profile_image = Column(String, nullable=True)
     introduction = Column(Text)
     category = Column(String)
+    background_color = Column(String(7), nullable=True)
+    text_color = Column(String(7), nullable=True)
 
     tags = relationship(
         "Tag",

@@ -45,8 +45,13 @@ def create_conversation(
     # 답변 요약 생성 (첫 50글자)
     answer_summary = extract_summary_from_answer(answer)
 
+    # 채팅방 스톤 통계 업데이트
     if chat.room_id:
-        update_chat_room_title(db, chat.room_id, answer_summary)
+        chat_room = db.query(models.ChatRoom).filter(models.ChatRoom.room_id == chat.room_id).first()
+        if chat_room:
+            chat_room.update_token_stats(tokens_used)
+            update_chat_room_title(db, chat.room_id, answer_summary)
+
 
     # 이미지 URLs JSON 생성
     question_images = None

@@ -95,3 +95,14 @@ async def delete_banner(
     if not success:
         raise HTTPException(status_code=404, detail="배너를 찾을 수 없습니다")
     return {"ok": True}
+
+@router.post("/banners/{banner_id}/click", response_model=schemas.Banner)
+async def record_banner_click(
+    banner_id: int,
+    db: Session = Depends(get_db)
+):
+    """배너 클릭 횟수를 기록합니다."""
+    banner = services.increment_banner_click(db, banner_id)
+    if not banner:
+        raise HTTPException(status_code=404, detail="배너를 찾을 수 없습니다")
+    return banner

@@ -19,8 +19,10 @@ import {
   CButton,
   CPagination,
   CPaginationItem,
+  CTooltip,
+  CWidgetStatsF,
 } from '@coreui/react';
-import { cilCloudDownload } from '@coreui/icons';
+import { cilCloudDownload, cilChatBubble } from '@coreui/icons';
 import CIcon from '@coreui/icons-react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -34,12 +36,32 @@ const ChatRoomList = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [tempSearchQuery, setTempSearchQuery] = useState('');
+  const [tokenStats, setTokenStats] = useState({
+    averageTokens: 0,
+    totalRooms: 0,
+    totalTokens: 0,
+  });
   const navigate = useNavigate();
   const limit = 10;
 
   useEffect(() => {
     fetchChatRooms();
   }, [currentPage, searchQuery]);
+
+  const calculateTokenStats = (rooms) => {
+    const validRooms = rooms.filter(room => room.average_tokens_per_conversation);
+    const averageTokens = validRooms.length > 0
+      ? validRooms.reduce((sum, room) => sum + parseFloat(room.average_tokens_per_conversation), 0) / validRooms.length
+      : 0;
+    
+    const totalTokens = rooms.reduce((sum, room) => sum + (room.total_tokens_used || 0), 0);
+
+    setTokenStats({
+      averageTokens: parseFloat(averageTokens.toFixed(1)),
+      totalRooms: rooms.length,
+      totalTokens,
+    });
+  };
 
   const fetchChatRooms = async () => {
     try {
@@ -52,6 +74,7 @@ const ChatRoomList = () => {
       const { data } = await httpClient.get(url);
       setChatRooms(data.chat_rooms);
       setTotalCount(data.total_count || 0);
+      calculateTokenStats(data.chat_rooms);
     } catch (error) {
       console.error('Error fetching chat rooms:', error);
     } finally {
@@ -59,7 +82,6 @@ const ChatRoomList = () => {
     }
   };
 
-  // 전체 채팅방 데이터 가져오기
   const fetchAllChatRooms = async () => {
     try {
       const response = await httpClient.get('/admin/chat-rooms', {
@@ -76,13 +98,11 @@ const ChatRoomList = () => {
     }
   };
 
-  // 엑셀 다운로드 처리
   const handleExportExcel = async () => {
     setLoading(true);
     try {
       const allChatRooms = await fetchAllChatRooms();
       
-      // 엑셀 데이터 준비
       const exportData = allChatRooms.map(room => ({
         '사용자': room.user_name,
         '큐레이터': room.curator_name,
@@ -90,14 +110,14 @@ const ChatRoomList = () => {
         '시작 시간': new Date(room.created_at).toLocaleString(),
         '마지막 메시지': room.last_message,
         '마지막 채팅 시간': new Date(room.last_message_time).toLocaleString(),
-        '메시지 수': room.message_count
+        '메시지 수': room.message_count,
+        '총 스톤 사용량': room.total_tokens_used?.toLocaleString() || '0',
+        '평균 스톤 사용량': room.average_tokens_per_conversation?.toFixed(1) || '0'
       }));
-
-      // 워크북 생성
+  
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // 열 너비 설정
+  
       const wscols = [
         { wch: 15 }, // 사용자
         { wch: 15 }, // 큐레이터
@@ -105,14 +125,13 @@ const ChatRoomList = () => {
         { wch: 20 }, // 시작 시간
         { wch: 50 }, // 마지막 메시지
         { wch: 20 }, // 마지막 채팅 시간
-        { wch: 10 }  // 메시지 수
+        { wch: 10 }, // 메시지 수
+        { wch: 15 }, // 총 스톤 사용량
+        { wch: 15 }  // 평균 스톤 사용량
       ];
       ws['!cols'] = wscols;
-
-      // 워크시트를 워크북에 추가
+  
       XLSX.utils.book_append_sheet(wb, ws, '채팅방목록');
-
-      // 파일 저장
       const fileName = `채팅방목록_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
@@ -132,20 +151,6 @@ const ChatRoomList = () => {
   const handleKeyPress = (event) => {
     if (event.key === 'Enter') {
       handleSearch();
-    }
-  };
-
-  const formatLastChatTime = (time) => {
-    const date = new Date(time);
-    const now = new Date();
-    const diffInHours = (now - date) / (1000 * 60 * 60);
-
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffInHours < 48) {
-      return '어제';
-    } else {
-      return date.toLocaleDateString();
     }
   };
 
@@ -198,10 +203,20 @@ const ChatRoomList = () => {
                   <CTableHeaderCell style={{ width: '10%' }}>사용자</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '7%' }}>큐레이터</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '12%' }}>큐레이터 태그</CTableHeaderCell>
-                  <CTableHeaderCell style={{ width: '16%' }}>시작 시간</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '13%' }}>시작 시간</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '20%' }}>마지막 메시지</CTableHeaderCell>
-                  <CTableHeaderCell style={{ width: '16%' }}>마지막 채팅 시간</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '13%' }}>마지막 채팅 시간</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '7%' }}>메시지 수</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '9%' }}>
+                    <CTooltip content="대화당 평균 스톤 사용량">
+                      <span>평균 스톤</span>
+                    </CTooltip>
+                  </CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '9%' }}>
+                    <CTooltip content="총 스톤 사용량">
+                      <span>총 스톤</span>
+                    </CTooltip>
+                  </CTableHeaderCell>
                 </CTableRow>
               </CTableHead>
               <CTableBody>
@@ -240,6 +255,15 @@ const ChatRoomList = () => {
                     </CTableDataCell>
                     <CTableDataCell>
                       {room.message_count}
+                    </CTableDataCell>
+                    <CTableDataCell>
+                      {room.average_tokens_per_conversation 
+                        ? room.average_tokens_per_conversation.toFixed(1)
+                        : '-'
+                      }
+                    </CTableDataCell>
+                    <CTableDataCell>
+                      {room.total_tokens_used?.toLocaleString() || '-'}
                     </CTableDataCell>
                   </CTableRow>
                 ))}

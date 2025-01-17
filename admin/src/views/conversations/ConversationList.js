@@ -157,7 +157,7 @@ const fetchAllConversations = async () => {
         '질문': conv.question,
         '답변': conv.answer,
         '질문 시간': format(new Date(conv.question_time), 'yyyy-MM-dd HH:mm:ss'),
-        '토큰 사용량': conv.tokens_used
+        '스톤 사용량': conv.tokens_used
       }))
   
       // 워크북 생성
@@ -171,7 +171,7 @@ const fetchAllConversations = async () => {
         { wch: 30 }, // 질문
         { wch: maxWidth }, // 답변
         { wch: 20 }, // 질문 시간
-        { wch: 12 }  // 토큰 사용량
+        { wch: 12 }  // 스톤 사용량
       ]
       ws['!cols'] = wscols
   
@@ -239,7 +239,7 @@ const fetchAllConversations = async () => {
                                     <CTableHeaderCell style={{ width: '12%' }}>질문</CTableHeaderCell>
                                     <CTableHeaderCell style={{ width: '50%' }}>답변</CTableHeaderCell>
                                     <CTableHeaderCell style={{ width: '8%' }}>질문 시간</CTableHeaderCell>
-                                    <CTableHeaderCell style={{ width: '7%' }}>토큰 사용량</CTableHeaderCell>
+                                    <CTableHeaderCell style={{ width: '7%' }}>스톤 사용량</CTableHeaderCell>
                                 </CTableRow>
                             </CTableHead>
                             <CTableBody>

@@ -26,6 +26,8 @@ const CuratorCreate = () => {
     introduction: '',
     category: '',
     tag_names: [],
+    background_color: '#FFFFFF',
+    text_color: '#000000'
   })
   const [mainImageFile, setMainImageFile] = useState(null)
   const [profileImageFile, setProfileImageFile] = useState(null)
@@ -90,6 +92,8 @@ const CuratorCreate = () => {
     data.append('persona', formData.persona)
     data.append('introduction', formData.introduction)
     data.append('category', formData.category)
+    data.append('background_color', formData.background_color)
+    data.append('text_color', formData.text_color)
     formData.tag_names.forEach(tag => {
       data.append('tag_names', tag)
     })
@@ -107,6 +111,21 @@ const CuratorCreate = () => {
       console.error('Error details:', error.response?.data)
       alert('큐레이터 생성 중 오류가 발생했습니다.')
     }
+  }
+
+  const renderColorPreview = (color) => {
+    return (
+      <div
+        style={{
+          width: '30px',
+          height: '30px',
+          backgroundColor: color,
+          border: '1px solid #ddd',
+          borderRadius: '4px',
+          marginLeft: '10px'
+        }}
+      />
+    )
   }
 
   return (
@@ -194,6 +213,34 @@ const CuratorCreate = () => {
                 </CFormSelect>
               </div>
               <div className="mb-3">
+                <CFormLabel>배경색</CFormLabel>
+                <div className="d-flex align-items-center">
+                  <CFormInput
+                    type="color"
+                    value={formData.background_color}
+                    onChange={(e) => setFormData({ ...formData, background_color: e.target.value })}
+                    required
+                    style={{ width: '100px' }}
+                  />
+                  <span className="ms-2">{formData.background_color}</span>
+                  {renderColorPreview(formData.background_color)}
+                </div>
+              </div>
+              <div className="mb-3">
+                <CFormLabel>글자색</CFormLabel>
+                <div className="d-flex align-items-center">
+                  <CFormInput
+                    type="color"
+                    value={formData.text_color}
+                    onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
+                    required
+                    style={{ width: '100px' }}
+                  />
+                  <span className="ms-2">{formData.text_color}</span>
+                  {renderColorPreview(formData.text_color)}
+                </div>
+              </div>
+              <div className="mb-3">
                 <CFormLabel>태그 (최대 2개)</CFormLabel>
                 <CInputGroup>
                   <CFormInput
@@ -227,22 +274,22 @@ const CuratorCreate = () => {
                 </div>
               </div>
               <div className="d-flex justify-content-center">
-  <CButton 
-    type="submit" 
-    color="primary" 
-    className="me-4 px-5"  // px-5로 좌우 패딩 추가
-  >
-    등록
-  </CButton>
-  <CButton 
-    type="button" 
-    color="secondary" 
-    className="px-5"      // px-5로 좌우 패딩 추가
-    onClick={() => navigate('/curators')}
-  >
-    취소
-  </CButton>
-</div>
+                <CButton 
+                  type="submit" 
+                  color="primary" 
+                  className="me-4 px-5"
+                >
+                  등록
+                </CButton>
+                <CButton 
+                  type="button" 
+                  color="secondary" 
+                  className="px-5"
+                  onClick={() => navigate('/curators')}
+                >
+                  취소
+                </CButton>
+              </div>
             </CForm>
           </CCardBody>
         </CCard>

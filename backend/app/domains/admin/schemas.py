@@ -123,3 +123,48 @@ class AdminNotificationResponse(AdminNotificationBase):
 
     class Config:
         from_attributes = True
+
+
+class WelcomeTokenUpdate(BaseModel):
+    welcome_tokens: int = Field(..., ge=0, description="회원가입시 지급할 스톤 수량")
+
+class WelcomeTokenResponse(BaseModel):
+    welcome_tokens: int
+
+    class Config:
+        from_attributes = True
+
+class TokenGrantCreate(BaseModel):
+    email: EmailStr
+    amount: int = Field(..., ge=1, description="지급할 스톤 수량")
+    reason: str = Field(..., min_length=1, max_length=255)
+
+class TokenGrantResponse(BaseModel):
+    token_grant_id: int
+    user_email: str
+    amount: int
+    reason: str
+    granted_by: UUID
+    created_at: datetime
+    user_email: str
+    user_nickname: str
+    current_balance: int
+
+    class Config:
+        from_attributes = True
+
+
+class SubscriptionPlanUpdate(BaseModel):
+    plan_name: str
+    price: int
+    discounted_price: Optional[int] = None
+    tokens_included: int
+    description: Optional[str] = None
+    is_promotion: bool = False
+
+class TokenPlanUpdate(BaseModel):
+    tokens: int
+    price: int
+    discounted_price: Optional[int] = None
+    discount_rate: Optional[float] = None
+    is_promotion: bool = False

@@ -93,6 +93,37 @@ def cancel_payment_with_inquiry(db: Session, payment_id: UUID, user_id: UUID, in
 def get_refund_detail(db: Session, refund_id: int):
     return db.query(Refund).filter(Refund.refund_id == refund_id).first()
 
+
+def get_coupons(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        active_only: bool = False
+) -> List[Coupon]:
+    try:
+        query = db.query(Coupon)
+
+        if active_only:
+            current_date = datetime.now().date()
+            query = query.filter(
+                Coupon.valid_from <= current_date,
+                Coupon.valid_to >= current_date
+            )
+
+        # max_usage가 설정된 경우 사용 횟수가 남은 쿠폰만 필터링
+        if active_only:
+            query = query.filter(
+                or_(
+                    Coupon.max_usage.is_(None),
+                    Coupon.used_count < Coupon.max_usage
+                )
+            )
+
+        return query.order_by(Coupon.coupon_id.desc()).offset(skip).limit(limit).all()
+    except Exception as e:
+        logger.error(f"Error fetching coupons: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch coupons")
+
 def get_coupon_by_code(db, coupon_code):
     logger.info(f"Fetching coupon with code: {coupon_code}")
     coupon = db.query(Coupon).filter_by(coupon_code=coupon_code).first()
@@ -224,7 +255,7 @@ def create_manual_payment(db: Session, payment_data: dict) -> Payment:
         payment.amount = float(token_plan.discounted_price or token_plan.price)
         payment.tokens_purchased = token_plan.tokens
 
-        # 토큰 지급 처리
+        # 스톤 지급 처리
         token = db.query(Token).filter(Token.user_id == payment_data['user_id']).first()
         if not token:
             token = Token(
@@ -274,7 +305,7 @@ def create_manual_payment(db: Session, payment_data: dict) -> Payment:
         payment.subscription_id = subscription.subscription_id
         payment.amount = float(subscription_plan.discounted_price or subscription_plan.price)
 
-        # 구독 시 제공되는 토큰이 있다면 처리
+        # 구독 시 제공되는 스톤이 있다면 처리
         if subscription_plan.tokens_included:
             payment.tokens_purchased = subscription_plan.tokens_included
             token = db.query(Token).filter(Token.user_id == payment_data['user_id']).first()
@@ -366,7 +397,7 @@ def get_admin_payments(
         if payment.token_plan_id:
             token_plan = db.query(TokenPlan).get(payment.token_plan_id)
             if token_plan:
-                product_name = f"{token_plan.tokens} 토큰"
+                product_name = f"{token_plan.tokens} 스톤"
         elif payment.subscription_id:
             subscription = db.query(UserSubscription).get(payment.subscription_id)
             if subscription and subscription.subscription_plan:

@@ -53,23 +53,36 @@ mongo_client = AsyncIOMotorClient(MONGODB_URL)
 mongodb = mongo_client.culf  # 데이터베이스 이름을 'culf'로 지정
 
 
-async def get_recent_chat_history(user_id: str, limit: int = 10) -> list:
-    """사용자의 최근 대화 내용을 가져오는 함수"""
+def get_recent_room_conversations(db: Session, room_id: UUID, limit: int = 10) -> list:
+    """특정 채팅방의 최근 대화 내용을 가져오는 함수"""
     try:
-        # 사용자의 가장 최근 대화 찾기
-        chat = await mongodb.chats.find_one(
-            {"user_id": user_id},
-            sort=[("last_updated", -1)]
+        # 채팅방의 최근 대화 조회
+        recent_conversations = (
+            db.query(Conversation)
+            .filter(Conversation.room_id == room_id)
+            .order_by(Conversation.question_time.desc())
+            .limit(limit)
+            .all()
         )
 
-        if chat and "messages" in chat:
-            # 최근 10개 메시지만 반환
-            return chat["messages"][-limit:]
-        return []
-    except Exception as e:
-        logger.error(f"채팅 기록 조회 중 오류 발생: {str(e)}")
-        return []
+        # GPT 메시지 형식으로 변환
+        messages = []
+        for conv in reversed(recent_conversations):  # 시간순 정렬을 위해 역순으로
+            if conv.question:
+                messages.append({
+                    "role": "user",
+                    "content": conv.question
+                })
+            if conv.answer:
+                messages.append({
+                    "role": "assistant",
+                    "content": conv.answer
+                })
 
+        return messages
+    except Exception as e:
+        logger.error(f"채팅방 대화 기록 조회 중 오류 발생: {str(e)}")
+        return []
 
 async def get_perplexity_answer(question: str) -> Optional[dict]:
     """Perplexity API를 사용하여 먼저 정확한 정보를 얻습니다."""
@@ -292,12 +305,12 @@ async def get_gemini_response(question: str, image_url: Optional[str] = None) ->
             }
         },
         402: {
-            "description": "토큰 부족",
+            "description": "스톤 부족",
             "content": {
                 "application/json": {
                     "example": {
                         "error": "not_enough_tokens",
-                        "message": "토큰이 부족합니다. 토큰을 충전해주세요."
+                        "message": "스톤이 부족합니다. 스톤을 충전해주세요."
                     }
                 }
             }
@@ -429,21 +442,38 @@ async def create_chat(
                 페르소나: {curator.persona}
                 소개: {curator.introduction}
                 전문 분야: {curator.category}
+                대화 상대: {current_user.nickname}
 
                 {PROMPT}
 
+                ### 중요한 응답 규칙 ###
+                1. 가독성
+                   - 모든 답변은 800~1000자 이내로 작성
+                   - 짧은 문장과 단락으로 구성하여 읽기 쉽게 작성
+                   - 중요한 내용은 줄바꿈으로 구분하여 강조
+        
+                2. 사용자 참여
+                   - 적절한 시점에 사용자의 의견을 물어보는 문장 포함 (예: "{current_user.nickname}님도 이런 경험이 있으신가요?")
+                   - 매 답변마다 하지 않되, 자연스러운 흐름에서 간간이 포함
+        
+                3. 정보의 신뢰성
+                   - 모든 예술 작품 설명에는 반드시 출처 명시 (전시 도록, 미술관 공식 자료, 최신 논문 등)
+                   - 출처 표시 예시: "전시 도록에 따르면...", "미술관 공식 홈페이지의 설명을 보면..."
+        
                 모든 답변은 반드시 다음 형식으로 작성해주세요:
                 
                 [답변]
-                답변 내용을 여기에 작성하세요.
+                - 800~1000자 이내로 작성
+                - 출처 있는 정보는 반드시 출처 표시
+                - 적절한 곳에 사용자 참여 유도 문구 포함
                 
                 [대화 요약]
                 현재까지의 대화를 20자 이내로 요약하세요. 이 요약은 채팅방의 제목으로 사용됩니다.
                 
                 [추천 질문]
-                1. 첫번째 추천 질문
-                2. 두번째 추천 질문
-                3. 세번째 추천 질문"""
+                1. 첫 번째 추천 질문
+                2. 두 번째 추천 질문
+                3. 세 번째 추천 질문"""
 
             # GPT 사용
             logger.info("GPT API 사용")
@@ -451,14 +481,10 @@ async def create_chat(
                 {"role": "system", "content": system_prompt}
             ]
 
-            recent_messages = await get_recent_chat_history(str(current_user.user_id))
-            if recent_messages:
-                for msg in recent_messages:
-                    if msg.get("role") and msg.get("content"):
-                        messages.append({
-                            "role": msg["role"],
-                            "content": msg["content"]
-                        })
+            # 최근 대화 내역 추가 (채팅방이 있는 경우)
+            if room_id:
+                recent_messages = get_recent_room_conversations(db, room_id)
+                messages.extend(recent_messages)
 
             current_message = {
                 "role": "user",
@@ -1027,11 +1053,10 @@ async def get_chat_room_curator(
         "curator": chat_room.curator
     }
 
-
 @router.get("/admin/chat-rooms")
 async def get_chat_rooms(
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=1000000),
     search_query: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user)
@@ -1087,24 +1112,20 @@ async def get_chat_rooms(
                 db.query(CuratorTagHistory)
                 .filter(
                     CuratorTagHistory.curator_id == room.curator_id,
-                    func.timezone('Asia/Seoul', CuratorTagHistory.created_at) <= room.created_at  # timezone 적용
+                    func.timezone('Asia/Seoul', CuratorTagHistory.created_at) <= room.created_at
                 )
                 .order_by(desc(CuratorTagHistory.created_at))
                 .first()
             )
 
-            print("historic_tags:", historic_tags)
-            print("tag_names:", historic_tags.tag_names if historic_tags else None)
-            print("type:", type(historic_tags.tag_names) if historic_tags else None)
             last_conversation = room.conversations[-1] if room.conversations else None
 
             result.append({
                 "room_id": room.room_id,
                 "user_name": room.user.nickname if room.user else None,
                 "curator_name": room.curator.name if room.curator else None,
-                "curator_tags": historic_tags.tag_names if historic_tags and isinstance(historic_tags.tag_names,
-                                                                                        list) else
-                json.loads(historic_tags.tag_names) if historic_tags else [],  # JSONB 처리 추가
+                "curator_tags": historic_tags.tag_names if historic_tags and isinstance(historic_tags.tag_names, list) else
+                    json.loads(historic_tags.tag_names) if historic_tags else [],
                 "last_message": last_conversation.question if last_conversation else None,
                 "last_message_time": (
                     last_conversation.answer_time or last_conversation.question_time
@@ -1112,7 +1133,9 @@ async def get_chat_rooms(
                 ),
                 "created_at": room.created_at,
                 "message_count": len(room.conversations),
-                "is_active": room.is_active
+                "is_active": room.is_active,
+                "total_tokens_used": room.total_tokens_used,
+                "average_tokens_per_conversation": float(room.average_tokens_per_conversation) if room.average_tokens_per_conversation else 0.0
             })
 
         return {

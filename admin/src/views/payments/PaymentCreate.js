@@ -210,7 +210,7 @@ const PaymentCreate = () => {
                  }}
                  required
                >
-                 <option value="token">토큰 결제</option>
+                 <option value="token">스톤 결제</option>
                  <option value="subscription">구독 결제</option>
                </CFormSelect>
              </div>
@@ -227,7 +227,7 @@ const PaymentCreate = () => {
                  {formData.payment_type === 'token'
                    ? plans.token_plans.map((plan) => (
                        <option key={plan.token_plan_id} value={plan.token_plan_id}>
-                         {plan.tokens}토큰 ({plan.price.toLocaleString()}원)
+                         {plan.tokens}스톤 ({plan.price.toLocaleString()}원)
                        </option>
                      ))
                    : plans.subscription_plans.map((plan) => (

@@ -53,6 +53,8 @@ CREATE TABLE Curators (
     profile_image VARCHAR(255),
     introduction TEXT,
     category VARCHAR(50),
+    background_color CHAR(7),
+    text_color CHAR(7),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -92,6 +94,10 @@ CREATE TABLE Chat_Rooms (
     curator_id INTEGER NOT NULL REFERENCES Curators(curator_id),
     title VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
+    total_tokens_used INTEGER DEFAULT 0,
+    conversation_count INTEGER DEFAULT 0,
+    average_tokens_per_conversation NUMERIC(10, 2) DEFAULT 0.0,
+    last_token_update TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
@@ -381,9 +387,12 @@ CREATE TABLE Admin_Users (
 );
 
 -- SystemSettings 테이블
-CREATE TABLE System_Settings (
-    setting_key VARCHAR(255) PRIMARY KEY,
-    setting_value TEXT NOT NULL
+CREATE TABLE system_settings (
+    setting_id SERIAL PRIMARY KEY,
+    key VARCHAR(50) NOT NULL UNIQUE,
+    value VARCHAR(255) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Banners 테이블
@@ -422,6 +431,20 @@ CREATE TABLE Conversation_Feedbacks (
     rating feedback_rating,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 토큰 지급 내역을 위한 테이블
+CREATE TABLE token_grants (
+    token_grant_id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(user_id),
+    amount INTEGER NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    granted_by UUID NOT NULL REFERENCES users(user_id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 인덱스 생성
+CREATE INDEX idx_token_grants_user_id ON token_grants(user_id);
+CREATE INDEX idx_token_grants_created_at ON token_grants(created_at);
 
 -- user_id 컬럼 타입 변경
 ALTER TABLE users ALTER COLUMN "user_id" SET DATA TYPE uuid;
@@ -478,7 +501,7 @@ INSERT INTO Conversations (conversation_id, user_id, question, answer, question_
 (uuid_generate_v4(), (SELECT user_id FROM Users WHERE email='user2@example.com'), '현재 서울에서 열리는 주목할 만한 전시회가 있나요?', '서울에서는 현재 여러 주목할 만한 전시회가 열리고 있습니다. 국립현대미술관에서는 현대 미술의 흐름을 보여주는 "한국 현대미술의 지평" 전시가 진행 중입니다. 서울시립미술관에서는 세계적인 아티스트 데미안 허스트의 개인전 "Natural History"가 열리고 있어 많은 관심을 받고 있습니다. 또한, 예술의전당에서는 "빈센트 반 고흐: 새로운 시각" 전시가 열려 고흐의 작품을 새로운 관점에서 감상할 수 있습니다.', '2023-09-16 14:30:00', '2023-09-16 14:30:45', 180);
 
 -- Subscription_Plans 테이블 mock 데이터
-INSERT INTO Subscription_Plans (plan_id, plan_name, price, discounted_price, tokens_included, description, is_promotion) VALUES (1, '베이직 구독', 9900, 9900, 100, '월 100토큰이 제공되는 베이직 구독 플랜입니다.', false), (2, '프리미엄 구독', 29900, 25000, 500, '월 500토큰이 제공되는 프리미엄 구독 플랜입니다.', true), (3, '프로페셔널 구독', 49900, 45000, 1000, '월 1000토큰이 제공되는 프로페셔널 구독 플랜입니다.', true);
+INSERT INTO Subscription_Plans (plan_id, plan_name, price, discounted_price, tokens_included, description, is_promotion) VALUES (1, '베이직 구독', 9900, 9900, 100, '월 100스톤이 제공되는 베이직 구독 플랜입니다.', false), (2, '프리미엄 구독', 29900, 25000, 500, '월 500스톤이 제공되는 프리미엄 구독 플랜입니다.', true), (3, '프로페셔널 구독', 49900, 45000, 1000, '월 1000스톤이 제공되는 프로페셔널 구독 플랜입니다.', true);
 
 -- Tokens 테이블 mock 데이터
 INSERT INTO Tokens (user_id, total_tokens, used_tokens, last_charged_at, expires_at) VALUES
@@ -495,7 +518,7 @@ INSERT INTO notifications (type, message, created_at) VALUES
 ('CONTENT_UPDATE', '새로운 큐레이션 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', NOW() - INTERVAL '1 day'),
 ('PAYMENT_UPDATE', '15,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', NOW() - INTERVAL '3 days'),
 ('SYSTEM_NOTICE', '서비스 점검 안내: 내일 오전 2시부터 4시까지 서비스 점검이 있을 예정입니다.', NOW() - INTERVAL '12 hours'),
-('TOKEN_UPDATE', '100개의 토큰이 사용되었습니다. 남은 토큰을 확인해보세요.', NOW() - INTERVAL '1 day'),
+('TOKEN_UPDATE', '100개의 스톤이 사용되었습니다. 남은 스톤을 확인해보세요.', NOW() - INTERVAL '1 day'),
 ('CONTENT_UPDATE', '새로운 아티클 콘텐츠가 업데이트되었습니다. 지금 확인해보세요!', NOW() - INTERVAL '4 days'),
 ('PAYMENT_UPDATE', '30,000원 결제가 완료되었습니다. 영수증을 확인해주세요.', NOW() - INTERVAL '2 days'),
 ('SYSTEM_NOTICE', '새로운 기능 업데이트: 이제 음성으로도 대화를 나눌 수 있습니다!', NOW() - INTERVAL '8 hours');

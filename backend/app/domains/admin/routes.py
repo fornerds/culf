@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.db.session import get_db
 from app.domains.admin import services, schemas
-from app.domains.admin.schemas import NotificationResponse, NotificationCreate, NotificationListResponse
+from app.domains.admin.schemas import NotificationResponse, NotificationCreate, NotificationListResponse, \
+    WelcomeTokenResponse, WelcomeTokenUpdate, TokenGrantResponse, TokenGrantCreate, SubscriptionPlanUpdate, \
+    TokenPlanUpdate
 from app.domains.user import services as user_services
 from app.domains.banner import schemas as banner_schemas
 from app.domains.banner import services as banner_services
@@ -534,6 +536,21 @@ async def mark_notification_read(
         raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다.")
     return {"status": "success"}
 
+@router.get("/notifications/{notification_id}/read-status")
+def get_notification_read_status(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """알림의 읽음 상태 상세 정보를 조회합니다."""
+    try:
+        status_details = services.get_notification_read_status(db, notification_id)
+        return {
+            "status_details": status_details
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="읽음 상태 조회에 실패했습니다")
+
 @router.put("/notices/{notice_id}/image", response_model=schemas.AdminNoticeResponse)
 async def update_notice_image(
         notice_id: int,
@@ -663,3 +680,89 @@ async def delete_notice(
 
     services.delete_admin_notice(db, notice_id)
     return {"message": "Notice deleted successfully"}
+
+
+
+
+@router.get("/settings/welcome-tokens", response_model=WelcomeTokenResponse)
+async def get_welcome_tokens(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """가입 축하 스톤 설정을 조회합니다."""
+    try:
+        result = services.get_welcome_tokens(db)
+        return result
+    except Exception as e:
+        logger.error(f"Error getting welcome tokens: {str(e)}")
+        raise HTTPException(status_code=500, detail="가입 축하 스톤 설정 조회에 실패했습니다.")
+
+@router.post("/settings/welcome-tokens", response_model=WelcomeTokenResponse)
+async def update_welcome_tokens(
+    welcome_tokens: WelcomeTokenUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """가입 축하 스톤 설정을 업데이트합니다."""
+    try:
+        result = services.update_welcome_tokens(db, welcome_tokens.welcome_tokens)
+        return result
+    except Exception as e:
+        logger.error(f"Error updating welcome tokens: {str(e)}")
+        raise HTTPException(status_code=500, detail="가입 축하 스톤 설정 업데이트에 실패했습니다.")
+
+@router.post("/users/grant-tokens", response_model=TokenGrantResponse)
+async def grant_tokens(
+    grant_data: TokenGrantCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """특정 사용자에게 스톤을 지급합니다."""
+    try:
+        result = services.grant_tokens_to_user(
+            db,
+            grant_data.email,
+            grant_data.amount,
+            grant_data.reason,
+            current_user.user_id
+        )
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error granting tokens: {str(e)}")
+        raise HTTPException(status_code=500, detail="스톤 지급에 실패했습니다.")
+
+@router.put("/subscription-plans/{plan_id}")
+async def update_subscription_plan(
+    plan_id: int,
+    plan_update: SubscriptionPlanUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """구독 상품을 수정합니다."""
+    try:
+        updated_plan = services.update_subscription_plan(db, plan_id, plan_update)
+        return updated_plan
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error updating subscription plan: {str(e)}")
+        raise HTTPException(status_code=500, detail="상품 수정에 실패했습니다.")
+
+@router.put("/token-plans/{plan_id}")
+async def update_token_plan(
+    plan_id: int,
+    plan_update: TokenPlanUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """일반 상품을 수정합니다."""
+    try:
+        updated_plan = services.update_token_plan(db, plan_id, plan_update)
+        return updated_plan
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error updating token plan: {str(e)}")
+        raise HTTPException(status_code=500, detail="상품 수정에 실패했습니다.")
