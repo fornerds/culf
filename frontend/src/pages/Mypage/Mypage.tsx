@@ -9,7 +9,7 @@ export function Mypage() {
   const { tab } = useParams();
   const navigate = useNavigate();
   
-  // useUser 훅을 사용하여 사용자 정보와 토큰 정보 가져오기
+  // useUser 훅을 사용하여 사용자 정보와 스톤 정보 가져오기
   const { 
     getUserInfo: { data: userInfo, isLoading: isUserLoading },
     getTokenInfo: { data: tokenInfo, isLoading: isTokenLoading }
@@ -45,7 +45,7 @@ export function Mypage() {
           <span className="font-title-3">{userInfo?.nickname || '사용자'}</span> 님
         </div>
         <div className="font-tag-1">
-          잔여 토큰
+          잔여 스톤
           <span className={`font-text-2 ${styles.userToken}`}>
             {tokenInfo?.total_tokens || 0}
           </span>개

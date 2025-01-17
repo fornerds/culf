@@ -125,7 +125,7 @@ export function PaymentHistory() {
 
   const getProductName = (payment: PaymentHistoryItem) => {
     if (payment.token_plan_id) {
-      return `토큰결제 ${payment.tokens_purchased}개`;
+      return `스톤결제 ${payment.tokens_purchased}개`;
     }
     return payment.subscription_id ? '구독결제' : '결제';
   };

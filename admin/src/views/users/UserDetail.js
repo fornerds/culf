@@ -218,18 +218,18 @@ const UserDetail = () => {
             </div>
 
             <div className="mb-4">
-              <h5>토큰 정보</h5>
+              <h5>스톤 정보</h5>
               <CListGroup>
                 <CListGroupItem>
-                  <div className="fw-bold">토큰 잔액</div>
+                  <div className="fw-bold">스톤 잔액</div>
                   {user.token_info.total_tokens.toLocaleString()}
                 </CListGroupItem>
                 <CListGroupItem>
-                  <div className="fw-bold">사용한 토큰</div>
+                  <div className="fw-bold">사용한 스톤</div>
                   {user.token_info.used_tokens.toLocaleString()}
                 </CListGroupItem>
                 <CListGroupItem>
-                  <div className="fw-bold">월간 토큰 사용량</div>
+                  <div className="fw-bold">월간 스톤 사용량</div>
                   {user.token_info.monthly_token_usage.toLocaleString()}
                 </CListGroupItem>
                 <CListGroupItem>

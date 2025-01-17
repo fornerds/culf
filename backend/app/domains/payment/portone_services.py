@@ -20,7 +20,7 @@ def initiate_one_time_payment(payment_request, db: Session, current_user):
         TokenPlan.token_plan_id == payment_request.plan_id
     ).first()
     if not token_plan:
-        raise HTTPException(status_code=404, detail="토큰 플랜을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="스톤 플랜을 찾을 수 없습니다.")
 
     # 가격 계산
     base_price = float(token_plan.discounted_price or token_plan.price)
@@ -336,7 +336,7 @@ def validate_payment_info(payment_request, db):
             TokenPlan.token_plan_id == payment_cache.token_plan_id
         ).first()
         if not token_plan:
-            raise HTTPException(status_code=404, detail="토큰 플랜을 찾을 수 없습니다.")
+            raise HTTPException(status_code=404, detail="스톤 플랜을 찾을 수 없습니다.")
         expected_amount = float(token_plan.discounted_price or token_plan.price)
 
     elif payment_cache.subscription_plan_id:
@@ -397,7 +397,7 @@ def issue_refund(inquiry_id: int, db: Session):
 
     token = db.query(Token).filter(Token.user_id == payment.user_id).first()
     if not token or token.total_tokens < payment.tokens_purchased:
-        raise HTTPException(status_code=400, detail="환불에 필요한 토큰이 부족합니다.")
+        raise HTTPException(status_code=400, detail="환불에 필요한 스톤이 부족합니다.")
 
     # 포트원 REST API로 환불 요청
     response = requests.post(
@@ -545,7 +545,7 @@ def process_single_payment(payment_info, db: Session):
     ).first()
 
     if not token_plan:
-        raise HTTPException(status_code=404, detail="토큰 플랜을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="스톤 플랜을 찾을 수 없습니다.")
 
     payment_record = Payment(
         payment_id=payment_info["merchant_uid"],

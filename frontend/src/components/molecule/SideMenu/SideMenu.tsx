@@ -68,21 +68,21 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           {accessToken && (
             <section className={styles.tokenInfo}>
               <div className={styles.tokenRemainInfo}>
-                <h4 className="font-title-3">남은 토큰 개수</h4>
+                <h4 className="font-title-3">남은 스톤 개수</h4>
                 <div className={styles.tokenRemainCount}>
                   <div className="font-title-2">{remainingTokens}</div>
                   <div className={styles.tokenRemainCountText}>개</div>
                 </div>
               </div>
               <p className={styles.tokenDesc}>
-                큐레이터와 대화를 더 나누려면 '토큰'이 필요해요.
+                큐레이터와 대화를 더 나누려면 '스톤'이 필요해요.
               </p>
               <Link
                 to="/pricing"
                 className={`${styles.buyTokensButton} font-button-2`}
                 onClick={onClose}
               >
-                토큰 추가 결제
+                스톤 추가 결제
               </Link>
             </section>
           )}

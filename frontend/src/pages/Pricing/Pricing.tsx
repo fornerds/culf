@@ -42,7 +42,7 @@ export function Pricing() {
   return (
     <div className={styles.container}>
       <h2 className={`${styles.sectionTitle} font-title-2`}>
-        <p>토큰🪙을 구매해</p>
+        <p>스톤🪙을 구매해</p>
         <p>AI큐레이터들과 대화해보세요.</p>
       </h2>
 
@@ -72,15 +72,15 @@ export function Pricing() {
 
       <div className={styles.section}>
         <div className={styles.tokenHeader}>
-          <h3 className="font-card-title-2">토큰 결제</h3>
-          <span className={styles.tokenCount}>보유 토큰 {remainingTokens}개</span>
+          <h3 className="font-card-title-2">스톤 결제</h3>
+          <span className={styles.tokenCount}>보유 스톤 {remainingTokens}개</span>
         </div>
         <div className={styles.cardGrid}>
           {products?.token_plans.map((plan) => (
             <PriceCard
               key={plan.token_plan_id}
               type="token"
-              title={`토큰 ${plan.tokens}개`}
+              title={`스톤 ${plan.tokens}개`}
               originalPrice={Number(plan.price)}
               finalPrice={Number(plan.discounted_price)}
               discountPercentage={Number(plan.discount_rate)}

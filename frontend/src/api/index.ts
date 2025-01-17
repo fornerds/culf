@@ -251,7 +251,7 @@ export const chat = {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         if (response.status === 402) {
-          throw new Error('토큰이 부족합니다. 토큰을 충전해주세요.');
+          throw new Error('스톤이 부족합니다. 스톤을 충전해주세요.');
         } else if (response.status === 404) {
           throw new Error('Chat room not found');
         } else if (response.status === 500) {

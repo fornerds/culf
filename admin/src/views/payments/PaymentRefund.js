@@ -52,7 +52,7 @@ const PaymentRefund = () => {
   const getErrorMessage = (errorDetail) => {
     // 문자열 정확히 일치하는 에러 메시지 처리
     if (errorDetail === "Insufficient tokens for refund") {
-      return '사용자가 보유한 토큰이 환불하려는 토큰보다 적어 환불이 불가능합니다.';
+      return '사용자가 보유한 스톤이 환불하려는 스톤보다 적어 환불이 불가능합니다.';
     }
     if (errorDetail === "Payment not found") {
       return '결제 정보를 찾을 수 없습니다.';
@@ -88,9 +88,9 @@ const PaymentRefund = () => {
           : JSON.stringify(error.response.data.detail);
       }
 
-      // 토큰 부족 에러인 경우
+      // 스톤 부족 에러인 경우
       if (errorDetail.includes('Insufficient tokens')) {
-        setError('토큰 부족으로 환불 처리가 불가능합니다');
+        setError('스톤 부족으로 환불 처리가 불가능합니다');
       } 
       // 결제 정보를 찾을 수 없는 경우
       else if (errorDetail.includes('Payment not found')) {
@@ -150,7 +150,7 @@ const PaymentRefund = () => {
                 </CListGroupItem>
                 {payment?.tokens_purchased && (
                   <CListGroupItem>
-                    <div className="fw-bold">구매한 토큰</div>
+                    <div className="fw-bold">구매한 스톤</div>
                     {payment.tokens_purchased.toLocaleString()}개
                   </CListGroupItem>
                 )}

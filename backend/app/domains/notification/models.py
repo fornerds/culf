@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 from app.db.base_class import Base
 
 class NotificationType(enum.Enum):
-    TOKEN_UPDATE = "TOKEN_UPDATE"           # 토큰 사용/충전 알림
+    TOKEN_UPDATE = "TOKEN_UPDATE"           # 스톤 사용/충전 알림
     CONTENT_UPDATE = "CONTENT_UPDATE"       # 콘텐츠 업데이트 알림
     PAYMENT_UPDATE = "PAYMENT_UPDATE"       # 결제 관련 상태 업데이트 알림
     SYSTEM_NOTICE = "SYSTEM_NOTICE"         # 시스템 공지사항

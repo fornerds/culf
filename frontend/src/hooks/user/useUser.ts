@@ -97,7 +97,7 @@ export const useUser = () => {
         console.error('Failed to fetch user info:', error);
         const currentToken = tokenService.getAccessToken();
         
-        // 토큰이 있는 경우는 일단 에러를 무시
+        // 스톤이 있는 경우는 일단 에러를 무시
         if (currentToken) {
           return null;
         }
