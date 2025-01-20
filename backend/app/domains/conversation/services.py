@@ -1,3 +1,5 @@
+import json
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc
@@ -268,21 +270,37 @@ def get_chat_room(db: Session, room_id: UUID, user_id: UUID) -> Optional[ChatRoo
         return None
 
     # conversations를 리스트로 변환
-    conversations_list = [{
-        "question": conv.question,
-        "answer": conv.answer,
-        "question_time": conv.question_time,
-        "answer_time": conv.answer_time,
-        "question_images": conv.question_images
-    } for conv in chat_room.conversations]  # 이미 정렬된 상태
-    
+    conversations_list = []
+    for conv in chat_room.conversations:
+        conv_dict = {
+            "question": conv.question,
+            "answer": conv.answer,
+            "question_time": conv.question_time,
+            "answer_time": conv.answer_time,
+            "question_images": None  # 기본값으로 None 설정
+        }
+
+        # 이미지 정보가 있는 경우 처리
+        if conv.question_images:
+            if isinstance(conv.question_images, list):
+                conv_dict["question_images"] = conv.question_images
+            elif isinstance(conv.question_images, str):
+                try:
+                    # 문자열로 저장된 배열을 파싱
+                    import json
+                    conv_dict["question_images"] = json.loads(conv.question_images)
+                except json.JSONDecodeError:
+                    conv_dict["question_images"] = None
+
+        conversations_list.append(conv_dict)
+
     # 속성 설정
     setattr(chat_room, '_conversation_count', len(conversations_list))
     setattr(chat_room, '_conversations_list', conversations_list)
     
     # 마지막 대화 설정
     if conversations_list:
-        latest = conversations_list[0]  # 첫 번째가 가장 최근 대화
+        latest = conversations_list[-1]
         setattr(chat_room, '_last_conversation', {
             "question": latest["question"],
             "answer": latest["answer"],

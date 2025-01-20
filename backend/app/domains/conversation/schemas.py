@@ -29,7 +29,7 @@ class ConversationInRoom(BaseModel):
     answer: str
     question_time: datetime
     answer_time: Optional[datetime]
-    question_images: Optional[Dict[str, Any]] = None
+    question_images: Optional[List[str]] = None
 
     class Config:
         from_attributes = True
@@ -50,7 +50,7 @@ class ChatRoomDetail(BaseModel):
 
 class ConversationCreate(BaseModel):
     question: Optional[str] = None
-    question_images: Optional[Dict[str, Any]] = None
+    question_images: Optional[List[str]] = None  # URL 문자열 배열로 변경
     room_id: Optional[UUID] = Field(
         None,
         example="b39190ce-a097-4965-bf20-13100cb0420d"
@@ -60,20 +60,10 @@ class ConversationCreate(BaseModel):
         schema_extra = {
             "example": {
                 "question": "What's in these images?",
-                "question_images": {
-                    "image_files": [
-                        {
-                            "file_name": "image1.jpg",
-                            "file_type": "image/jpeg",
-                            "file_url": "/v1/images/example1.png"
-                        },
-                        {
-                            "file_name": "image2.jpg",
-                            "file_type": "image/jpeg",
-                            "file_url": "/v1/images/example2.png"
-                        }
-                    ]
-                },
+                "question_images": [
+                    "https://d21y711itn1wuo.cloudfront.net/chat_images/a6dcf61a-6ffe-45ba-8ad0-cc97269408df.jpg",
+                    "https://d21y711itn1wuo.cloudfront.net/chat_images/a5dcf61a-6ffe-45ba-8ad0-cc97269408df.jpg"
+                ],
                 "room_id": "b39190ce-a097-4965-bf20-13100cb0420d"
             }
         }
@@ -103,7 +93,7 @@ class ConversationDetail(BaseModel):
     conversation_id: UUID
     user_id: UUID
     question: str
-    question_images: Optional[Dict[str, Any]] = None
+    question_images: Optional[List[str]] = None
     answer: str
     question_time: datetime
     answer_time: datetime
