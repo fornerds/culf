@@ -29,7 +29,7 @@ class ConversationInRoom(BaseModel):
     answer: str
     question_time: datetime
     answer_time: Optional[datetime]
-    question_images: Optional[str] = None
+    question_images: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -50,7 +50,7 @@ class ChatRoomDetail(BaseModel):
 
 class ConversationCreate(BaseModel):
     question: Optional[str] = None
-    question_images: Optional[Dict[str, List[Dict[str, str]]]] = None
+    question_images: Optional[Dict[str, Any]] = None
     room_id: Optional[UUID] = Field(
         None,
         example="b39190ce-a097-4965-bf20-13100cb0420d"
@@ -103,7 +103,7 @@ class ConversationDetail(BaseModel):
     conversation_id: UUID
     user_id: UUID
     question: str
-    question_images: Optional[Dict[str, List[Dict[str, str]]]] = None
+    question_images: Optional[Dict[str, Any]] = None
     answer: str
     question_time: datetime
     answer_time: datetime
