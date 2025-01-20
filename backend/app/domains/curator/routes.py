@@ -19,6 +19,7 @@ def create_curator(
         tag_names: List[str] = Form(..., description="태그 목록 (최대 2개)"),
         background_color: Optional[str] = Form(None, description="큐레이터 메인 이미지의 배경색 (#RRGGBB 형식)"),
         text_color: Optional[str] = Form(None, description="큐레이터 메인 이미지의 글자색 (#RRGGBB 형식)"),
+        shadow_color: Optional[str] = Form(None, description="큐레이터 메인 이미지의 그림자색 (#RRGGBB 형식)"),
         main_image: UploadFile = File(..., description="메인 화면용 캐릭터 이미지"),
         profile_image: UploadFile = File(..., description="프로필 이미지"),
         db: Session = Depends(get_db),
@@ -35,7 +36,8 @@ def create_curator(
         category=category,
         tag_names=tag_names,
         background_color=background_color,
-        text_color=text_color
+        text_color=text_color,
+        shadow_color = shadow_color
     )
     return curator_services.create_curator(db, curator_data, main_image, profile_image)
 
@@ -71,6 +73,7 @@ def update_curator(
         tag_names: Optional[List[str]] = Form(None, description="태그 목록 (최대 2개)"),
         background_color: Optional[str] = Form(None, description="큐레이터 메인 이미지의 배경색 (#RRGGBB 형식)"),
         text_color: Optional[str] = Form(None, description="큐레이터 메인 이미지의 글자색 (#RRGGBB 형식)"),
+        shadow_color: Optional[str] = Form(None, description="큐레이터 메인 이미지의 그림자색 (#RRGGBB 형식)"),
         profile_image: Optional[UploadFile] = File(None, description="프로필 이미지"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_admin_user)
@@ -86,7 +89,8 @@ def update_curator(
         category=category,
         tag_names=tag_names,
         background_color=background_color,
-        text_color=text_color
+        text_color=text_color,
+        shadow_color=shadow_color
     )
 
     updated_curator = curator_services.update_curator(db, curator_id=curator_id, curator=curator_data,

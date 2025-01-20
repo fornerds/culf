@@ -22,6 +22,7 @@ class CuratorBase(BaseModel):
     category: Optional[str] = Field(None, example="예술", description="큐레이터의 전문 분야")
     background_color: Optional[str] = Field(None, example="#FFFFFF", description="큐레이터 메인 이미지의 배경색")
     text_color: Optional[str] = Field(None, example="#000000", description="큐레이터 메인 이미지의 글자색")
+    shadow_color: Optional[str] = Field(None, example="#888888", description="큐레이터 메인 이미지의 그림자색")
 
 class CuratorCreate(CuratorBase):
     tag_names: List[str] = Field([], max_items=2, example=["초보", "미술입문"])
@@ -42,6 +43,7 @@ class CuratorUpdate(BaseModel):
     tag_names: Optional[List[str]] = Field(None, max_items=2)
     background_color: Optional[str] = Field(None, example="#FFFFFF")
     text_color: Optional[str] = Field(None, example="#000000")
+    shadow_color: Optional[str] = Field(None, example="#888888")
 
     @validator('tag_names')
     def validate_tags(cls, v):
