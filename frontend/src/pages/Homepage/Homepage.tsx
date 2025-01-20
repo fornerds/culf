@@ -29,6 +29,7 @@ interface Curator {
   introduction: string;
   category: string;
   background_color: string | null;
+  shadow_color: string | null;
   text_color: string | null;
   curator_id: number;
   tags: Tag[];
@@ -88,11 +89,14 @@ export function Homepage() {
     link: banner.target_url,
   })) || [];
 
+  console.log("curators", curators);
+  
+
   // Format curator data for Cards component
   const cardsData = curators?.map((curator: Curator) => ({
-    frontColor: curator.background_color || '#CCB700',
-    backColor: curator.background_color || '#CCB700',
-    outlineColor: curator.text_color || '#FFF945',
+    frontColor: curator.background_color || '#FFF945',
+    backColor: curator.shadow_color || '#CCB700',
+    outlineColor: curator.text_color || '#7D6200',
     title: curator.persona,
     curator: curator.name,
     hashtags: curator.tags.map(tag => tag.name),
