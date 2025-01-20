@@ -116,11 +116,11 @@ const NotificationList = () => {
     let color = 'danger'
     if (percentage >= 90) color = 'success'
     else if (percentage >= 50) color = 'warning'
-    
+
     return (
-      <CBadge 
-        color={color} 
-        className="px-2 py-1" 
+      <CBadge
+        color={color}
+        className="px-2 py-1"
         onClick={() => {
           setSelectedNotification(notification)
           setShowReadStatusModal(true)
@@ -147,7 +147,7 @@ const NotificationList = () => {
           <CCardHeader>
             <div className="d-flex justify-content-between align-items-center">
               <strong>알림 관리</strong>
-              <CButton 
+              <CButton
                 color="primary"
                 onClick={() => setShowCreateModal(true)}
               >
@@ -159,11 +159,11 @@ const NotificationList = () => {
             <CTable hover responsive>
               <CTableHead>
                 <CTableRow>
-                  <CTableHeaderCell style={{width: "15%"}}>유형</CTableHeaderCell>
-                  <CTableHeaderCell style={{width: "40%"}}>메시지</CTableHeaderCell>
-                  <CTableHeaderCell style={{width: "15%"}}>생성일시</CTableHeaderCell>
-                  <CTableHeaderCell style={{width: "15%"}}>수신 대상</CTableHeaderCell>
-                  <CTableHeaderCell style={{width: "15%"}}>읽음 상태</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: "15%" }}>유형</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: "40%" }}>메시지</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: "15%" }}>생성일시</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: "15%" }}>수신 대상</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: "15%" }}>읽음 상태</CTableHeaderCell>
                 </CTableRow>
               </CTableHead>
               <CTableBody>
@@ -179,14 +179,14 @@ const NotificationList = () => {
                       {format(new Date(notification.created_at), 'yyyy.MM.dd HH:mm')}
                     </CTableDataCell>
                     <CTableDataCell>
-                      {notification.total_recipients === 0 ? 
-                        <CBadge color="info">전체 사용자</CBadge> : 
+                      {notification.total_recipients === 0 ?
+                        <CBadge color="info">전체 사용자</CBadge> :
                         `${notification.total_recipients}명`
                       }
                     </CTableDataCell>
                     <CTableDataCell>
                       {getReadStatus(
-                        notification.read_count, 
+                        notification.read_count,
                         notification.total_recipients,
                         notification
                       )}
@@ -202,7 +202,7 @@ const NotificationList = () => {
                 )}
               </CTableBody>
             </CTable>
-            
+
             {loading && (
               <div className="text-center my-4">
                 <CSpinner color="primary" />
@@ -210,29 +210,37 @@ const NotificationList = () => {
             )}
 
             {totalCount > limit && (
-              <CPagination align="center" className="mt-4">
-                <CPaginationItem 
+              <CPagination align="center" aria-label="Page navigation">
+                <CPaginationItem
                   aria-label="Previous"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage <= 10}
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 10))}
                 >
-                  이전
+                  <span aria-hidden="true">&lt;</span>
                 </CPaginationItem>
-                {Array.from({ length: Math.min(5, Math.ceil(totalCount / limit)) }, (_, i) => (
-                  <CPaginationItem
-                    key={i + 1}
-                    active={currentPage === i + 1}
-                    onClick={() => setCurrentPage(i + 1)}
-                  >
-                    {i + 1}
-                  </CPaginationItem>
-                ))}
+
+                {Array.from(
+                  { length: 10 },
+                  (_, i) => {
+                    const pageNum = Math.floor((currentPage - 1) / 10) * 10 + i + 1;
+                    return pageNum <= Math.ceil(totalCount / limit) ? (
+                      <CPaginationItem
+                        key={i}
+                        active={currentPage === pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </CPaginationItem>
+                    ) : null;
+                  }
+                )}
+
                 <CPaginationItem
                   aria-label="Next"
-                  disabled={currentPage >= Math.ceil(totalCount / limit)}
-                  onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), currentPage + 1))}
+                  disabled={Math.floor((currentPage - 1) / 10) * 10 + 11 > Math.ceil(totalCount / limit)}
+                  onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), Math.floor((currentPage - 1) / 10) * 10 + 11))}
                 >
-                  다음
+                  <span aria-hidden="true">&gt;</span>
                 </CPaginationItem>
               </CPagination>
             )}
@@ -250,8 +258,8 @@ const NotificationList = () => {
       />
 
       {/* 알림 전송 확인 모달 */}
-      <CModal 
-        visible={showConfirmModal} 
+      <CModal
+        visible={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
       >
         <CModalHeader>
@@ -271,8 +279,8 @@ const NotificationList = () => {
                   }[newNotification.type]
                 }</p>
                 <p><strong>수신자:</strong> {
-                  newNotification.user_ids.length > 0 
-                    ? `선택된 ${newNotification.user_ids.length}명의 사용자` 
+                  newNotification.user_ids.length > 0
+                    ? `선택된 ${newNotification.user_ids.length}명의 사용자`
                     : '전체 사용자'
                 }</p>
                 <p><strong>메시지:</strong></p>
@@ -284,14 +292,14 @@ const NotificationList = () => {
           )}
         </CModalBody>
         <CModalFooter>
-          <CButton 
-            color="secondary" 
+          <CButton
+            color="secondary"
             onClick={() => setShowConfirmModal(false)}
           >
             취소
           </CButton>
-          <CButton 
-            color="primary" 
+          <CButton
+            color="primary"
             onClick={handleConfirmCreate}
             disabled={loading}
           >
