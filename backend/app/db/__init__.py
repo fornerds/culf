@@ -5,3 +5,5 @@ from app.domains.conversation.models import Conversation
 from app.domains.token.models import Token
 from app.domains.notification.models import Notification, UserNotificationSetting
 from app.domains.notice.models import Notice, UserNoticeRead
+from app.domains.payment.models import Payment, PaymentCache
+from app.domains.curator.models import Curator

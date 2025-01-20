@@ -67,11 +67,40 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+
 async def get_current_active_user(
-    current_user: user_schemas.User = Depends(get_current_user),
+        current_user: user_schemas.User = Depends(get_current_user),
 ) -> user_schemas.User:
-    if not services.is_active(current_user):
-        raise HTTPException(status_code=400, detail="Inactive user")
+    """
+    보호된 리소스 접근을 위한 의존성 함수
+    """
+    if not current_user:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": "인증되지 않은 사용자입니다."
+            }
+        )
+
+    if current_user.status == 'BANNED':
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "user_banned",
+                "message": "차단된 회원입니다. 관리자에게 문의하세요."
+            }
+        )
+
+    if current_user.status == 'WITHDRAWN':
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "user_withdrawn",
+                "message": "탈퇴한 회원입니다."
+            }
+        )
+
     return current_user
 
 async def get_current_active_superuser(

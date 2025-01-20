@@ -128,27 +128,53 @@ def login(
 
     return auth_services.get_json_response(access_token,refresh_token)
 
+
 @router.post("/auth/login")
 def login(
-    login_data: auth_schemas.EmailPasswordLogin,
-    db: Session = Depends(get_db)
+        login_data: auth_schemas.EmailPasswordLogin,
+        db: Session = Depends(get_db)
 ):
     user = auth_services.authenticate_user(db, login_data.email, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail={
+                "error": "invalid_credentials",
+                "message": "이메일 또는 비밀번호가 올바르지 않습니다."
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # 사용자 상태 체크
     if user.status == 'WITHDRAWN':
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "user_withdrawn",
+                "message": "탈퇴한 회원입니다."
+            }
         )
-    access_token, refresh_token = auth_services.create_tokens(str(user.user_id))
 
-    return auth_services.get_json_response(access_token,refresh_token)
+    if user.status == 'BANNED':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "user_banned",
+                "message": "차단된 회원입니다. 관리자에게 문의하세요."
+            }
+        )
+
+    if user.status == 'INACTIVE':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "user_inactive",
+                "message": "비활성화된 회원입니다."
+            }
+        )
+
+    access_token, refresh_token = auth_services.create_tokens(str(user.user_id))
+    return auth_services.get_json_response(access_token, refresh_token)
 
 @router.post("/auth/refresh")
 def refresh_token(request:Request, db: Session = Depends(get_db)):
