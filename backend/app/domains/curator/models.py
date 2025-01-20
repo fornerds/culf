@@ -38,6 +38,7 @@ class Curator(Base):
     category = Column(String)
     background_color = Column(String(7), nullable=True)
     text_color = Column(String(7), nullable=True)
+    shadow_color = Column(String(7), nullable=True)
 
     tags = relationship(
         "Tag",

@@ -54,7 +54,7 @@ const InquiryList = () => {
         ...(dateRange.startDate && { start_date: dateRange.startDate }),
         ...(dateRange.endDate && { end_date: dateRange.endDate })
       }
-      
+
       const { data } = await httpClient.get('/admin/inquiries', { params })
       setInquiries(data)
       setTotalCount(data.length) // API가 total_count를 제공하면 그것을 사용
@@ -131,80 +131,84 @@ const InquiryList = () => {
               </CRow>
             </div>
             <CTable hover>
-  <CTableHead>
-    <CTableRow>
-      <CTableHeaderCell>ID</CTableHeaderCell>
-      <CTableHeaderCell>제목</CTableHeaderCell>
-      <CTableHeaderCell>이메일</CTableHeaderCell>
-      <CTableHeaderCell>연락처</CTableHeaderCell>
-      <CTableHeaderCell>상태</CTableHeaderCell>
-      <CTableHeaderCell>접수일</CTableHeaderCell>
-      <CTableHeaderCell>상태 변경</CTableHeaderCell>
-      <CTableHeaderCell>상세보기</CTableHeaderCell>
-    </CTableRow>
-  </CTableHead>
-  <CTableBody>
-    {inquiries.map((inquiry) => (
-      <CTableRow key={inquiry.inquiry_id}>
-        <CTableDataCell>{inquiry.inquiry_id}</CTableDataCell>
-        <CTableDataCell>{inquiry.title}</CTableDataCell>
-        <CTableDataCell>{inquiry.email}</CTableDataCell>
-        <CTableDataCell>{inquiry.contact}</CTableDataCell>
-        <CTableDataCell>{getStatusBadge(inquiry.status)}</CTableDataCell>
-        <CTableDataCell>
-          {format(new Date(inquiry.created_at), 'yyyy-MM-dd HH:mm')}
-        </CTableDataCell>
-        <CTableDataCell>
-          <CFormSelect
-            size="sm"
-            style={{ width: '100px' }}
-            value={inquiry.status}
-            onChange={(e) => handleStatusChange(inquiry.inquiry_id, e.target.value)}
-          >
-            <option value="PENDING">대기중</option>
-            <option value="RESOLVED">해결됨</option>
-          </CFormSelect>
-        </CTableDataCell>
-        <CTableDataCell>
-          <CButton
-            color="primary"
-            size="sm"
-            onClick={() => navigate(`/inquiries/${inquiry.inquiry_id}`)}
-          >
-            상세보기
-          </CButton>
-        </CTableDataCell>
-      </CTableRow>
-    ))}
-  </CTableBody>
-</CTable>
-
+              <CTableHead>
+                <CTableRow>
+                  <CTableHeaderCell>ID</CTableHeaderCell>
+                  <CTableHeaderCell>제목</CTableHeaderCell>
+                  <CTableHeaderCell>이메일</CTableHeaderCell>
+                  <CTableHeaderCell>연락처</CTableHeaderCell>
+                  <CTableHeaderCell>상태</CTableHeaderCell>
+                  <CTableHeaderCell>접수일</CTableHeaderCell>
+                  <CTableHeaderCell>상태 변경</CTableHeaderCell>
+                  <CTableHeaderCell>상세보기</CTableHeaderCell>
+                </CTableRow>
+              </CTableHead>
+              <CTableBody>
+                {inquiries.map((inquiry) => (
+                  <CTableRow key={inquiry.inquiry_id}>
+                    <CTableDataCell>{inquiry.inquiry_id}</CTableDataCell>
+                    <CTableDataCell>{inquiry.title}</CTableDataCell>
+                    <CTableDataCell>{inquiry.email}</CTableDataCell>
+                    <CTableDataCell>{inquiry.contact}</CTableDataCell>
+                    <CTableDataCell>{getStatusBadge(inquiry.status)}</CTableDataCell>
+                    <CTableDataCell>
+                      {format(new Date(inquiry.created_at), 'yyyy-MM-dd HH:mm')}
+                    </CTableDataCell>
+                    <CTableDataCell>
+                      <CFormSelect
+                        size="sm"
+                        style={{ width: '100px' }}
+                        value={inquiry.status}
+                        onChange={(e) => handleStatusChange(inquiry.inquiry_id, e.target.value)}
+                      >
+                        <option value="PENDING">대기중</option>
+                        <option value="RESOLVED">해결됨</option>
+                      </CFormSelect>
+                    </CTableDataCell>
+                    <CTableDataCell>
+                      <CButton
+                        color="primary"
+                        size="sm"
+                        onClick={() => navigate(`/inquiries/${inquiry.inquiry_id}`)}
+                      >
+                        상세보기
+                      </CButton>
+                    </CTableDataCell>
+                  </CTableRow>
+                ))}
+              </CTableBody>
+            </CTable>
             <CPagination align="center" aria-label="Page navigation">
               <CPaginationItem
                 aria-label="Previous"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage <= 10}
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 10))}
               >
-                <span aria-hidden="true">&laquo;</span>
+                <span aria-hidden="true">&lt;</span>
               </CPaginationItem>
+
               {Array.from(
-                { length: Math.min(5, Math.ceil(totalCount / limit)) },
-                (_, i) => (
-                  <CPaginationItem
-                    key={i + 1}
-                    active={currentPage === i + 1}
-                    onClick={() => setCurrentPage(i + 1)}
-                  >
-                    {i + 1}
-                  </CPaginationItem>
-                )
+                { length: 10 },
+                (_, i) => {
+                  const pageNum = Math.floor((currentPage - 1) / 10) * 10 + i + 1;
+                  return pageNum <= Math.ceil(totalCount / limit) ? (
+                    <CPaginationItem
+                      key={i}
+                      active={currentPage === pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                    >
+                      {pageNum}
+                    </CPaginationItem>
+                  ) : null;
+                }
               )}
+
               <CPaginationItem
                 aria-label="Next"
-                disabled={currentPage >= Math.ceil(totalCount / limit)}
-                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / limit), prev + 1))}
+                disabled={Math.floor((currentPage - 1) / 10) * 10 + 11 > Math.ceil(totalCount / limit)}
+                onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), Math.floor((currentPage - 1) / 10) * 10 + 11))}
               >
-                <span aria-hidden="true">&raquo;</span>
+                <span aria-hidden="true">&gt;</span>
               </CPaginationItem>
             </CPagination>
           </CCardBody>

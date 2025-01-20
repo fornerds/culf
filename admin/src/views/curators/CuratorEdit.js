@@ -30,7 +30,8 @@ const CuratorEdit = () => {
     category: '',
     tag_names: [],
     background_color: '#FFFFFF',
-    text_color: '#000000'
+    text_color: '#000000',
+    shadow_color: '#888888'
   })
   const [mainImageFile, setMainImageFile] = useState(null)
   const [profileImageFile, setProfileImageFile] = useState(null)
@@ -60,7 +61,8 @@ const CuratorEdit = () => {
         category: data.category || '',
         tag_names: data.tags?.map(tag => tag.name) || [],
         background_color: data.background_color || '#FFFFFF',
-        text_color: data.text_color || '#000000'
+        text_color: data.text_color || '#000000',
+        shadow_color: data.shadow_color || '#888888'
       })
       if (data.main_image) {
         setMainImagePreview(data.main_image)
@@ -126,23 +128,24 @@ const CuratorEdit = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     try {
       const data = new FormData()
-      
+
       if (mainImageFile) {
         data.append('main_image', mainImageFile)
       }
       if (profileImageFile) {
         data.append('profile_image', profileImageFile)
       }
-      
+
       data.append('name', formData.name)
       data.append('persona', formData.persona)
       data.append('introduction', formData.introduction)
       data.append('category', formData.category)
       data.append('background_color', formData.background_color)
       data.append('text_color', formData.text_color)
+      data.append('shadow_color', formData.shadow_color)
       formData.tag_names.forEach(tag => {
         data.append('tag_names', tag)
       })
@@ -152,7 +155,7 @@ const CuratorEdit = () => {
           'Content-Type': 'multipart/form-data',
         },
       })
-      
+
       alert('큐레이터 정보가 성공적으로 수정되었습니다.')
       navigate('/curators')
     } catch (error) {
@@ -183,8 +186,8 @@ const CuratorEdit = () => {
                 <CFormLabel>메인 이미지</CFormLabel>
                 {mainImagePreview && (
                   <div className="mb-2">
-                    <CImage 
-                      src={mainImagePreview} 
+                    <CImage
+                      src={mainImagePreview}
                       width={200}
                     />
                   </div>
@@ -200,10 +203,10 @@ const CuratorEdit = () => {
                 <CFormLabel>프로필 이미지</CFormLabel>
                 {profileImagePreview && (
                   <div className="mb-2">
-                    <CImage 
-                      src={profileImagePreview} 
-                      width={100} 
-                      height={100} 
+                    <CImage
+                      src={profileImagePreview}
+                      width={100}
+                      height={100}
                       className="rounded-circle"
                     />
                   </div>
@@ -272,6 +275,20 @@ const CuratorEdit = () => {
                 </div>
               </div>
               <div className="mb-3">
+                <CFormLabel>그림자색</CFormLabel>
+                <div className="d-flex align-items-center">
+                  <CFormInput
+                    type="color"
+                    value={formData.shadow_color}
+                    onChange={(e) => setFormData({ ...formData, shadow_color: e.target.value })}
+                    required
+                    style={{ width: '100px' }}
+                  />
+                  <span className="ms-2">{formData.shadow_color}</span>
+                  {renderColorPreview(formData.shadow_color)}
+                </div>
+              </div>
+              <div className="mb-3">
                 <CFormLabel>글자색</CFormLabel>
                 <div className="d-flex align-items-center">
                   <CFormInput
@@ -295,9 +312,9 @@ const CuratorEdit = () => {
                     placeholder="태그를 입력하세요"
                     disabled={formData.tag_names.length >= 2}
                   />
-                  <CButton 
-                    type="button" 
-                    color="primary" 
+                  <CButton
+                    type="button"
+                    color="primary"
                     onClick={handleAddTag}
                     disabled={!currentTag || formData.tag_names.length >= 2}
                   >
@@ -306,9 +323,9 @@ const CuratorEdit = () => {
                 </CInputGroup>
                 <div className="mt-2">
                   {formData.tag_names.map((tag, index) => (
-                    <CBadge 
-                      key={index} 
-                      color="info" 
+                    <CBadge
+                      key={index}
+                      color="info"
                       className="me-2"
                       style={{ cursor: 'pointer' }}
                       onClick={() => handleRemoveTag(tag)}
@@ -319,16 +336,16 @@ const CuratorEdit = () => {
                 </div>
               </div>
               <div className="d-flex justify-content-center">
-                <CButton 
-                  type="submit" 
-                  color="primary" 
+                <CButton
+                  type="submit"
+                  color="primary"
                   className="me-4 px-5"
                 >
                   수정
                 </CButton>
-                <CButton 
-                  type="button" 
-                  color="secondary" 
+                <CButton
+                  type="button"
+                  color="secondary"
                   className="px-5"
                   onClick={() => navigate('/curators')}
                 >

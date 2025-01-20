@@ -27,7 +27,8 @@ const CuratorCreate = () => {
     category: '',
     tag_names: [],
     background_color: '#FFFFFF',
-    text_color: '#000000'
+    text_color: '#000000',
+    shadow_color: '#888888'
   })
   const [mainImageFile, setMainImageFile] = useState(null)
   const [profileImageFile, setProfileImageFile] = useState(null)
@@ -93,6 +94,7 @@ const CuratorCreate = () => {
     data.append('introduction', formData.introduction)
     data.append('category', formData.category)
     data.append('background_color', formData.background_color)
+    data.append('shadow_color', formData.shadow_color)
     data.append('text_color', formData.text_color)
     formData.tag_names.forEach(tag => {
       data.append('tag_names', tag)
@@ -226,6 +228,20 @@ const CuratorCreate = () => {
                   {renderColorPreview(formData.background_color)}
                 </div>
               </div>
+              <div className="mb-3">
+              <CFormLabel>그림자색</CFormLabel>
+              <div className="d-flex align-items-center">
+                <CFormInput
+                  type="color"
+                  value={formData.shadow_color}
+                  onChange={(e) => setFormData({ ...formData, shadow_color: e.target.value })}
+                  required
+                  style={{ width: '100px' }}
+                />
+                <span className="ms-2">{formData.shadow_color}</span>
+                {renderColorPreview(formData.shadow_color)}
+              </div>
+            </div>
               <div className="mb-3">
                 <CFormLabel>글자색</CFormLabel>
                 <div className="d-flex align-items-center">

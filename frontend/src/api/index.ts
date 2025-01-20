@@ -510,8 +510,13 @@ export const terms = {
 
 // Curator API
 export const curator = {
-  getCurators: (category?: string) =>
-    api.get('/curators', { params: { category } }),
+  getCurators: (category?: string, tag?: string) =>
+    api.get('/curators', { 
+      params: { 
+        category,
+        tag 
+      } 
+    }),
 };
 
 export default api;

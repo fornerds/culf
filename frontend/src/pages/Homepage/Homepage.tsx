@@ -9,16 +9,30 @@ import { LoadingAnimation } from '@/components/atom';
 import logoimage from '@/assets/images/culf.png';
 import { tokenService } from '@/utils/tokenService';
 
-interface SlideItem {
-  imageUrl: string;
-  link: string;
-}
-
 interface Banner {
   target_url: string;
   image_url: string;
   banner_id: number;
   is_public: boolean;
+}
+
+interface Tag {
+  name: string;
+  tag_id: number;
+}
+
+interface Curator {
+  name: string;
+  persona: string;
+  main_image: string;
+  profile_image: string;
+  introduction: string;
+  category: string;
+  background_color: string | null;
+  shadow_color: string | null;
+  text_color: string | null;
+  curator_id: number;
+  tags: Tag[];
 }
 
 // https://pf.kakao.com/_KxoAdn (컬프 공식 카카오톡 채널 주소)
@@ -48,10 +62,10 @@ export function Homepage() {
         return response.data;
       } catch (error) {
         console.log('Curator fetch error:', error);
-        return []; // 에러 발생시 빈 배열 반환
+        return [];
       }
     },
-    retry: false, // API 호출 실패시 재시도 하지 않음
+    retry: false,
   });
 
   // Fetch chat rooms - only if authenticated
@@ -75,14 +89,17 @@ export function Homepage() {
     link: banner.target_url,
   })) || [];
 
+  console.log("curators", curators);
+  
+
   // Format curator data for Cards component
-  const cardsData = curators?.map(curator => ({
-    frontColor: curator.theme?.frontColor || '#FFF945',
-    backColor: curator.theme?.backColor || '#CCB700',
-    outlineColor: curator.theme?.outlineColor || '#7D6200',
+  const cardsData = curators?.map((curator: Curator) => ({
+    frontColor: curator.background_color || '#FFF945',
+    backColor: curator.shadow_color || '#CCB700',
+    outlineColor: curator.text_color || '#7D6200',
     title: curator.persona,
     curator: curator.name,
-    hashtags: curator.tags?.map(tag => tag.name) || [],
+    hashtags: curator.tags.map(tag => tag.name),
     characterImage: curator.main_image,
     curatorId: curator.curator_id
   })) || [];
