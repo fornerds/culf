@@ -67,31 +67,38 @@ jobs:
           script: |
             cd ~/culf
             git pull origin main
-            sudo docker system prune -af
             
-            # Frontend changes
+            # Stop all services that will be rebuilt
+            if [[ "${{ needs.check-changes.outputs.frontend }}" == "true" ]]; then
+              sudo docker-compose -f infra/docker-compose.yml stop frontend
+            fi
+            if [[ "${{ needs.check-changes.outputs.backend }}" == "true" ]]; then
+              sudo docker-compose -f infra/docker-compose.yml stop backend
+            fi
+            if [[ "${{ needs.check-changes.outputs.admin }}" == "true" ]]; then
+              sudo docker-compose -f infra/docker-compose.yml stop admin
+            fi
+            if [[ "${{ needs.check-changes.outputs.db }}" == "true" ]]; then
+              sudo docker-compose -f infra/docker-compose.yml stop db
+            fi
+
+            # Clean everything including volumes
+            sudo docker system prune -a -f --volumes
+
+            # Rebuild and start services
             if [[ "${{ needs.check-changes.outputs.frontend }}" == "true" ]]; then
               echo "Rebuilding frontend..."
               sudo docker-compose -f infra/docker-compose.yml up -d --build frontend
             fi
-            
-            # Backend changes
             if [[ "${{ needs.check-changes.outputs.backend }}" == "true" ]]; then
               echo "Rebuilding backend..."
               sudo docker-compose -f infra/docker-compose.yml up -d --build backend
             fi
-            
-            # Admin changes
             if [[ "${{ needs.check-changes.outputs.admin }}" == "true" ]]; then
               echo "Rebuilding admin..."
               sudo docker-compose -f infra/docker-compose.yml up -d --build admin
             fi
-            
-            # DB changes
             if [[ "${{ needs.check-changes.outputs.db }}" == "true" ]]; then
               echo "Rebuilding database..."
               sudo docker-compose -f infra/docker-compose.yml up -d --build db
             fi
-            
-            # Clean up unused images
-            sudo docker image prune -f
