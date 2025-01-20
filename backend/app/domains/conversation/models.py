@@ -5,6 +5,8 @@ from sqlalchemy.sql import func
 from app.db.base_class import Base
 import uuid
 
+# 상수 정의
+CHAT_TOKEN_COST = 1  # 채팅 1회당 사용되는 스톤 수
 class ChatRoom(Base):
     __tablename__ = "chat_rooms"
 

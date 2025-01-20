@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -48,7 +50,46 @@ def get_user_tokens(db: Session, user_id: UUID) -> schemas.TokenInfo:
         last_charged_at=token.last_charged_at
     )
 
+
 def use_tokens(db: Session, user_id: UUID, tokens: int) -> None:
+    """토큰 사용 처리 함수. total_tokens에서 사용한 토큰을 차감합니다."""
     user_tokens = db.query(models.Token).filter(models.Token.user_id == user_id).first()
-    if user_tokens:
+
+    if not user_tokens:
+        raise HTTPException(
+            status_code=404,
+            detail="Token information not found for this user"
+        )
+
+    # 잔여 토큰이 충분한지 확인
+    if user_tokens.total_tokens < tokens:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "not_enough_tokens",
+                "message": "스톤이 부족합니다. 스톤을 충전해주세요."
+            }
+        )
+
+    try:
+        # 잔여 토큰에서 차감
+        user_tokens.total_tokens -= tokens
+        # 누적 사용량 증가
         user_tokens.used_tokens += tokens
+
+        # 사용 기록 추가
+        usage_history = models.TokenUsageHistory(
+            user_id=user_id,
+            conversation_id=None,  # conversation_id는 필요한 경우 별도로 설정
+            tokens_used=tokens,
+            used_at=datetime.now()
+        )
+        db.add(usage_history)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update token usage: {str(e)}"
+        )

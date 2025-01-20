@@ -50,7 +50,7 @@ const NoticeList = () => {
           search: searchQuery
         }
       })
-      
+
       // data.notices가 있으면 그것을 사용하고, 없으면 data 자체가 배열일 경우 그것을 사용
       setNotices(Array.isArray(data.notices) ? data.notices : (Array.isArray(data) ? data : []))
       setTotalCount(data.total_count || 0)
@@ -159,7 +159,7 @@ const NoticeList = () => {
                       </CTableDataCell>
                       <CTableDataCell>{notice.view_count}</CTableDataCell>
                       <CTableDataCell>
-                        <CButton 
+                        <CButton
                           color="info"
                           size="sm"
                           className="me-2"
@@ -183,28 +183,36 @@ const NoticeList = () => {
 
             {totalCount > 0 && (
               <CPagination align="center" aria-label="Page navigation">
-                <CPaginationItem 
+                <CPaginationItem
                   aria-label="Previous"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage <= 10}
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 10))}
                 >
-                  <span aria-hidden="true">&laquo;</span>
+                  <span aria-hidden="true">&lt;</span>
                 </CPaginationItem>
-                {Array.from({ length: Math.min(5, Math.ceil(totalCount / limit)) }, (_, i) => (
-                  <CPaginationItem
-                    key={i + 1}
-                    active={currentPage === i + 1}
-                    onClick={() => setCurrentPage(i + 1)}
-                  >
-                    {i + 1}
-                  </CPaginationItem>
-                ))}
+
+                {Array.from(
+                  { length: 10 },
+                  (_, i) => {
+                    const pageNum = Math.floor((currentPage - 1) / 10) * 10 + i + 1;
+                    return pageNum <= Math.ceil(totalCount / limit) ? (
+                      <CPaginationItem
+                        key={i}
+                        active={currentPage === pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </CPaginationItem>
+                    ) : null;
+                  }
+                )}
+
                 <CPaginationItem
                   aria-label="Next"
-                  disabled={currentPage >= Math.ceil(totalCount / limit)}
-                  onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), currentPage + 1))}
+                  disabled={Math.floor((currentPage - 1) / 10) * 10 + 11 > Math.ceil(totalCount / limit)}
+                  onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), Math.floor((currentPage - 1) / 10) * 10 + 11))}
                 >
-                  <span aria-hidden="true">&raquo;</span>
+                  <span aria-hidden="true">&gt;</span>
                 </CPaginationItem>
               </CPagination>
             )}

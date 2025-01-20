@@ -269,38 +269,37 @@ const ChatRoomList = () => {
                 ))}
               </CTableBody>
             </CTable>
-
             <CPagination align="center" aria-label="Page navigation">
-              <CPaginationItem 
-                aria-label="이전"
+              <CPaginationItem
+                aria-label="Previous"
+                disabled={currentPage <= 10}
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 10))}
-                disabled={currentPage <= 1}
               >
-                <span aria-hidden="true">이전</span>
+                <span aria-hidden="true">&lt;</span>
               </CPaginationItem>
 
-              {[...Array(10)].map((_, index) => {
-                const pageNum = Math.floor((currentPage - 1) / 10) * 10 + index + 1;
-                if (pageNum <= Math.ceil(totalCount / limit)) {
-                  return (
+              {Array.from(
+                { length: 10 },
+                (_, i) => {
+                  const pageNum = Math.floor((currentPage - 1) / 10) * 10 + i + 1;
+                  return pageNum <= Math.ceil(totalCount / limit) ? (
                     <CPaginationItem
-                      key={pageNum}
+                      key={i}
                       active={currentPage === pageNum}
                       onClick={() => setCurrentPage(pageNum)}
                     >
                       {pageNum}
                     </CPaginationItem>
-                  );
+                  ) : null;
                 }
-                return null;
-              })}
+              )}
 
               <CPaginationItem
-                aria-label="다음"
-                onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), currentPage + 10))}
-                disabled={currentPage > Math.ceil(totalCount / limit) - 10}
+                aria-label="Next"
+                disabled={Math.floor((currentPage - 1) / 10) * 10 + 11 > Math.ceil(totalCount / limit)}
+                onClick={() => setCurrentPage(Math.min(Math.ceil(totalCount / limit), Math.floor((currentPage - 1) / 10) * 10 + 11))}
               >
-                <span aria-hidden="true">다음</span>
+                <span aria-hidden="true">&gt;</span>
               </CPaginationItem>
             </CPagination>
           </CCardBody>

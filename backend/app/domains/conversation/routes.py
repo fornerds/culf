@@ -33,6 +33,8 @@ from app.core.deps import get_current_admin_user
 from sqlalchemy import desc
 
 from .schemas import AdminConversationListResponse
+from app.domains.conversation.models import CHAT_TOKEN_COST
+
 
 router = APIRouter()
 
@@ -358,16 +360,15 @@ async def create_chat(
     """
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
 
-    # if not settings.DEV_MODE:
-    #     user_tokens = token_services.get_user_tokens(db, current_user.user_id)
-    #     if user_tokens.total_tokens - user_tokens.used_tokens <= 0:
-    #         raise HTTPException(
-    #             status_code=402,
-    #             detail={
-    #                 "error": "not_enough_tokens",
-    #                 "message": "토큰이 부족합니다. 토큰을 충전해주세요."
-    #             }
-    #         )
+    user_tokens = token_services.get_user_tokens(db, current_user.user_id)
+    if user_tokens.total_tokens < CHAT_TOKEN_COST:  # 잔여 토큰이 채팅 비용보다 적은지 확인
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "not_enough_tokens",
+                "message": "스톤이 부족합니다. 스톤을 충전해주세요."
+            }
+        )
 
     try:
         # room_id가 주어진 경우 채팅방 정보 확인
@@ -632,7 +633,7 @@ async def create_chat(
         )
 
         # 토큰 사용량 업데이트
-        token_services.use_tokens(db, current_user.user_id, tokens_used)
+        token_services.use_tokens(db, current_user.user_id, CHAT_TOKEN_COST)
 
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,

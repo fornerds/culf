@@ -362,7 +362,7 @@ const UserCreate = () => {
                 </CFormSelect>
               </div>
 
-              <div className="mb-3">
+              {/* <div className="mb-3">
                 <CFormLabel htmlFor="status">계정 상태 *</CFormLabel>
                 <CFormSelect
                   id="status"
@@ -374,7 +374,7 @@ const UserCreate = () => {
                   <option value="INACTIVE">비활성화</option>
                   <option value="BANNED">차단</option>
                 </CFormSelect>
-              </div>
+              </div> */}
 
               <div className="d-flex justify-content-center gap-3">
                 <CButton 
@@ -389,7 +389,7 @@ const UserCreate = () => {
                   type="button" 
                   color="secondary" 
                   className="px-5"
-                  onClick={() => navigate('/admin/users')}
+                  onClick={() => navigate('/users')}
                   disabled={loading}
                 >
                   취소

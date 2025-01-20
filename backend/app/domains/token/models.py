@@ -21,7 +21,7 @@ class Token(Base):
 class TokenUsageHistory(Base):
     __tablename__ = "token_usage_history"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    history_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('tokens.user_id'), nullable=False)
     conversation_id = Column(UUID(as_uuid=True), ForeignKey('conversations.conversation_id'), nullable=False)
     tokens_used = Column(Integer, nullable=False, default=0)

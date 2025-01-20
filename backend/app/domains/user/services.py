@@ -1,3 +1,4 @@
+from datetime import timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from . import models, schemas
@@ -7,6 +8,8 @@ from typing import List, Optional, Type
 from uuid import UUID
 from .models import User
 from fastapi import HTTPException
+from app.domains.admin.models import SystemSetting
+from app.domains.token.models import Token
 
 def get_user(db: Session, user_id: UUID) -> Optional[models.User]:
     return db.query(models.User).filter(models.User.user_id == user_id).first()
@@ -42,6 +45,27 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+
+    # 가입 축하 스톤 지급 로직
+    welcome_tokens_setting = db.query(SystemSetting).filter(
+        SystemSetting.key == 'welcome_tokens'
+    ).first()
+
+    if welcome_tokens_setting:
+        welcome_tokens = int(welcome_tokens_setting.value)
+        if welcome_tokens > 0:
+            # Token 레코드 생성
+            token = Token(
+                user_id=db_user.user_id,
+                total_tokens=welcome_tokens,
+                used_tokens=0,
+                last_charged_at=func.now(),
+                expires_at=func.now() + timedelta(days=365)  # 1년 후 만료
+            )
+            db.add(token)
+            db.commit()
+
     return db_user
 
 def update_user(db: Session, user_id: UUID, user_in: schemas.UserUpdate) -> models.User:

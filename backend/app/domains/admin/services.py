@@ -31,18 +31,30 @@ def get_admin_users(
     query = db.query(
         User,
         Token.total_tokens,
-        func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).label('monthly_token_usage'),
         func.max(Conversation.question_time).label('question_time')
     ).outerjoin(
         Token, User.user_id == Token.user_id
     ).outerjoin(
-        TokenUsageHistory,
-        (User.user_id == TokenUsageHistory.user_id) &
-        (TokenUsageHistory.used_at >= datetime.now() - timedelta(days=30))
-    ).outerjoin(
         Conversation,
         User.user_id == Conversation.user_id
     ).group_by(User.user_id, Token.total_tokens)
+
+    # Subquery for monthly token usage
+    monthly_usage_subquery = (
+        db.query(
+            TokenUsageHistory.user_id,
+            func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).label('monthly_usage')
+        )
+        .filter(TokenUsageHistory.used_at >= datetime.now() - timedelta(days=30))
+        .group_by(TokenUsageHistory.user_id)
+        .subquery()
+    )
+
+    # Add monthly usage to base query
+    query = query.outerjoin(
+        monthly_usage_subquery,
+        User.user_id == monthly_usage_subquery.c.user_id
+    )
 
     # Search filter
     if search:
@@ -72,11 +84,11 @@ def get_admin_users(
             min_val, max_val = token_ranges[token_filter]
             if max_val:
                 query = query.having(
-                    func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).between(min_val, max_val)
+                    monthly_usage_subquery.c.monthly_usage.between(min_val, max_val)
                 )
             else:
                 query = query.having(
-                    func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0) >= min_val
+                    monthly_usage_subquery.c.monthly_usage >= min_val
                 )
 
     total_count = query.count()
@@ -94,7 +106,14 @@ def get_admin_users(
 
     results = query.all()
     users = []
-    for user, total_tokens, monthly_usage, question_time in results:
+    for user, total_tokens, question_time in results:
+        # Get monthly usage from subquery result
+        monthly_usage = db.query(
+            func.coalesce(monthly_usage_subquery.c.monthly_usage, 0)
+        ).filter(
+            monthly_usage_subquery.c.user_id == user.user_id
+        ).scalar() or 0
+
         users.append({
             "user_id": str(user.user_id),
             "nickname": user.nickname,

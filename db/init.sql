@@ -55,6 +55,7 @@ CREATE TABLE Curators (
     category VARCHAR(50),
     background_color CHAR(7),
     text_color CHAR(7),
+    shadow_color CHAR(7),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
