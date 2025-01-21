@@ -23,6 +23,10 @@ export default defineConfig(({ command, mode }) => {
       watch: {
         usePolling: true,
       },
+      allowedHosts: [
+        'localhost',
+        'culf.ai'
+      ]
     },
     define: {
       'process.env': env,
