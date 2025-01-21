@@ -42,7 +42,7 @@ export function Pricing() {
   return (
     <div className={styles.container}>
       <h2 className={`${styles.sectionTitle} font-title-2`}>
-        <p>스톤🪙을 구매해</p>
+        <p>스톤을 구매해</p>
         <p>AI큐레이터들과 대화해보세요.</p>
       </h2>
 
