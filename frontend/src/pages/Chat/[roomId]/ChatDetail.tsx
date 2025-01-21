@@ -158,16 +158,16 @@ export function ChatDetail() {
       const response = await token.getMyTokenInfo();
       return response.data;
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 0, // 항상 최신 데이터를 가져오도록 수정
   });
-
+  
   const { data: subscriptionInfo, error: subscriptionError }: UseQueryResult<any, Error> = useQuery({
     queryKey: ['subscriptionInfo'],
     queryFn: async () => {
       const response = await subscription.getMySubscription();
       return response.data;
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 0, // 항상 최신 데이터를 가져오도록 수정
   });
 
 
@@ -226,31 +226,59 @@ export function ChatDetail() {
     }
   }, [roomData, curatorData]);
 
-  const validateTokensAndSubscription = () => {
-    const hasTokenError = tokenError && 'response' in tokenError && 
-      (tokenError.response as any)?.status === 404;
-    const hasSubscriptionError = subscriptionError && 'response' in subscriptionError && 
-      (subscriptionError.response as any)?.status === 404;
-    const hasNoTokens = tokenInfo && tokenInfo.total_tokens <= 0;
-    const hasInactiveSubscription = subscriptionInfo && 
-      (subscriptionInfo.length === 0 || subscriptionInfo[0].status !== 'ACTIVE');
-
-    if ((hasTokenError || hasNoTokens) && (hasSubscriptionError || hasInactiveSubscription)) {
-      setIsModalOpen(true);
-      return false;
-    }
-
-    return true;
-  };
-
   const handleSendMessage = async (message?: string) => {
     try {
       if (!currentRoom?.roomId) {
         throw new Error('채팅방 정보가 없습니다.');
       }
   
-      if (!validateTokensAndSubscription()) {
-        return;
+      // 메시지 전송 전에 토큰과 구독 정보를 먼저 갱신
+      await queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
+      await queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] });
+  
+      try {
+        // 갱신된 데이터를 순차적으로 가져옴
+        const tokenData = await queryClient.fetchQuery({
+          queryKey: ['tokenInfo'],
+          queryFn: async () => {
+            const response = await token.getMyTokenInfo();
+            console.log('Token Response:', response.data);
+            return response.data;
+          },
+          staleTime: 0
+        });
+  
+        const subscriptionData = await queryClient.fetchQuery({
+          queryKey: ['subscriptionInfo'],
+          queryFn: async () => {
+            const response = await subscription.getMySubscription();
+            console.log('Subscription Response:', response.data);
+            return response.data;
+          },
+          staleTime: 0
+        });
+  
+        // 유효한 토큰이나 구독이 있는지 확인
+        const hasValidTokens = tokenData?.total_tokens > 0;
+        const hasActiveSubscription = subscriptionData?.some(sub => sub.status === 'ACTIVE');
+  
+        console.log('Validation Results:', {
+          hasValidTokens,
+          hasActiveSubscription,
+          tokenCount: tokenData?.total_tokens
+        });
+  
+        if (!hasValidTokens && !hasActiveSubscription) {
+          setIsModalOpen(true);
+          return;
+        }
+  
+      } catch (error: any) {
+        console.error('Token/Subscription check error:', error);
+        // 404 에러는 무시하고 계속 진행 (토큰/구독 중 하나라도 있으면 진행)
+        if (error.response?.status !== 404) {
+          throw error;
+        }
       }
   
       const imageFiles = previewImages.map(preview => preview.file);
@@ -339,7 +367,7 @@ export function ChatDetail() {
           setCurrentSuggestions(currentRecommendedQuestions);
           setTimeout(() => {
             setShowSuggestions(true);
-          }, 300); // 메시지가 완전히 표시된 후 추천 질문 표시
+          }, 300);
         }
   
         messageCompleteRef.current = true;
@@ -383,8 +411,10 @@ export function ChatDetail() {
       setShowSuggestions(false);
       setCurrentSuggestions([]);
   
+      // 404 에러 처리
       if (error instanceof Error) {
-        if (error.message.includes('404')) {
+        const is404Error = 'response' in error && (error as any).response?.status === 404;
+        if (is404Error) {
           setIsModalOpen(true);
         }
       }
