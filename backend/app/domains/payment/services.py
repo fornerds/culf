@@ -24,8 +24,8 @@ from app.core.config import settings
 logger = logging.getLogger("app")
 
 def get_all_products(db: Session):
-    subscription_plans = db.query(SubscriptionPlan).all()
-    token_plans = db.query(TokenPlan).all()
+    subscription_plans = db.query(SubscriptionPlan).order_by(SubscriptionPlan.price.asc()).all()
+    token_plans = db.query(TokenPlan).order_by(TokenPlan.price.asc()).all()
     return {"subscription_plans": subscription_plans, "token_plans": token_plans}
 
 def get_product_by_id(db: Session, product_id: int, product_type: str):
