@@ -339,7 +339,7 @@ async def create_chat(
             None,
             description="채팅방 ID (선택, UUID 형식)"
         ),
-        image_files: Optional[List[Union[UploadFile]]] = File(None, description="이미지 파일들 (선택, 각 최대 10MB)"),
+        image_files: Optional[List[UploadFile]] = File(None, description="이미지 파일들 (선택, 각 최대 10MB)"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -400,29 +400,34 @@ async def create_chat(
         image_urls = []
         if image_files:
             for image_file in image_files:
-                if not isinstance(image_file, str):
-                    # 파일 타입 검사
-                    content_type = image_file.content_type
-                    if not content_type or not content_type.startswith('image/'):
-                        raise HTTPException(
-                            status_code=400,
-                            detail={
-                                "error": "invalid_file_type",
-                                "message": "허용되지 않는 파일 형식입니다. 이미지 파일만 업로드 가능합니다."
-                            }
-                        )
+                # 파일 타입 검증
+                if not image_file.content_type.startswith('image/'):
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "invalid_file_type",
+                            "message": "허용되지 않는 파일 형식입니다."
+                        }
+                    )
 
-                    file_extension = image_file.filename.split('.')[-1]
-                    object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
-                    s3_url = upload_file_to_s3(image_file.file, settings.S3_BUCKET_NAME, object_name)
-                    if not s3_url:
-                        raise HTTPException(status_code=500, detail="이미지 업로드 실패")
+                # S3 업로드
+                file_extension = image_file.filename.split('.')[-1]
+                object_name = f"chat_images/{uuid.uuid4()}.{file_extension}"
+                s3_url = upload_file_to_s3(
+                    image_file.file,
+                    settings.S3_BUCKET_NAME,
+                    object_name
+                )
 
-                    image_urls.append({
-                        "file_name": image_file.filename,
-                        "file_type": image_file.content_type,
-                        "file_url": get_cloudfront_url(object_name)
-                    })
+                if not s3_url:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="이미지 업로드 실패"
+                    )
+
+                # CloudFront URL 추가
+                cloudfront_url = get_cloudfront_url(object_name)
+                image_urls.append(cloudfront_url)
 
         answer = None
         tokens_used = 0
@@ -503,11 +508,11 @@ async def create_chat(
 
             # 이미지 추가
             if image_urls:
-                for image_info in image_urls:
+                for url in image_urls:
                     current_message["content"].append({
                         "type": "image_url",
                         "image_url": {
-                            "url": image_info["file_url"]
+                            "url": url
                         }
                     })
 
@@ -592,7 +597,7 @@ async def create_chat(
         # 대화 저장과 채팅방 제목 업데이트
         chat = schemas.ConversationCreate(
             question=question,
-            question_images={"image_files": image_urls} if image_urls else None,
+            question_images=image_urls,
             room_id=room_id
         )
         # answer_section을 저장 (전체 응답이 아닌 파싱된 답변만)

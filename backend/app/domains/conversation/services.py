@@ -54,34 +54,13 @@ def create_conversation(
             chat_room.update_token_stats(tokens_used)
             update_chat_room_title(db, chat.room_id, answer_summary)
 
-
-    # 이미지 URLs JSON 생성
-    question_images = None
-    if chat.question_images and chat.question_images.get("image_files"):
-        question_images = {
-            "images": [
-                {
-                    "url": img.get("file_url"),
-                    "file_name": img.get("file_name"),
-                    "file_type": img.get("file_type")
-                }
-                for img in chat.question_images["image_files"]
-                if img.get("file_url")
-            ]
-        }
-
-    # 질문 요약 보완 (이미지가 있는 경우)
-    if not question_summary and question_images:
-        image_count = len(question_images["images"])
-        question_summary = f"이미지 질문 ({image_count}장)"
-
     # 대화 저장
     db_conversation = models.Conversation(
         user_id=user_id,
         room_id=chat.room_id,
         question=chat.question or "",  # 이미지만 있는 경우 빈 문자열 사용
         question_summary=question_summary,
-        question_images=question_images,  # JSON 형태로 모든 이미지 정보 저장
+        question_images=chat.question_images,
         answer=answer,
         answer_summary=answer_summary,
         question_time=datetime.now(),
