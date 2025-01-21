@@ -646,6 +646,7 @@ async def create_chat(
             conversation_id=conversation.conversation_id,
             answer=answer_section,
             tokens_used=conversation.tokens_used,
+            images=image_urls if image_urls else None,
             recommended_questions=recommended_questions
         )
 

@@ -72,6 +72,7 @@ class ConversationResponse(BaseModel):
     conversation_id: UUID
     answer: str
     tokens_used: int
+    images: Optional[List[str]] = None
     recommended_questions: List[str] = Field(
         default_factory=list,
         max_items=3,
