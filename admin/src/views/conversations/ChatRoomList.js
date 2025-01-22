@@ -105,14 +105,14 @@ const ChatRoomList = () => {
       
       const exportData = allChatRooms.map(room => ({
         '사용자': room.user_name,
-        '큐레이터': room.curator_name,
-        '큐레이터 태그': room.curator_tags?.join(', ') || '',
+        '캐릭터': room.curator_name,
+        '캐릭터 태그': room.curator_tags?.join(', ') || '',
         '시작 시간': new Date(room.created_at).toLocaleString(),
         '마지막 메시지': room.last_message,
         '마지막 채팅 시간': new Date(room.last_message_time).toLocaleString(),
         '메시지 수': room.message_count,
-        '총 스톤 사용량': room.total_tokens_used?.toLocaleString() || '0',
-        '평균 스톤 사용량': room.average_tokens_per_conversation?.toFixed(1) || '0'
+        '총 토큰 사용량': room.total_tokens_used?.toLocaleString() || '0',
+        '평균 토큰 사용량': room.average_tokens_per_conversation?.toFixed(1) || '0'
       }));
   
       const wb = XLSX.utils.book_new();
@@ -120,8 +120,8 @@ const ChatRoomList = () => {
   
       const wscols = [
         { wch: 15 }, // 사용자
-        { wch: 15 }, // 큐레이터
-        { wch: 30 }, // 큐레이터 태그
+        { wch: 15 }, // 캐릭터
+        { wch: 30 }, // 캐릭터 태그
         { wch: 20 }, // 시작 시간
         { wch: 50 }, // 마지막 메시지
         { wch: 20 }, // 마지막 채팅 시간
@@ -201,20 +201,20 @@ const ChatRoomList = () => {
               <CTableHead>
                 <CTableRow>
                   <CTableHeaderCell style={{ width: '10%' }}>사용자</CTableHeaderCell>
-                  <CTableHeaderCell style={{ width: '7%' }}>큐레이터</CTableHeaderCell>
-                  <CTableHeaderCell style={{ width: '12%' }}>큐레이터 태그</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '7%' }}>캐릭터</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '12%' }}>캐릭터 태그</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '13%' }}>시작 시간</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '20%' }}>마지막 메시지</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '13%' }}>마지막 채팅 시간</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '7%' }}>메시지 수</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '9%' }}>
-                    <CTooltip content="대화당 평균 스톤 사용량">
-                      <span>평균 스톤</span>
+                    <CTooltip content="대화당 평균 토큰 사용량">
+                      <span>평균 토큰</span>
                     </CTooltip>
                   </CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '9%' }}>
-                    <CTooltip content="총 스톤 사용량">
-                      <span>총 스톤</span>
+                    <CTooltip content="총 토큰 사용량">
+                      <span>총 토큰</span>
                     </CTooltip>
                   </CTableHeaderCell>
                 </CTableRow>

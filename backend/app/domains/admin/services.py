@@ -8,7 +8,7 @@ from app.domains.admin.schemas import NotificationCreate, TokenPlanUpdate, Subsc
 from app.domains.notice.models import Notice
 from app.domains.notification.models import Notification, UserNotification
 from app.domains.subscription.models import SubscriptionPlan
-from app.domains.user.models import User
+from app.domains.user.models import User, UserProvider
 from app.domains.token.models import Token, TokenUsageHistory, TokenGrant, TokenPlan
 from app.domains.conversation.models import Conversation
 from app.domains.payment.models import Payment
@@ -140,7 +140,8 @@ def get_admin_users_for_export(db: Session) -> List[Dict]:
         User,
         Token.total_tokens,
         func.coalesce(func.sum(TokenUsageHistory.tokens_used), 0).label('monthly_token_usage'),
-        func.max(Conversation.question_time).label('question_time')
+        func.max(Conversation.question_time).label('question_time'),
+        UserProvider.provider.label('social_provider')
     ).outerjoin(
         Token, User.user_id == Token.user_id
     ).outerjoin(
@@ -150,11 +151,21 @@ def get_admin_users_for_export(db: Session) -> List[Dict]:
     ).outerjoin(
         Conversation,
         User.user_id == Conversation.user_id
-    ).group_by(User.user_id, Token.total_tokens)
+    ).outerjoin(  # UserProvider 테이블과 조인
+        UserProvider,
+        User.user_id == UserProvider.user_id
+    ).group_by(User.user_id, Token.total_tokens, UserProvider.provider)
 
     results = query.all()
     users = []
-    for user, total_tokens, monthly_usage, question_time in results:
+    for user, total_tokens, monthly_usage, question_time, social_provider in results:
+        # provider 정보 변환
+        provider_display = {
+            'GOOGLE': '구글',
+            'KAKAO': '카카오',
+            None: '일반가입'
+        }.get(social_provider, '일반가입')
+
         users.append({
             "nickname": user.nickname,
             "email": user.email,
@@ -163,11 +174,16 @@ def get_admin_users_for_export(db: Session) -> List[Dict]:
             "status": user.status,
             "role": user.role,
             "total_tokens": total_tokens or 0,
-            "monthly_token_usage": int(monthly_usage or 0)
+            "monthly_token_usage": int(monthly_usage or 0),
+            "marketing_agreed": user.marketing_agreed,
+            "is_corporate": user.is_corporate,
+            "provider": provider_display,
+            "phone_number": user.phone_number,
+            "birthdate": user.birthdate,
+            "gender": user.gender,
         })
 
     return users
-
 
 def update_user_status(db: Session, user_id: str, status: str) -> User:
     """사용자의 상태를 업데이트합니다."""
@@ -727,3 +743,45 @@ def update_token_plan(
     except Exception as e:
         db.rollback()
         raise e
+    
+def get_token_grants(db: Session, page: int = 1, limit: int = 10, search: Optional[str] = None) -> Dict:
+    """토큰 지급 이력을 조회합니다."""
+    query = (db.query(TokenGrant, User, User.nickname.label('granted_to_nickname'), 
+             User.email.label('granted_to_email'))
+             .join(User, TokenGrant.user_id == User.user_id)
+             .add_columns(User.nickname.label('admin_nickname')))
+    
+    if search:
+        query = query.filter(
+            or_(
+                User.email.ilike(f"%{search}%"),
+                User.nickname.ilike(f"%{search}%"),
+                TokenGrant.reason.ilike(f"%{search}%")
+            )
+        )
+    
+    total_count = query.count()
+    
+    # 지급일시 기준 내림차순 정렬
+    grants = (query.order_by(TokenGrant.created_at.desc())
+             .offset((page - 1) * limit)
+             .limit(limit)
+             .all())
+
+    return {
+        "token_grants": [
+            {
+                "token_grant_id": grant.TokenGrant.token_grant_id,
+                "user_email": grant.granted_to_email,
+                "user_nickname": grant.granted_to_nickname,
+                "amount": grant.TokenGrant.amount,
+                "reason": grant.TokenGrant.reason,
+                "admin_nickname": grant.admin_nickname,
+                "created_at": grant.TokenGrant.created_at
+            }
+            for grant in grants
+        ],
+        "total_count": total_count,
+        "page": page,
+        "limit": limit
+    }

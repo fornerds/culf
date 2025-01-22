@@ -111,7 +111,7 @@ const CuratorCreate = () => {
     } catch (error) {
       console.error('Error creating curator:', error)
       console.error('Error details:', error.response?.data)
-      alert('큐레이터 생성 중 오류가 발생했습니다.')
+      alert('캐릭터 생성 중 오류가 발생했습니다.')
     }
   }
 
@@ -135,7 +135,7 @@ const CuratorCreate = () => {
       <CCol xs={12}>
         <CCard className="mb-4">
           <CCardHeader>
-            <strong>새 큐레이터 등록</strong>
+            <strong>새 캐릭터 등록</strong>
           </CCardHeader>
           <CCardBody>
             <CForm onSubmit={handleSubmit}>
@@ -194,7 +194,7 @@ const CuratorCreate = () => {
               <div className="mb-3">
                 <CFormLabel>특성</CFormLabel>
                 <CFormTextarea
-                  rows={3}
+                  rows={10}
                   value={formData.introduction}
                   onChange={(e) => setFormData({ ...formData, introduction: e.target.value })}
                   required
