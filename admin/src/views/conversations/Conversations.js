@@ -82,7 +82,7 @@ const Conversations = () => {
               <CTableHead>
                 <CTableRow>
                   <CTableHeaderCell>사용자</CTableHeaderCell>
-                  <CTableHeaderCell>큐레이터</CTableHeaderCell>
+                  <CTableHeaderCell>캐릭터</CTableHeaderCell>
                   <CTableHeaderCell>마지막 메시지</CTableHeaderCell>
                   <CTableHeaderCell>시작 시간</CTableHeaderCell>
                   <CTableHeaderCell>종료 시간</CTableHeaderCell>

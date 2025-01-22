@@ -22,7 +22,7 @@ const _nav = [
   },
   {
     component: CNavItem,
-    name: '큐레이터 관리',
+    name: '캐릭터 관리',
     to: '/curators',
     icon: <CIcon icon={cilBriefcase} customClassName="nav-icon" />,
   },

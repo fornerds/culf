@@ -64,7 +64,7 @@ const ConversationDetail = () => {
                   {conversation.user_name}
                 </CListGroupItem>
                 <CListGroupItem>
-                  <div className="fw-bold">큐레이터</div>
+                  <div className="fw-bold">캐릭터</div>
                   {conversation.curator_name}
                 </CListGroupItem>
                 <CListGroupItem>
@@ -90,7 +90,7 @@ const ConversationDetail = () => {
                   >
                     <div className="d-flex justify-content-between">
                       <small className="text-muted">
-                        {message.is_curator ? '큐레이터' : '사용자'}
+                        {message.is_curator ? '캐릭터' : '사용자'}
                       </small>
                       <small className="text-muted">
                         {new Date(message.created_at).toLocaleString()}

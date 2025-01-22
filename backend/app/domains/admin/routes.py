@@ -766,3 +766,24 @@ async def update_token_plan(
     except Exception as e:
         logger.error(f"Error updating token plan: {str(e)}")
         raise HTTPException(status_code=500, detail="상품 수정에 실패했습니다.")
+    
+@router.get("/token-grants")
+async def list_token_grants(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """토큰 지급 이력을 조회합니다."""
+    try:
+        result = services.get_token_grants(
+            db=db,
+            page=page,
+            limit=limit,
+            search=search
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error getting token grants: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get token grants")

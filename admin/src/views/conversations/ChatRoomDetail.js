@@ -80,7 +80,7 @@ const ChatRoomDetail = () => {
             <div>{chatRoom.user_name}</div>
           </div>
           <div className="col-md-3">
-            <div className="fw-bold">큐레이터</div>
+            <div className="fw-bold">캐릭터</div>
             <div>{chatRoom.curator_name}</div>
           </div>
           <div className="col-md-3">

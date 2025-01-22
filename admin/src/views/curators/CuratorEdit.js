@@ -71,8 +71,8 @@ const CuratorEdit = () => {
         setProfileImagePreview(data.profile_image)
       }
     } catch (error) {
-      console.error('큐레이터 정보 조회 실패:', error)
-      alert('큐레이터 정보를 불러오는데 실패했습니다.')
+      console.error('캐릭터 정보 조회 실패:', error)
+      alert('캐릭터 정보를 불러오는데 실패했습니다.')
     } finally {
       setLoading(false)
     }
@@ -156,12 +156,12 @@ const CuratorEdit = () => {
         },
       })
 
-      alert('큐레이터 정보가 성공적으로 수정되었습니다.')
+      alert('캐릭터 정보가 성공적으로 수정되었습니다.')
       navigate('/curators')
     } catch (error) {
-      console.error('큐레이터 수정 실패:', error)
+      console.error('캐릭터 수정 실패:', error)
       console.error('에러 상세:', error.response?.data)
-      alert('큐레이터 정보 수정에 실패했습니다.')
+      alert('캐릭터 정보 수정에 실패했습니다.')
     }
   }
 
@@ -178,7 +178,7 @@ const CuratorEdit = () => {
       <CCol xs={12}>
         <CCard className="mb-4">
           <CCardHeader>
-            <strong>큐레이터 수정</strong>
+            <strong>캐릭터 수정</strong>
           </CCardHeader>
           <CCardBody>
             <CForm onSubmit={handleSubmit}>
@@ -240,7 +240,7 @@ const CuratorEdit = () => {
               <div className="mb-3">
                 <CFormLabel>특성</CFormLabel>
                 <CFormTextarea
-                  rows={3}
+                  rows={10}
                   value={formData.introduction}
                   onChange={(e) => setFormData({ ...formData, introduction: e.target.value })}
                   required

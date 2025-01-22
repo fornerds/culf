@@ -35,7 +35,6 @@ from sqlalchemy import desc
 from .schemas import AdminConversationListResponse
 from app.domains.conversation.models import CHAT_TOKEN_COST
 
-
 router = APIRouter()
 
 # OpenAI 클라이언트 초기화
@@ -85,6 +84,7 @@ def get_recent_room_conversations(db: Session, room_id: UUID, limit: int = 10) -
     except Exception as e:
         logger.error(f"채팅방 대화 기록 조회 중 오류 발생: {str(e)}")
         return []
+
 
 async def get_perplexity_answer(question: str) -> Optional[dict]:
     """Perplexity API를 사용하여 먼저 정확한 정보를 얻습니다."""
@@ -457,25 +457,25 @@ async def create_chat(
                    - 모든 답변은 800~1000자 이내로 작성
                    - 짧은 문장과 단락으로 구성하여 읽기 쉽게 작성
                    - 중요한 내용은 줄바꿈으로 구분하여 강조
-        
+
                 2. 사용자 참여
                    - 적절한 시점에 사용자의 의견을 물어보는 문장 포함 (예: "{current_user.nickname}님도 이런 경험이 있으신가요?")
                    - 매 답변마다 하지 않되, 자연스러운 흐름에서 간간이 포함
-        
+
                 3. 정보의 신뢰성
                    - 모든 예술 작품 설명에는 반드시 출처 명시 (전시 도록, 미술관 공식 자료, 최신 논문 등)
                    - 출처 표시 예시: "전시 도록에 따르면...", "미술관 공식 홈페이지의 설명을 보면..."
-        
+
                 모든 답변은 반드시 다음 형식으로 작성해주세요:
-                
+
                 [답변]
                 - 800~1000자 이내로 작성
                 - 출처 있는 정보는 반드시 출처 표시
                 - 적절한 곳에 사용자 참여 유도 문구 포함
-                
+
                 [대화 요약]
                 현재까지의 대화를 20자 이내로 요약하세요. 이 요약은 채팅방의 제목으로 사용됩니다.
-                
+
                 [추천 질문]
                 - 추천 질문은 특정 사용자를 지칭하지 않고 일반적인 형태로 작성
                 - 각 질문은 현재 대화 주제와 직접적으로 연관된 내용으로 구성
@@ -1062,13 +1062,14 @@ async def get_chat_room_curator(
         "curator": chat_room.curator
     }
 
+
 @router.get("/admin/chat-rooms")
 async def get_chat_rooms(
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=1000000),
-    search_query: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=1000000),
+        search_query: Optional[str] = None,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
 ):
     try:
         # 대화가 있는 채팅방만 조회하도록 서브쿼리 사용
@@ -1133,8 +1134,9 @@ async def get_chat_rooms(
                 "room_id": room.room_id,
                 "user_name": room.user.nickname if room.user else None,
                 "curator_name": room.curator.name if room.curator else None,
-                "curator_tags": historic_tags.tag_names if historic_tags and isinstance(historic_tags.tag_names, list) else
-                    json.loads(historic_tags.tag_names) if historic_tags else [],
+                "curator_tags": historic_tags.tag_names if historic_tags and isinstance(historic_tags.tag_names,
+                                                                                        list) else
+                json.loads(historic_tags.tag_names) if historic_tags else [],
                 "last_message": last_conversation.question if last_conversation else None,
                 "last_message_time": (
                     last_conversation.answer_time or last_conversation.question_time
@@ -1144,7 +1146,8 @@ async def get_chat_rooms(
                 "message_count": len(room.conversations),
                 "is_active": room.is_active,
                 "total_tokens_used": room.total_tokens_used,
-                "average_tokens_per_conversation": float(room.average_tokens_per_conversation) if room.average_tokens_per_conversation else 0.0
+                "average_tokens_per_conversation": float(
+                    room.average_tokens_per_conversation) if room.average_tokens_per_conversation else 0.0
             })
 
         return {
@@ -1159,11 +1162,12 @@ async def get_chat_rooms(
         db.rollback()
         raise HTTPException(status_code=500, detail="채팅방 목록 조회 중 오류가 발생했습니다.")
 
+
 @router.get("/admin/chat-rooms/{room_id}")
 async def get_chat_room_detail(
-    room_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user)
+        room_id: UUID,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user)
 ):
     """
     특정 채팅방의 상세 정보와 대화 내역 조회

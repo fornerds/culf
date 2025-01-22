@@ -30,8 +30,12 @@ import {
   CModalTitle,
   CModalBody,
   CModalFooter,
-  CFormCheck
+  CFormCheck,
+  CPagination,
+  CPaginationItem,
 } from '@coreui/react';
+import { cilCloudDownload, cilSearch } from '@coreui/icons';
+import CIcon from '@coreui/icons-react';
 import httpClient from '../../api/httpClient';
 import { format } from 'date-fns';
 
@@ -69,6 +73,12 @@ const SystemSettings = () => {
     max_usage: ''
   });
 
+  const [tokenGrants, setTokenGrants] = useState([]);
+  const [tokenGrantsPage, setTokenGrantsPage] = useState(1);
+  const [tokenGrantsTotal, setTokenGrantsTotal] = useState(0);
+  const [tokenGrantsSearch, setTokenGrantsSearch] = useState('');
+  const [tempTokenGrantsSearch, setTempTokenGrantsSearch] = useState('');
+
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -79,12 +89,19 @@ const SystemSettings = () => {
       await Promise.all([
         fetchWelcomeTokens(),
         fetchProducts(),
-        fetchCoupons()
+        fetchCoupons(),
+        activeTab === 'token_grants' && fetchTokenGrants()
       ]);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (activeTab === 'token_grants') {
+      fetchTokenGrants();
+    }
+  }, [activeTab, tokenGrantsPage, tokenGrantsSearch]);
 
   const searchUsers = async (email) => {
     if (!email) {
@@ -119,6 +136,26 @@ const SystemSettings = () => {
     setSelectedUser(user);
     setGrantTokenForm({ ...grantTokenForm, email: user.email });
     setSearchResults([]);
+  };
+
+  const fetchTokenGrants = async () => {
+    try {
+      setLoading(true);
+      const { data } = await httpClient.get('/admin/token-grants', {
+        params: {
+          page: tokenGrantsPage,
+          limit: 10,
+          search: tokenGrantsSearch
+        }
+      });
+      setTokenGrants(data.token_grants);
+      setTokenGrantsTotal(data.total_count);
+    } catch (error) {
+      console.error('Error fetching token grants:', error);
+      setMessage({ type: 'danger', content: '토큰 지급 이력 조회에 실패했습니다.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Welcome Tokens API Calls
@@ -212,67 +249,67 @@ const SystemSettings = () => {
   }
 
 
-// fetchCoupons 함수
-const fetchCoupons = async () => {
-  try {
-    const response = await httpClient.get('/admin/coupons');
-    setCoupons(response.data);
-  } catch (error) {
-    console.error('Error fetching coupons:', error);
-  }
-};
-
-// handleCouponSubmit 함수
-const handleCouponSubmit = async (e) => {
-  e.preventDefault();
-  try {
-    setLoading(true);
-    await httpClient.post('/admin/coupons', couponForm);
-    await fetchCoupons();
-    setCouponForm({
-      coupon_code: '',
-      discount_type: 'RATE',
-      discount_value: '',
-      valid_from: '',
-      valid_to: '',
-      max_usage: ''
-    });
-    setMessage({ type: 'success', content: '쿠폰이 성공적으로 추가되었습니다.' });
-  } catch (error) {
-    console.error('Error creating coupon:', error);
-    setMessage({ type: 'danger', content: '쿠폰 추가에 실패했습니다.' });
-  } finally {
-    setLoading(false);
-  }
-};
-
-const handleDelete = async (type, id) => {
-  if (!window.confirm('정말 삭제하시겠습니까?')) return;
-
-  try {
-    setLoading(true);
-    switch (type) {
-      case 'coupon':
-        await httpClient.delete(`/admin/coupons/${id}`);
-        await fetchCoupons();
-        setMessage({ type: 'success', content: '쿠폰이 성공적으로 삭제되었습니다.' });
-        break;
-      case 'product':
-        await httpClient.delete(`/admin/products/${id}`);
-        await fetchProducts();
-        setMessage({ type: 'success', content: '상품이 성공적으로 삭제되었습니다.' });
-        break;
-      default:
-        console.error('Invalid delete type');
-        return;
+  // fetchCoupons 함수
+  const fetchCoupons = async () => {
+    try {
+      const response = await httpClient.get('/admin/coupons');
+      setCoupons(response.data);
+    } catch (error) {
+      console.error('Error fetching coupons:', error);
     }
-  } catch (error) {
-    console.error('Error deleting item:', error);
-    setMessage({ type: 'danger', content: '삭제에 실패했습니다.' });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  // handleCouponSubmit 함수
+  const handleCouponSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      await httpClient.post('/admin/coupons', couponForm);
+      await fetchCoupons();
+      setCouponForm({
+        coupon_code: '',
+        discount_type: 'RATE',
+        discount_value: '',
+        valid_from: '',
+        valid_to: '',
+        max_usage: ''
+      });
+      setMessage({ type: 'success', content: '쿠폰이 성공적으로 추가되었습니다.' });
+    } catch (error) {
+      console.error('Error creating coupon:', error);
+      setMessage({ type: 'danger', content: '쿠폰 추가에 실패했습니다.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (type, id) => {
+    if (!window.confirm('정말 삭제하시겠습니까?')) return;
+
+    try {
+      setLoading(true);
+      switch (type) {
+        case 'coupon':
+          await httpClient.delete(`/admin/coupons/${id}`);
+          await fetchCoupons();
+          setMessage({ type: 'success', content: '쿠폰이 성공적으로 삭제되었습니다.' });
+          break;
+        case 'product':
+          await httpClient.delete(`/admin/products/${id}`);
+          await fetchProducts();
+          setMessage({ type: 'success', content: '상품이 성공적으로 삭제되었습니다.' });
+          break;
+        default:
+          console.error('Invalid delete type');
+          return;
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      setMessage({ type: 'danger', content: '삭제에 실패했습니다.' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <CRow>
@@ -297,6 +334,18 @@ const handleDelete = async (type, id) => {
               </CNavItem>
               <CNavItem>
                 <CNavLink
+                  active={activeTab === 'token_grants'}
+                  onClick={() => {
+                    setActiveTab('token_grants');
+                    setMessage({ type: '', content: '' });
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  스톤 지급 이력
+                </CNavLink>
+              </CNavItem>
+              <CNavItem>
+                <CNavLink
                   active={activeTab === 'products'}
                   onClick={() => {
                     setActiveTab('products');
@@ -309,18 +358,18 @@ const handleDelete = async (type, id) => {
               </CNavItem>
 
               <CNavItem>
-    <CNavLink
-      active={activeTab === 'coupons'}
-      onClick={() => {
-        setActiveTab('coupons');
-        setMessage({ type: '', content: '' });
-      }}
-      style={{ cursor: 'pointer' }}
-    >
-      쿠폰 관리
-    </CNavLink>
-  </CNavItem>
-</CNav>
+                <CNavLink
+                  active={activeTab === 'coupons'}
+                  onClick={() => {
+                    setActiveTab('coupons');
+                    setMessage({ type: '', content: '' });
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  쿠폰 관리
+                </CNavLink>
+              </CNavItem>
+            </CNav>
 
             {message.content && (
               <CAlert color={message.type} className="mb-4">
@@ -420,6 +469,98 @@ const handleDelete = async (type, id) => {
                     스톤 지급
                   </CButton>
                 </CForm>
+              </>
+            )}
+
+            {/* 스톤 지급 이력 탭 */}
+            {activeTab === 'token_grants' && (
+              <>
+                <div className="mb-3 d-flex justify-content-between align-items-center">
+                  <div className="d-flex gap-2">
+                    {/* 필요한 경우 여기에 필터 추가 */}
+                  </div>
+                  <CInputGroup style={{ width: '300px' }}>
+                    <CFormInput
+                      placeholder="검색어를 입력하세요"
+                      value={tempTokenGrantsSearch}
+                      onChange={(e) => setTempTokenGrantsSearch(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          setTokenGrantsSearch(tempTokenGrantsSearch);
+                          setTokenGrantsPage(1);
+                        }
+                      }}
+                    />
+                    <CButton
+                      color="primary"
+                      variant="outline"
+                      onClick={() => {
+                        setTokenGrantsSearch(tempTokenGrantsSearch);
+                        setTokenGrantsPage(1);
+                      }}
+                    >
+                      <CIcon icon={cilSearch} />
+                    </CButton>
+                  </CInputGroup>
+                </div>
+
+                <CTable hover>
+                  <CTableHead>
+                    <CTableRow>
+                      <CTableHeaderCell>지급일시</CTableHeaderCell>
+                      <CTableHeaderCell>받은 사용자</CTableHeaderCell>
+                      <CTableHeaderCell>지급 수량</CTableHeaderCell>
+                      <CTableHeaderCell>지급 사유</CTableHeaderCell>
+                      <CTableHeaderCell>지급한 관리자</CTableHeaderCell>
+                    </CTableRow>
+                  </CTableHead>
+                  <CTableBody>
+                    {tokenGrants.map((grant) => (
+                      <CTableRow key={grant.token_grant_id}>
+                        <CTableDataCell>
+                          {format(new Date(grant.created_at), 'yyyy-MM-dd HH:mm:ss')}
+                        </CTableDataCell>
+                        <CTableDataCell>
+                          {grant.user_nickname} ({grant.user_email})
+                        </CTableDataCell>
+                        <CTableDataCell>{grant.amount.toLocaleString()}개</CTableDataCell>
+                        <CTableDataCell>{grant.reason}</CTableDataCell>
+                        <CTableDataCell>{grant.admin_nickname}</CTableDataCell>
+                      </CTableRow>
+                    ))}
+                  </CTableBody>
+                </CTable>
+
+                <CPagination align="center" aria-label="Page navigation">
+                  {/* 여러 페이지가 있는 경우에만 페이지네이션 표시 */}
+                  {tokenGrantsTotal > 10 && (
+                    <>
+                      <CPaginationItem
+                        aria-label="Previous"
+                        disabled={tokenGrantsPage === 1}
+                        onClick={() => setTokenGrantsPage((prev) => Math.max(1, prev - 1))}
+                      >
+                        <span aria-hidden="true">&laquo;</span>
+                      </CPaginationItem>
+                      {[...Array(Math.min(5, Math.ceil(tokenGrantsTotal / 10)))].map((_, i) => (
+                        <CPaginationItem
+                          key={i + 1}
+                          active={i + 1 === tokenGrantsPage}
+                          onClick={() => setTokenGrantsPage(i + 1)}
+                        >
+                          {i + 1}
+                        </CPaginationItem>
+                      ))}
+                      <CPaginationItem
+                        aria-label="Next"
+                        disabled={tokenGrantsPage >= Math.ceil(tokenGrantsTotal / 10)}
+                        onClick={() => setTokenGrantsPage((prev) => Math.min(Math.ceil(tokenGrantsTotal / 10), prev + 1))}
+                      >
+                        <span aria-hidden="true">&raquo;</span>
+                      </CPaginationItem>
+                    </>
+                  )}
+                </CPagination>
               </>
             )}
 
@@ -659,127 +800,127 @@ const handleDelete = async (type, id) => {
               </CModalFooter>
             </CModal>
 
-{/* 쿠폰 관리 탭 컨텐츠 */}
-{activeTab === 'coupons' && (
-  <>
-    <CForm onSubmit={handleCouponSubmit} className="mb-4">
-      <CRow>
-        <CCol md={6}>
-          <CFormLabel>쿠폰 코드</CFormLabel>
-          <CFormInput
-            className="mb-3"
-            value={couponForm.coupon_code}
-            onChange={(e) => setCouponForm({ ...couponForm, coupon_code: e.target.value })}
-            required
-          />
-        </CCol>
-        <CCol md={6}>
-          <CFormLabel>할인 유형</CFormLabel>
-          <CFormSelect
-            className="mb-3"
-            value={couponForm.discount_type}
-            onChange={(e) => setCouponForm({ ...couponForm, discount_type: e.target.value })}
-          >
-            <option value="RATE">비율 할인</option>
-            <option value="AMOUNT">금액 할인</option>
-          </CFormSelect>
-        </CCol>
-      </CRow>
+            {/* 쿠폰 관리 탭 컨텐츠 */}
+            {activeTab === 'coupons' && (
+              <>
+                <CForm onSubmit={handleCouponSubmit} className="mb-4">
+                  <CRow>
+                    <CCol md={6}>
+                      <CFormLabel>쿠폰 코드</CFormLabel>
+                      <CFormInput
+                        className="mb-3"
+                        value={couponForm.coupon_code}
+                        onChange={(e) => setCouponForm({ ...couponForm, coupon_code: e.target.value })}
+                        required
+                      />
+                    </CCol>
+                    <CCol md={6}>
+                      <CFormLabel>할인 유형</CFormLabel>
+                      <CFormSelect
+                        className="mb-3"
+                        value={couponForm.discount_type}
+                        onChange={(e) => setCouponForm({ ...couponForm, discount_type: e.target.value })}
+                      >
+                        <option value="RATE">비율 할인</option>
+                        <option value="AMOUNT">금액 할인</option>
+                      </CFormSelect>
+                    </CCol>
+                  </CRow>
 
-      <CRow>
-        <CCol md={4}>
-          <CFormLabel>할인 값</CFormLabel>
-          <CInputGroup className="mb-3">
-            <CFormInput
-              type="number"
-              value={couponForm.discount_value}
-              onChange={(e) => setCouponForm({ ...couponForm, discount_value: e.target.value })}
-              required
-            />
-            <CInputGroupText>
-              {couponForm.discount_type === 'RATE' ? '%' : '원'}
-            </CInputGroupText>
-          </CInputGroup>
-        </CCol>
-        <CCol md={4}>
-          <CFormLabel>유효 기간 시작</CFormLabel>
-          <CFormInput
-            type="date"
-            className="mb-3"
-            value={couponForm.valid_from}
-            onChange={(e) => setCouponForm({ ...couponForm, valid_from: e.target.value })}
-            required
-          />
-        </CCol>
-        <CCol md={4}>
-          <CFormLabel>유효 기간 종료</CFormLabel>
-          <CFormInput
-            type="date"
-            className="mb-3"
-            value={couponForm.valid_to}
-            onChange={(e) => setCouponForm({ ...couponForm, valid_to: e.target.value })}
-            required
-          />
-        </CCol>
-      </CRow>
+                  <CRow>
+                    <CCol md={4}>
+                      <CFormLabel>할인 값</CFormLabel>
+                      <CInputGroup className="mb-3">
+                        <CFormInput
+                          type="number"
+                          value={couponForm.discount_value}
+                          onChange={(e) => setCouponForm({ ...couponForm, discount_value: e.target.value })}
+                          required
+                        />
+                        <CInputGroupText>
+                          {couponForm.discount_type === 'RATE' ? '%' : '원'}
+                        </CInputGroupText>
+                      </CInputGroup>
+                    </CCol>
+                    <CCol md={4}>
+                      <CFormLabel>유효 기간 시작</CFormLabel>
+                      <CFormInput
+                        type="date"
+                        className="mb-3"
+                        value={couponForm.valid_from}
+                        onChange={(e) => setCouponForm({ ...couponForm, valid_from: e.target.value })}
+                        required
+                      />
+                    </CCol>
+                    <CCol md={4}>
+                      <CFormLabel>유효 기간 종료</CFormLabel>
+                      <CFormInput
+                        type="date"
+                        className="mb-3"
+                        value={couponForm.valid_to}
+                        onChange={(e) => setCouponForm({ ...couponForm, valid_to: e.target.value })}
+                        required
+                      />
+                    </CCol>
+                  </CRow>
 
-      <CFormLabel>최대 사용 횟수</CFormLabel>
-      <CFormInput
-        type="number"
-        className="mb-3"
-        value={couponForm.max_usage}
-        onChange={(e) => setCouponForm({ ...couponForm, max_usage: e.target.value })}
-      />
+                  <CFormLabel>최대 사용 횟수</CFormLabel>
+                  <CFormInput
+                    type="number"
+                    className="mb-3"
+                    value={couponForm.max_usage}
+                    onChange={(e) => setCouponForm({ ...couponForm, max_usage: e.target.value })}
+                  />
 
-      <CButton type="submit" color="primary">
-        쿠폰 추가
-      </CButton>
-    </CForm>
+                  <CButton type="submit" color="primary">
+                    쿠폰 추가
+                  </CButton>
+                </CForm>
 
-    <CTable hover>
-      <CTableHead>
-        <CTableRow>
-          <CTableHeaderCell>쿠폰 코드</CTableHeaderCell>
-          <CTableHeaderCell>할인 유형</CTableHeaderCell>
-          <CTableHeaderCell>할인 값</CTableHeaderCell>
-          <CTableHeaderCell>유효 기간</CTableHeaderCell>
-          <CTableHeaderCell>최대 사용 횟수</CTableHeaderCell>
-          <CTableHeaderCell>사용된 횟수</CTableHeaderCell>
-          <CTableHeaderCell>작업</CTableHeaderCell>
-        </CTableRow>
-      </CTableHead>
-      <CTableBody>
-        {coupons.map((coupon) => (
-          <CTableRow key={coupon.coupon_id}>
-            <CTableDataCell>{coupon.coupon_code}</CTableDataCell>
-            <CTableDataCell>
-              {coupon.discount_type === 'RATE' ? '비율 할인' : '금액 할인'}
-            </CTableDataCell>
-            <CTableDataCell>
-              {coupon.discount_value}
-              {coupon.discount_type === 'RATE' ? '%' : '원'}
-            </CTableDataCell>
-            <CTableDataCell>
-              {format(new Date(coupon.valid_from), 'yyyy-MM-dd')} ~{' '}
-              {format(new Date(coupon.valid_to), 'yyyy-MM-dd')}
-            </CTableDataCell>
-            <CTableDataCell>{coupon.max_usage || '무제한'}</CTableDataCell>
-            <CTableDataCell>{coupon.used_count}</CTableDataCell>
-            <CTableDataCell>
-              <CButton 
-                color="danger" 
-                size="sm"
-                onClick={() => handleDelete('coupon', coupon.coupon_id)}
-              >
-                삭제
-              </CButton>
-            </CTableDataCell>
-          </CTableRow>
-        ))}
-      </CTableBody>
-    </CTable>
-  </>
-)}
+                <CTable hover>
+                  <CTableHead>
+                    <CTableRow>
+                      <CTableHeaderCell>쿠폰 코드</CTableHeaderCell>
+                      <CTableHeaderCell>할인 유형</CTableHeaderCell>
+                      <CTableHeaderCell>할인 값</CTableHeaderCell>
+                      <CTableHeaderCell>유효 기간</CTableHeaderCell>
+                      <CTableHeaderCell>최대 사용 횟수</CTableHeaderCell>
+                      <CTableHeaderCell>사용된 횟수</CTableHeaderCell>
+                      <CTableHeaderCell>작업</CTableHeaderCell>
+                    </CTableRow>
+                  </CTableHead>
+                  <CTableBody>
+                    {coupons.map((coupon) => (
+                      <CTableRow key={coupon.coupon_id}>
+                        <CTableDataCell>{coupon.coupon_code}</CTableDataCell>
+                        <CTableDataCell>
+                          {coupon.discount_type === 'RATE' ? '비율 할인' : '금액 할인'}
+                        </CTableDataCell>
+                        <CTableDataCell>
+                          {coupon.discount_value}
+                          {coupon.discount_type === 'RATE' ? '%' : '원'}
+                        </CTableDataCell>
+                        <CTableDataCell>
+                          {format(new Date(coupon.valid_from), 'yyyy-MM-dd')} ~{' '}
+                          {format(new Date(coupon.valid_to), 'yyyy-MM-dd')}
+                        </CTableDataCell>
+                        <CTableDataCell>{coupon.max_usage || '무제한'}</CTableDataCell>
+                        <CTableDataCell>{coupon.used_count}</CTableDataCell>
+                        <CTableDataCell>
+                          <CButton
+                            color="danger"
+                            size="sm"
+                            onClick={() => handleDelete('coupon', coupon.coupon_id)}
+                          >
+                            삭제
+                          </CButton>
+                        </CTableDataCell>
+                      </CTableRow>
+                    ))}
+                  </CTableBody>
+                </CTable>
+              </>
+            )}
 
           </CCardBody>
         </CCard>

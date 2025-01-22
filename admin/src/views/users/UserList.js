@@ -91,7 +91,7 @@ const UserList = () => {
     try {
       setLoading(true);
       const { data } = await httpClient.get('/admin/users/export');
-
+  
       const exportData = data.users.map(user => ({
         '닉네임': user.nickname,
         '이메일': user.email,
@@ -103,12 +103,18 @@ const UserList = () => {
         '권한': user.role,
         '스톤 잔액': user.total_tokens,
         '월간 스톤 사용량': user.monthly_token_usage,
+        '마케팅 동의': user.marketing_agreed ? 'Y' : 'N',
+        '회원 구분': user.is_corporate ? '기업회원' : '일반회원',
+        '가입 경로': user.provider,
+        '연락처': user.phone_number || '-',
+        '생년월일': user.birthdate ? format(new Date(user.birthdate), 'yyyy-MM-dd') : '-',
+        '성별': user.gender === 'M' ? '남성' : user.gender === 'F' ? '여성' : '기타'
       }));
-
+  
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
       XLSX.utils.book_append_sheet(wb, ws, '사용자목록');
-
+  
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const fileName = `사용자목록_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
       saveAs(new Blob([wbout]), fileName);

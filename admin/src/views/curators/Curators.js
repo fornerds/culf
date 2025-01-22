@@ -40,7 +40,7 @@ const Curators = () => {
   }
 
   const handleDelete = async (curatorId) => {
-    if (window.confirm('이 큐레이터를 삭제하시겠습니까?')) {
+    if (window.confirm('이 캐릭터를 삭제하시겠습니까?')) {
       try {
         await httpClient.delete(`/curators/${curatorId}`)
         fetchCurators()
@@ -76,12 +76,12 @@ const Curators = () => {
       <CCol xs={12}>
         <CCard className="mb-4">
           <CCardHeader className="d-flex justify-content-between align-items-center">
-            <strong>큐레이터 관리</strong>
+            <strong>캐릭터 관리</strong>
             <CButton 
               color="primary"
               onClick={() => navigate('/curators/create')}
             >
-              큐레이터 추가
+              캐릭터 추가
             </CButton>
           </CCardHeader>
           <CCardBody>
@@ -93,7 +93,6 @@ const Curators = () => {
                   <CTableHeaderCell style={{ width: '80px' }}>이름</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '220px' }}>페르소나</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '90px' }}>카테고리</CTableHeaderCell>
-                  <CTableHeaderCell>특성</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '150px' }}>태그</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '120px' }}>작업</CTableHeaderCell>
                 </CTableRow>
@@ -128,11 +127,6 @@ const Curators = () => {
                     </CTableDataCell>
                     <CTableDataCell>{curator.persona || '-'}</CTableDataCell>
                     <CTableDataCell>{curator.category || '-'}</CTableDataCell>
-                    <CTableDataCell>
-                      <div style={{ maxWidth: '300px', whiteSpace: 'pre-wrap' }}>
-                        {curator.introduction || '-'}
-                      </div>
-                    </CTableDataCell>
                     <CTableDataCell>{renderTags(curator.tags)}</CTableDataCell>
                     <CTableDataCell>
                       <CButton 
