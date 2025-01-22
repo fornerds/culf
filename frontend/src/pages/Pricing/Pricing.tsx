@@ -47,7 +47,7 @@ export function Pricing() {
       </h2>
 
       <div className={styles.section}>
-        <h3 className="font-card-title-2">구독 결제</h3>
+        <h3 className="font-card-title-2">스톤 구독 플랜</h3>
         {products?.subscription_plans.map((plan) => (
           <PriceCard
             key={plan.plan_id}
@@ -72,7 +72,7 @@ export function Pricing() {
 
       <div className={styles.section}>
         <div className={styles.tokenHeader}>
-          <h3 className="font-card-title-2">스톤 결제</h3>
+          <h3 className="font-card-title-2">스톤 패키지 구매</h3>
           <span className={styles.tokenCount}>보유 스톤 {remainingTokens}개</span>
         </div>
         <div className={styles.cardGrid}>
@@ -81,6 +81,7 @@ export function Pricing() {
               key={plan.token_plan_id}
               type="token"
               title={`스톤 ${plan.tokens}개`}
+              subtitle="한번만 결제되는 단건 구매 상품입니다."
               originalPrice={Number(plan.price)}
               finalPrice={Number(plan.discounted_price)}
               discountPercentage={Number(plan.discount_rate)}

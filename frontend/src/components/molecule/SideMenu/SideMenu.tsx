@@ -68,7 +68,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           {accessToken && (
             <section className={styles.tokenInfo}>
               <div className={styles.tokenRemainInfo}>
-                <h4 className="font-title-3">남은 스톤 개수</h4>
+                <h4 className="font-title-3">남은 스톤</h4>
                 <div className={styles.tokenRemainCount}>
                   <div className="font-title-2">{remainingTokens}</div>
                   <div className={styles.tokenRemainCountText}>개</div>
@@ -82,7 +82,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
                 className={`${styles.buyTokensButton} font-button-2`}
                 onClick={onClose}
               >
-                스톤 추가 결제
+                스톤 구매하기
               </Link>
             </section>
           )}

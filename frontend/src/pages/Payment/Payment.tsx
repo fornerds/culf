@@ -389,7 +389,7 @@ export function Payment() {
               <h2 className={`${styles.sectionTitle} font-card-title-1`}>
                 서비스 제공 기간
               </h2>
-              {type === 'subscription' ? <p className="font-text-4">매월 자동 결제 성공 시 즉시 지급</p> : <p className="font-text-4">상품 결제 시 즉시 지급</p>}
+              {type === 'subscription' ? <p className="font-text-4">매월 자동 결제 성공 즉시 다음 결제일까지 이용 가능</p> : <p className="font-text-4">상품 결제 시 즉시 지급</p>}
             </section>
           </div>
         </div>
