@@ -75,7 +75,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
                 </div>
               </div>
               <p className={styles.tokenDesc}>
-                큐레이터와 대화를 더 나누려면 '스톤'이 필요해요.
+                컬처 프렌즈와 대화를 더 나누려면 '스톤'이 필요해요.
               </p>
               <Link
                 to="/pricing"
