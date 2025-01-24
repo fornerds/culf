@@ -3,7 +3,6 @@ import styles from './Subscription.module.css';
 import { Button } from '@/components/atom';
 import { SubscriptionPlan } from '@/components/molecule/SubscriptionPlan';
 import { BillingListItem } from '@/components/molecule/BillingListItem';
-import { useCancelSubscription } from '@/state/server/paymentQueries';
 import { useUser } from '@/hooks/user/useUser';
 import { useState } from 'react';
 import { Popup } from '@/components/molecule/Popup';
@@ -11,17 +10,8 @@ import { Popup } from '@/components/molecule/Popup';
 export function Subscription() {
   const navigate = useNavigate();
   const { getUserInfo: { data: userInfo, isLoading, error }, updateUserInfo } = useUser();
-  const cancelSubscriptionMutation = useCancelSubscription();
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [nameValidation, setNameValidation] = useState<{ message: string; type: 'error' | 'success' }>();
-
-  const handleCancelSubscription = async () => {
-    try {
-      navigate('/mypage/payment');
-    } catch (error) {
-      console.error('Failed to cancel subscription:', error);
-    }
-  };
 
   const handleUpdateUserInfo = async (formData: { name: string; email: string }) => {
     try {
@@ -47,10 +37,7 @@ export function Subscription() {
 
   return (
     <main className={styles.main}>
-      <SubscriptionPlan 
-        subscription={userInfo?.subscription}
-        onCancelSubscription={handleCancelSubscription}
-      />
+      <SubscriptionPlan subscription={userInfo?.subscription} />
       
       <section>
         <div className={styles.sectionTitle}>

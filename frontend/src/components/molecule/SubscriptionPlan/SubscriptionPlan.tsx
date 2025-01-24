@@ -1,8 +1,6 @@
 import { Tag } from '@/components/atom/Tag';
 import styles from './SubscriptionPlan.module.css';
-import { useNavigate } from 'react-router-dom';
-import { getPaymentImage } from '@/utils/getPaymentImage';
-import { Button } from '@/components/atom';
+import { Link } from '@/components/atom';
 
 interface SubscriptionPlanProps {
   subscription?: {
@@ -15,11 +13,9 @@ interface SubscriptionPlanProps {
     subscriptions_method: string;
     status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
   };
-  onCancelSubscription?: () => void;
 }
 
-export function SubscriptionPlan({ subscription, onCancelSubscription }: SubscriptionPlanProps) {
-  const navigate = useNavigate();
+export function SubscriptionPlan({ subscription }: SubscriptionPlanProps) {
 
   const convertToKoreanDate = (dateString: string) => {
     const [year, month, day] = dateString.split('-');
@@ -39,12 +35,12 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
               : '현재 활성화된 구독이 없습니다.'
             }
           </p>
-          <Button 
-            size="size3" 
-            onClick={() => navigate('/pricing')}
+          <Link 
+            to="/pricing"
+            className={`${styles.button} ${styles.size3}`}
           >
             구독 시작하기
-          </Button>
+          </Link>
         </div>
       </section>
     );
@@ -72,20 +68,20 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
         </div>
       </div>
       <div className={styles.sectionBottom}>
-        {onCancelSubscription && (
-          <button 
+        {
+          <Link 
+            to="/mypage/payment"
             className={styles.textButton}
-            onClick={onCancelSubscription}
           >
             구독 취소
-          </button>
-        )}
-        <Button 
-          size="size4" 
-          onClick={() => navigate("/pricing")}
+          </Link>
+        }
+        <Link 
+          to="/pricing" 
+          className={`${styles.button} ${styles.size4}`}
         >
           플랜 변경
-        </Button>
+        </Link>
       </div>
     </section>
   );
