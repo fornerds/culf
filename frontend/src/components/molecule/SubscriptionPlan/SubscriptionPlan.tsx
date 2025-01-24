@@ -1,6 +1,8 @@
 import { Tag } from '@/components/atom/Tag';
 import styles from './SubscriptionPlan.module.css';
-import { Link } from '@/components/atom';
+import { useNavigate } from 'react-router-dom';
+
+import { Button, Link } from '@/components/atom';
 
 interface SubscriptionPlanProps {
   subscription?: {
@@ -16,6 +18,7 @@ interface SubscriptionPlanProps {
 }
 
 export function SubscriptionPlan({ subscription }: SubscriptionPlanProps) {
+  const navigate = useNavigate();
 
   const convertToKoreanDate = (dateString: string) => {
     const [year, month, day] = dateString.split('-');
@@ -35,12 +38,12 @@ export function SubscriptionPlan({ subscription }: SubscriptionPlanProps) {
               : '현재 활성화된 구독이 없습니다.'
             }
           </p>
-          <Link 
-            to="/pricing"
-            className={`${styles.button} ${styles.size3}`}
+          <Button 
+            size="size3" 
+            onClick={() => navigate('/pricing')}
           >
             구독 시작하기
-          </Link>
+          </Button>
         </div>
       </section>
     );
@@ -70,18 +73,18 @@ export function SubscriptionPlan({ subscription }: SubscriptionPlanProps) {
       <div className={styles.sectionBottom}>
         {
           <Link 
-            to="/mypage/payment"
+            to="/payment"
             className={styles.textButton}
           >
             구독 취소
           </Link>
         }
-        <Link 
-          to="/pricing" 
-          className={`${styles.button} ${styles.size4}`}
+        <Button 
+          size="size4" 
+          onClick={() => navigate("/pricing")}
         >
           플랜 변경
-        </Link>
+        </Button>
       </div>
     </section>
   );
