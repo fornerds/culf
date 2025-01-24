@@ -72,12 +72,13 @@ export function SubscriptionPlan({ subscription }: SubscriptionPlanProps) {
       </div>
       <div className={styles.sectionBottom}>
         {
-          <Link 
-            to="/payment"
+          <Button
             className={styles.textButton}
+            onClick={() => navigate("/payment")}
+            variant="none"
           >
             구독 취소
-          </Link>
+          </Button>
         }
         <Button 
           size="size4" 

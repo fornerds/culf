@@ -8,7 +8,8 @@ export type ButtonVariant =
   | 'plus_icon'
   | 'less-highlight'
   | 'warning'
-  | 'disable';
+  | 'disable'
+  | 'none';
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
