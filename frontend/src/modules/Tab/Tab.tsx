@@ -10,11 +10,14 @@ interface TabItem {
 interface TabProps {
   tabs: TabItem[];
   defaultActiveTab?: string;
+  activeTab?: string;
   onClickTab?: (tabId: string) => void;
 }
 
-export function Tab({ tabs, defaultActiveTab, onClickTab }: TabProps) {
-  const [activeTab, setActiveTab] = useState(defaultActiveTab || tabs[0].id);
+export function Tab({ tabs, defaultActiveTab, activeTab, onClickTab }: TabProps) {
+  const [internalActiveTab, setInternalActiveTab] = useState(defaultActiveTab || tabs[0].id);
+  
+  const currentTab = activeTab || internalActiveTab;
 
   return (
     <div className={styles.tabContainer}>
@@ -22,18 +25,15 @@ export function Tab({ tabs, defaultActiveTab, onClickTab }: TabProps) {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            className={`font-tag-1 ${styles.tabButton} ${activeTab === tab.id ? styles.active : ''}`}
+            className={`font-tag-1 ${styles.tabButton} ${currentTab === tab.id ? styles.active : ''}`}
             onClick={() => {
-              setActiveTab(tab.id);
-              onClickTab && onClickTab(tab.id);
+              setInternalActiveTab(tab.id);
+              onClickTab?.(tab.id);
             }}
           >
             {tab.label}
           </button>
         ))}
-      </div>
-      <div className={styles.tabContent}>
-        {tabs.find((tab) => tab.id === activeTab)?.content}
       </div>
     </div>
   );
