@@ -15,9 +15,10 @@ interface SubscriptionPlanProps {
     subscriptions_method: string;
     status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
   };
+  onCancelSubscription?: () => void;
 }
 
-export function SubscriptionPlan({ subscription }: SubscriptionPlanProps) {
+export function SubscriptionPlan({ subscription, onCancelSubscription }: SubscriptionPlanProps) {
   const navigate = useNavigate();
 
   const convertToKoreanDate = (dateString: string) => {
@@ -71,15 +72,14 @@ export function SubscriptionPlan({ subscription }: SubscriptionPlanProps) {
         </div>
       </div>
       <div className={styles.sectionBottom}>
-        {
-          <Button
+        {onCancelSubscription && (
+          <button 
             className={styles.textButton}
-            onClick={() => navigate("/payment")}
-            variant="none"
+            onClick={onCancelSubscription}
           >
             구독 취소
-          </Button>
-        }
+          </button>
+        )}
         <Button 
           size="size4" 
           onClick={() => navigate("/pricing")}
