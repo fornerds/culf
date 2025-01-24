@@ -1,5 +1,4 @@
 from fastapi import HTTPException, status
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import extract, or_
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
@@ -17,7 +16,6 @@ from app.domains.token.models import Token, TokenPlan
 from app.domains.user.models import User
 from app.domains.subscription.models import SubscriptionPlan, UserSubscription
 from app.domains.inquiry.models import Inquiry
-from app.domains.inquiry import schemas as inquiry_schemas
 from app.core.config import settings
 
 
@@ -46,53 +44,30 @@ def get_me_payments(db: Session, user_id: int, page: int = 1, limit: int = 10, y
 
     return query.offset(offset).limit(limit).all()
 
-def cancel_payment_with_inquiry(db: Session, payment_id: UUID, user_id: UUID, inquiry_data: inquiry_schemas.InquiryCreate):
-    payment = db.query(Payment).filter(
-        Payment.payment_id == payment_id,
-        Payment.user_id == user_id,
-    ).first()
-
-    if not payment:
-        return None
-
+def create_refund(db: Session, payment: Payment, user_id, inquiry: Inquiry, content: str) -> Refund:
+    """
+    환불(Refund) 테이블에 데이터를 생성하고, 생성된 환불 객체를 반환합니다.
+    """
     try:
-        inquiry = Inquiry(
-            user_id=user_id,
-            type="PAYMENT",
-            title=inquiry_data.title,
-            email=inquiry_data.email,
-            contact=inquiry_data.contact,
-            content=inquiry_data.content,
-            attachments=jsonable_encoder(inquiry_data.attachments) if inquiry_data.attachments else None,
-            status="PENDING",
-            created_at=datetime.now(),
-        )
-        db.add(inquiry)
-        db.commit()
-        db.refresh(inquiry)
-
-        # 환불 데이터 생성
-        refund = Refund(
+        db_refund = Refund(
             payment_id=payment.payment_id,
             user_id=user_id,
             inquiry_id=inquiry.inquiry_id,
             amount=payment.amount,
-            reason=inquiry_data.content,
+            content=content,
             status="PENDING",
-            created_at=datetime.now(),
         )
-        db.add(refund)
+        db.add(db_refund)
         db.commit()
-        db.refresh(refund)
+        db.refresh(db_refund)
+        return db_refund
 
-        return {"inquiry": inquiry, "refund": refund}
     except Exception as e:
         db.rollback()
-        raise ValueError(f"Failed to create payment cancellation inquiry: {str(e)}")
+        raise ValueError(f"Failed to create refund: {str(e)}")
 
 def get_refund_detail(db: Session, refund_id: int):
     return db.query(Refund).filter(Refund.refund_id == refund_id).first()
-
 
 def get_coupons(
         db: Session,
