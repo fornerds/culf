@@ -1,10 +1,15 @@
 from sqlalchemy.orm import Session
 import json
-from . import models, schemas
+from . import models
+from app.core.config import settings
+from app.utils.s3_client import upload_file_to_s3
+from app.utils.cloudfront_utils import get_cloudfront_url
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
+from fastapi import HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
+import uuid
 
 
 def _process_attachments(attachments):
@@ -21,6 +26,39 @@ def _process_attachments(attachments):
             return None
     return attachments
 
+def process_attachments(attachments: Optional[List[UploadFile]]) -> List[str]:
+    """
+    첨부 파일 검증 및 S3 업로드 후 URL 리스트를 반환합니다.
+    첨부 파일이 없는 경우 빈 리스트를 반환합니다.
+    """
+    if not attachments:
+        return []
+
+    allowed_content_types = {"image/jpeg", "image/jpg", "image/png", "image/gif"}
+    attachment_urls = []
+
+    if attachments:
+        for file in attachments:
+            # 파일 형식 검증
+            content_type = file.content_type.lower()
+            if content_type not in allowed_content_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "invalid_file_type",
+                        "message": f"지원하지 않는 파일 형식입니다. ({file.filename})"
+                    }
+                )
+
+            # S3 업로드
+            file_extension = file.filename.split('.')[-1].lower()
+            object_name = f"inquiries/{uuid.uuid4()}.{file_extension}"
+
+            if upload_file_to_s3(file.file, settings.S3_BUCKET_NAME, object_name):
+                file_url = get_cloudfront_url(object_name)
+                attachment_urls.append(file_url)
+
+    return attachment_urls
 
 def create_inquiry(db: Session, inquiry_data: dict):
     """문의사항 생성"""
