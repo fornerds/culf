@@ -17,8 +17,7 @@ export function Subscription() {
 
   const handleCancelSubscription = async () => {
     try {
-      await cancelSubscriptionMutation.mutateAsync();
-      navigate('/pricing');
+      navigate('/mypage/payment');
     } catch (error) {
       console.error('Failed to cancel subscription:', error);
     }
