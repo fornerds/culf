@@ -76,6 +76,12 @@
   cursor: not-allowed;
 }
 
+.none {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-sub, #767676);
+}
+
 /* Specific size overrides */
 .size1 {
   width: 100%;
