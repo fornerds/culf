@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Form, File, UploadFile, Request
 from fastapi.responses import RedirectResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -7,20 +7,17 @@ from typing import List, Optional, Union
 from datetime import datetime
 import logging
 from uuid import UUID
-import uuid
 import json
 
 from app.domains.user.models import User
 from app.domains.user import schemas as user_schemas
+from app.domains.inquiry import services as inquiry_services
 from app.domains.payment.models import Payment
 from app.domains.payment import schemas, services, portone_services
 from app.domains.payment.services import PaymentService
-from app.domains.inquiry import schemas as inquiry_schemas
 from app.db.session import get_db
 from app.core.deps import get_current_active_user
 from app.core.config import settings
-from app.utils.s3_client import upload_file_to_s3
-from app.utils.cloudfront_utils import get_cloudfront_url
 
 logger = logging.getLogger("app")
 
@@ -33,7 +30,7 @@ async def get_all_products(db: Session = Depends(get_db)):
     products = services.get_all_products(db)
     return {
         "subscription_plans": [schemas.SubscriptionPlanSchema.from_orm(plan) for plan in
-                               products["subscription_plans"]],
+                products["subscription_plans"]],
         "token_plans": [schemas.TokenPlanSchema.from_orm(plan) for plan in products["token_plans"]]
     }
 
@@ -82,91 +79,58 @@ async def get_payment_detail(
 @router.post("/users/me/payments/{payment_id}/cancel", response_model=schemas.PaycancelResponse)
 async def cancel_payment(
         payment_id: UUID,
-        title: str = Form(..., description="문의 제목"),
-        email: str = Form(..., description="연락받을 이메일"),
-        contact: str = Form(..., description="연락처"),
-        content: str = Form(..., description="문의 내용"),
-        attachments: List[UploadFile] = File(None, description="첨부파일 (선택)"),
+        title: str = Form(...),
+        email: str = Form(...),
+        contact: str = Form(...),
+        content: str = Form(...),
+        attachments: List[UploadFile] = File(None),
         db: Session = Depends(get_db),
         current_user: user_schemas.User = Depends(get_current_active_user),
 ):
+    """결제 취소 및 문의 사항 생성 API"""
     try:
-        logging.info("Starting cancellation process")
-
-        # 파일 크기 및 형식 검증
-        if attachments:
-            logging.info(f"Validating {len(attachments)} attachments")
-            for file in attachments:
-                if file.size > 10 * 1024 * 1024:  # 10MB 제한
-                    logging.error(f"File too large: {file.filename}")
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error": "file_too_large",
-                            "message": f"파일 크기는 10MB를 초과할 수 없습니다. ({file.filename})"
-                        }
-                    )
-
-                content_type = file.content_type.lower()
-                if content_type not in ["image/jpeg", "image/jpg", "image/png", "image/gif"]:
-                    logging.error(f"Invalid file type: {file.filename}")
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error": "invalid_file_type",
-                            "message": f"지원하지 않는 파일 형식입니다. ({file.filename})"
-                        }
-                    )
-
         # 첨부파일 처리
-        attachment_info = []
-        if attachments:
-            logging.info("Processing attachments")
-            for file in attachments:
-                file_extension = file.filename.split('.')[-1].lower()
-                object_name = f"inquiries/{uuid.uuid4()}.{file_extension}"
+        attachment_urls = inquiry_services.process_attachments(attachments)
 
-                if upload_file_to_s3(file.file, settings.S3_BUCKET_NAME, object_name):
-                    image_url = get_cloudfront_url(object_name)
-                    attachment_info.append({
-                        "file_name": file.filename,
-                        "file_type": file.content_type,
-                        "file_url": image_url
-                    })
-
-        # 문의사항 데이터 생성
-        inquiry_data = inquiry_schemas.InquiryCreate(
-            title=title,
-            email=email,
-            contact=contact,
-            content=content,
-            attachments={"files": attachment_info} if attachment_info else None,
-        )
-
-        # 결제 취소 및 문의 생성
-        result = services.cancel_payment_with_inquiry(db, payment_id, current_user.user_id, inquiry_data)
-
-        if not result:
+        # 결제 정보 확인
+        payment = db.query(Payment).filter(
+            Payment.payment_id == payment_id,
+            Payment.user_id == current_user.user_id
+        ).first()
+        if not payment:
             logging.error("Payment not found")
             raise HTTPException(status_code=404, detail="Payment not found.")
 
-        logging.info(f"Response data: {{'inquiry_id': {result['inquiry'].inquiry_id}, 'refund_id': {result['refund'].refund_id}}}")
+        # 문의사항 데이터 생성
+        inquiry_data = {
+            "title": title,
+            "email": email,
+            "contact": contact,
+            "content": content,
+            "attachments": attachment_urls if attachment_urls else None
+        }
+
+        # 문의사항 저장
+        inquiry = inquiry_services.create_inquiry(db, inquiry_data)
+
+        # 환불 데이터 생성
+        refund = services.create_refund(db, payment, current_user.user_id, inquiry, content)
 
         return {
-            "inquiry_id": result["inquiry"].inquiry_id,
-            "refund_id": result["refund"].refund_id,
+            "inquiry_id": inquiry.inquiry_id,
+            "refund_id": refund.refund_id,
             "payment_number": str(payment_id),
-            "status": "CANCELLATION_REQUESTED",
-            "message": "환불 요청과 문의가 성공적으로 접수되었습니다.",
+            "status": "PENDING",
+            "message": "환불 요청과 문의가 접수되었습니다. 답변은 입력하신 이메일로 발송됩니다."
         }
 
     except Exception as e:
-        logging.error(f"Unexpected error: {str(e)}")
+        logging.error(f"Inquiry creation error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
-                "error": "payment_cancellation_failed",
-                "message": "결제 취소 요청에 실패했습니다. 잠시 후 다시 시도해주세요.",
+                "error": "inquiry_submission_failed",
+                "message": "문의 접수에 실패했습니다. 잠시 후 다시 시도해주세요."
             }
         )
 
