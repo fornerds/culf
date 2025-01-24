@@ -65,7 +65,7 @@ async def get_me_payments(
 
 @router.get("/users/me/payments/{payment_id}", response_model=schemas.PaymentResponse)
 async def get_payment_detail(
-        payment_id: int,
+        payment_id: UUID,
         db: Session = Depends(get_db),
         current_user=Depends(get_current_active_user)
 ):
