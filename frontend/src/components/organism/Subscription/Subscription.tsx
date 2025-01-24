@@ -13,6 +13,14 @@ export function Subscription() {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [nameValidation, setNameValidation] = useState<{ message: string; type: 'error' | 'success' }>();
 
+  const handleCancelSubscription = async () => {
+    try {
+      navigate('/mypage/payment', { replace: true });
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+    }
+  };
+
   const handleUpdateUserInfo = async (formData: { name: string; email: string }) => {
     try {
       if (!formData.name.trim()) {
@@ -37,7 +45,10 @@ export function Subscription() {
 
   return (
     <main className={styles.main}>
-      <SubscriptionPlan subscription={userInfo?.subscription} />
+      <SubscriptionPlan 
+        subscription={userInfo?.subscription}
+        onCancelSubscription={handleCancelSubscription}
+      />
       
       <section>
         <div className={styles.sectionTitle}>

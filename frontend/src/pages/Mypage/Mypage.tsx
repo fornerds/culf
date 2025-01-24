@@ -4,6 +4,7 @@ import { Tab } from '@/modules';
 import { Account, Subscription, PaymentHistory } from '@/components/organism';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useUser } from '@/hooks/user/useUser';
+import { useEffect } from 'react';
 
 export function Mypage() {
   const { tab } = useParams();
@@ -14,6 +15,12 @@ export function Mypage() {
     getUserInfo: { data: userInfo, isLoading: isUserLoading },
     getTokenInfo: { data: tokenInfo, isLoading: isTokenLoading }
   } = useUser();
+
+  useEffect(() => {
+    if (tab) {
+      navigate(`/mypage/${tab}`, { replace: true });
+    }
+  }, [tab]);
 
   const tabs = [
     {
