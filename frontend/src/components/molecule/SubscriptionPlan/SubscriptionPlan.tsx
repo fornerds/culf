@@ -1,8 +1,8 @@
 import { Tag } from '@/components/atom/Tag';
 import styles from './SubscriptionPlan.module.css';
 import { useNavigate } from 'react-router-dom';
-import { getPaymentImage } from '@/utils/getPaymentImage';
-import { Button } from '@/components/atom';
+
+import { Button, Link } from '@/components/atom';
 
 interface SubscriptionPlanProps {
   subscription?: {
@@ -12,6 +12,7 @@ interface SubscriptionPlanProps {
     price: string;
     start_date: string;
     next_billing_date: string;
+    subscriptions_method: string;
     status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
   };
   onCancelSubscription?: () => void;
@@ -68,16 +69,6 @@ export function SubscriptionPlan({ subscription, onCancelSubscription }: Subscri
             다음 결제일은 {convertToKoreanDate(subscription.next_billing_date)}
             입니다.
           </div>
-        </div>
-        <div className={styles.paymentInfo}>
-          <img
-            src={getPaymentImage("card")}
-            alt="현재 구독 결제 정보"
-            className={styles.paymentImage}
-          />
-          <span className={`${styles.textSub} font-tag-2`}>
-            {subscription.subscription_id}
-          </span>
         </div>
       </div>
       <div className={styles.sectionBottom}>

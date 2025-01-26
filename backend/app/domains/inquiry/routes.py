@@ -5,12 +5,8 @@ from datetime import datetime
 from app.db.session import get_db
 from app.core.deps import get_current_active_user, get_current_admin_user
 from app.domains.user import schemas as user_schemas
-from app.utils.s3_client import upload_file_to_s3
-from app.utils.cloudfront_utils import get_cloudfront_url
-from app.core.config import settings
 from . import schemas, services
 import logging
-import uuid
 
 router = APIRouter()
 
@@ -27,27 +23,7 @@ async def create_inquiry(
     """문의사항 생성 API"""
     try:
         # 첨부파일 처리
-        attachment_urls = []
-        if attachments:
-            for file in attachments:
-                # 파일 형식 검증
-                content_type = file.content_type.lower()
-                if content_type not in ["image/jpeg", "image/jpg", "image/png", "image/gif"]:
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error": "invalid_file_type",
-                            "message": f"지원하지 않는 파일 형식입니다. ({file.filename})"
-                        }
-                    )
-
-                # S3에 업로드
-                file_extension = file.filename.split('.')[-1].lower()
-                object_name = f"inquiries/{uuid.uuid4()}.{file_extension}"
-
-                if upload_file_to_s3(file.file, settings.S3_BUCKET_NAME, object_name):
-                    file_url = get_cloudfront_url(object_name)
-                    attachment_urls.append(file_url)
+        attachment_urls = services.process_attachments(attachments)
 
         # 문의사항 데이터 생성
         inquiry_data = {
@@ -63,7 +39,7 @@ async def create_inquiry(
 
         return {
             "inquiry_id": inquiry.inquiry_id,
-            "status": "PENDING",
+            "status": inquiry.status,
             "message": "문의가 접수되었습니다. 답변은 입력하신 이메일로 발송됩니다."
         }
 

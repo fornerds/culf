@@ -209,10 +209,8 @@ class PaymentAdminResponse(BaseModel):
 class AdminRefundResponse(BaseModel):
     refund_id: int
     payment_id: UUID
-    user_id: UUID
-    inquiry_id: int
     amount: float
-    reason: str
+    reason: Optional[str]
     status: str
     processed_at: Optional[datetime]
     created_at: datetime
@@ -233,9 +231,9 @@ class RefundResponse(BaseModel):
         orm_mode = True
         from_attributes = True
 
-class PaymentListResponse(BaseModel):
+class AdminPaymentListResponse(BaseModel):
     payment_id: UUID
-    user_nickname: str
+    user_nickname: Optional[str]
     product_name: Optional[str]  # 상품 정보가 필요하면 추가
     amount: float
     payment_method: str
@@ -259,7 +257,7 @@ class InquiryResponse(BaseModel):
     class Config:
         orm_mode = True
 
-class PaymentDetailResponse(BaseModel):
+class AdminPaymentDetailResponse(BaseModel):
     payment_id: UUID
     payment_number: str
     amount: float
