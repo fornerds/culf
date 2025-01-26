@@ -379,11 +379,10 @@ def get_admin_payments(
                 product_name = subscription.subscription_plan.plan_name
 
         payments.append(
-            payment_schemas.PaymentListResponse(
+            payment_schemas.AdminPaymentListResponse(
                 payment_id=payment.payment_id,
                 user_nickname=user_nickname,
                 product_name=product_name,
-                payment_number=payment_number,
                 amount=payment.amount,
                 payment_method=payment.payment_method,
                 status=payment.status,
