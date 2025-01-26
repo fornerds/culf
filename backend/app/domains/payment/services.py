@@ -45,11 +45,10 @@ def get_me_payments(db: Session, user_id: UUID, page: int = 1, limit: int = 10, 
     return query.offset(offset).limit(limit).all()
 
 
-def get_payment_detail(db: Session, payment_id: UUID, user_id : UUID):
+def get_payment_detail(db: Session, payment_id: UUID):
     payment = (
         db.query(Payment)
-        .filter(Payment.payment_id == payment_id,
-                Payment.user_id == user_id)
+        .filter(Payment.payment_id == payment_id)
         .options(
             joinedload(Payment.refunds),
             joinedload(Payment.user),
@@ -101,8 +100,7 @@ def get_payment_detail(db: Session, payment_id: UUID, user_id : UUID):
         "inquiries": inquiries,
     }
 
-
-def create_refund(db: Session, payment: Payment, user_id : UUID, inquiry: Inquiry, content: str):
+def create_refund(db: Session, payment: Payment, user_id : UUID, inquiry: Inquiry):
     """
     환불(Refund) 테이블에 데이터를 생성하고, 생성된 환불 객체를 반환합니다.
     """
@@ -320,7 +318,7 @@ def get_admin_payments(
     limit: int,
     sort: str,
     status: Optional[str] = None
-) -> List[payment_schemas.PaymentListResponse]:
+) -> List[payment_schemas.AdminPaymentListResponse]:
     query_builder = db.query(
         Payment,
         User.nickname.label("user_nickname"),
@@ -396,6 +394,68 @@ def get_admin_payments(
 
     # 헤더에 전체 개수를 포함하여 반환
     return payments, total_count
+
+def get_admin_payment_detail(db: Session, payment_id: UUID):
+    """
+    결제 상세 조회 서비스
+    - 결제 내역, 환불 내역, 문의 내역 포함
+    """
+    # 결제 정보 조회 (환불 정보 및 사용자 정보 포함)
+    payment = (
+        db.query(Payment)
+        .filter(Payment.payment_id == payment_id)
+        .options(
+            joinedload(Payment.refunds),  # 환불 정보 로드
+            joinedload(Payment.user),    # 사용자 정보 로드
+        )
+        .first()
+    )
+
+    if not payment:
+        return None
+
+    # 환불 정보 처리
+    refund = None
+    inquiries = []
+    if payment.refunds:  # 환불 내역이 존재하면 첫 번째 항목 사용
+        refund_obj = payment.refunds[0]
+        if refund_obj:
+            refund = {
+                "refund_id": refund_obj.refund_id,
+                "payment_id": refund_obj.payment_id,
+                "amount": refund_obj.amount,
+                "reason": refund_obj.reason,
+                "status": refund_obj.status,
+                "processed_at": refund_obj.processed_at,
+                "created_at": refund_obj.created_at,
+            }
+
+            # 환불과 관련된 문의사항 조회
+            inquiry = db.query(Inquiry).filter(Inquiry.inquiry_id == refund_obj.inquiry_id).first()
+            if inquiry:
+                inquiries.append({
+                    "inquiry_id": inquiry.inquiry_id,
+                    "type": inquiry.type,
+                    "title": inquiry.title,
+                    "email": inquiry.email,
+                    "contact": inquiry.contact,
+                    "content": inquiry.content,
+                    "status": inquiry.status,
+                    "created_at": inquiry.created_at,
+                })
+
+    # 결제 상세 정보 반환
+    return {
+        "payment_id": payment.payment_id,
+        "payment_number": payment.payment_number,
+        "amount": payment.amount,
+        "status": payment.status,
+        "payment_date": payment.payment_date,
+        "payment_method": payment.payment_method,
+        "user_nickname": payment.user.nickname if payment.user else None,
+        "refund": refund,
+        "inquiries": inquiries,
+    }
 
 # 쿠폰 사용 관련 서비스 코드
 def create_coupon(db: Session, coupon_data: payment_schemas.CouponCreate):
