@@ -235,7 +235,6 @@ class AdminPaymentListResponse(BaseModel):
     payment_id: UUID
     user_nickname: Optional[str]
     product_name: Optional[str]  # 상품 정보가 필요하면 추가
-    payment_number: str
     amount: float
     payment_method: str
     status: str
