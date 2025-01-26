@@ -16,7 +16,7 @@ from app.domains.payment.models import Payment
 from app.domains.payment import schemas, services, portone_services
 from app.domains.payment.services import PaymentService
 from app.db.session import get_db
-from app.core.deps import get_current_active_user
+from app.core.deps import get_current_active_user, get_current_admin_user
 from app.core.config import settings
 
 logger = logging.getLogger("app")
@@ -69,8 +69,7 @@ async def get_payment_detail(
         db: Session = Depends(get_db),
         current_user=Depends(get_current_active_user)
 ):
-    user_id = current_user.user_id
-    payment = services.get_payment_detail(db, payment_id, user_id)
+    payment = services.get_payment_detail(db, payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
     return payment
@@ -114,7 +113,7 @@ async def cancel_payment(
         inquiry = inquiry_services.create_inquiry(db, inquiry_data)
 
         # 환불 데이터 생성
-        refund = services.create_refund(db, payment, current_user.user_id, inquiry, content)
+        refund = services.create_refund(db, payment, current_user.user_id, inquiry)
 
         return {
             "inquiry_id": inquiry.inquiry_id,
@@ -343,7 +342,7 @@ async def change_subscription_method(
 
 
 # admin 관련 엔드 포인트
-@router.get("/admin/payments", response_model=List[schemas.PaymentListResponse])
+@router.get("/admin/payments", response_model=List[schemas.AdminPaymentListResponse])
 async def get_admin_payments(
     query: Optional[str] = Query(None, description="검색어 (결제번호, 닉네임)"),
     payment_method: Optional[str] = Query(None, description="결제 수단 (manual, kakaopay)"),
@@ -353,7 +352,8 @@ async def get_admin_payments(
     limit: int = Query(10, ge=1, le=100, description="페이지당 항목 수"),
     sort: str = Query("payment_date:desc", description="정렬 (field:asc|desc)"),
     status: Optional[str] = Query(None, description="결제 상태"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: user_schemas.User = Depends(get_current_admin_user)
 ):
     """
     결제 내역 조회 API
@@ -380,13 +380,17 @@ async def get_admin_payments(
         headers={"X-Total-Count": str(total_count)}
     )
 
-@router.get("/admin/payments/{payment_id}", response_model=schemas.PaymentDetailResponse)
-def get_payment_detail(payment_id: UUID, db: Session = Depends(get_db)):
+@router.get("/admin/payments/{payment_id}", response_model=schemas.AdminPaymentDetailResponse)
+def get_payment_detail(
+    payment_id: UUID, 
+    db: Session = Depends(get_db), 
+    current_user: user_schemas.User = Depends(get_current_admin_user)
+):
     """
     단일 결제 상세 조회 API
     - 결제 내역, 환불 내역, 문의 내역을 포함하여 반환
     """
-    payment = services.get_payment_detail(db, payment_id)
+    payment = services.get_admin_payment_detail(db, payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
     return payment
