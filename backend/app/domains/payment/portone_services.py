@@ -249,7 +249,6 @@ def save_payment_data(payment_info, payment_cache, db):
             status="SUCCESS",
         )
         db.add(payment_record)
-        process_tokens(payment_record, db)
 
     elif payment_cache.subscription_plan_id:
         subscription_plan = db.query(SubscriptionPlan).filter(
@@ -283,7 +282,7 @@ def save_payment_data(payment_info, payment_cache, db):
             subscription_id=subscription.subscription_id,
             payment_number=payment_info["imp_uid"],
             transaction_number=payment_info["pg_tid"],
-            tokens_purchased=subscription_plan.tokens_included if subscription_plan.tokens_included else None,
+            tokens_purchased=subscription_plan.tokens_included if subscription_plan.tokens_included else 0,
             amount=payment_info["amount"],
             payment_method=payment_cache.payment_method,
             used_coupon_id=payment_cache.coupon_id if payment_cache.coupon_id else None,
@@ -291,6 +290,8 @@ def save_payment_data(payment_info, payment_cache, db):
             status="SUCCESS",
         )
         db.add(payment_record)
+
+    process_tokens(payment_record, db)
 
     # 쿠폰 처리
     if payment_cache.coupon_id:
@@ -429,7 +430,8 @@ def issue_refund(inquiry_id: int, db: Session):
     token.total_tokens -= payment.tokens_purchased
     refund.status = "APPROVED"
     refund.processed_at = datetime.now()
-    refund.processed_by = None  # 관리자 정보 추가 예정
+    refund.processed_by = None  # 관리자 정보 추가 예정\
+    payment.status = "REFUNDED"
     db.commit()
 
     return {
