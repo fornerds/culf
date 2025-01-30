@@ -206,18 +206,6 @@ class PaymentAdminResponse(BaseModel):
     class Config:
         orm_mode = True
 
-class AdminRefundResponse(BaseModel):
-    refund_id: int
-    payment_id: UUID
-    amount: float
-    reason: Optional[str]
-    status: str
-    processed_at: Optional[datetime]
-    created_at: datetime
-
-    class Config:
-        orm_mode = True
-
 class RefundResponse(BaseModel):
     refund_id: int
     payment_id: UUID

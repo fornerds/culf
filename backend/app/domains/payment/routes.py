@@ -406,19 +406,18 @@ def create_manual_payment_route(payment: schemas.AdminPaymentCreate, db: Session
     new_payment = services.create_manual_payment(db, payment.dict())
     return new_payment
 
-@router.post("/admin/refunds/{inquiry_id}", response_model=schemas.AdminRefundResponse)
+@router.post("/admin/refunds/{inquiry_id}")
 def admin_process_refund(inquiry_id: int, db: Session = Depends(get_db)):
     """
     환불 요청 승인 및 처리
     """
     try:
         refund = portone_services.issue_refund(inquiry_id=inquiry_id, db=db)
-        return refund
+        return refund  # 그대로 반환 (schemas.AdminRefundResponse 강제 X)
     except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail="Unexpected error occurred.")
-
 
 # 쿠폰 관련 엔드포인트
 @router.get("/admin/coupons", response_model=List[schemas.CouponResponse])
