@@ -343,7 +343,7 @@ function AppRoutes() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename="/beta">
+      <BrowserRouter basename="/">
         <AppRoutes />
       </BrowserRouter>
     </QueryClientProvider>

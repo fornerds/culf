@@ -88,7 +88,7 @@ api.interceptors.response.use(
         
         // 현재 URL이 로그인 페이지나 홈페이지가 아닌 경우에만 리다이렉트
         if (!window.location.pathname.includes('/login') && window.location.pathname !== '/') {
-          window.location.href = '/beta/login';
+          window.location.href = '/login';
         }
       }
     }

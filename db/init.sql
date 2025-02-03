@@ -410,10 +410,10 @@ CREATE TABLE Banners (
 );
 
 -- 배너 데이터 추가가
-INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (1, 'https://d21y711itn1wuo.cloudfront.net/banners/41289fdb-9476-4e65-97b5-83050a9e5330.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:55:54.058594', '2025-01-10 14:55:54.058594');
-INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (2, 'https://d21y711itn1wuo.cloudfront.net/banners/4328f669-3066-47d9-bada-cc0247018d36.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:56:40.849256', '2025-01-10 14:56:40.849256');
-INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (3, 'https://d21y711itn1wuo.cloudfront.net/banners/7cf06406-305f-4088-a8d9-9b70add696cc.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:03.812885', '2025-01-10 14:57:03.812885');
-INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (4, 'https://d21y711itn1wuo.cloudfront.net/banners/da221356-16f8-4330-b9a6-970ebf960376.png', 'http://culf.ai/beta', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:23.905582', '2025-01-10 14:57:23.905582');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (1, 'https://d21y711itn1wuo.cloudfront.net/banners/41289fdb-9476-4e65-97b5-83050a9e5330.png', 'http://culf.ai', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:55:54.058594', '2025-01-10 14:55:54.058594');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (2, 'https://d21y711itn1wuo.cloudfront.net/banners/4328f669-3066-47d9-bada-cc0247018d36.png', 'http://culf.ai', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:56:40.849256', '2025-01-10 14:56:40.849256');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (3, 'https://d21y711itn1wuo.cloudfront.net/banners/7cf06406-305f-4088-a8d9-9b70add696cc.png', 'http://culf.ai', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:03.812885', '2025-01-10 14:57:03.812885');
+INSERT INTO Banners (banner_id, image_url, target_url, start_date, end_date, is_public, click_count, created_at, updated_at) VALUES (4, 'https://d21y711itn1wuo.cloudfront.net/banners/da221356-16f8-4330-b9a6-970ebf960376.png', 'http://culf.ai', '2025-01-01', '2030-12-10', true, 0, '2025-01-10 14:57:23.905582', '2025-01-10 14:57:23.905582');
 
 -- TermsAndConditions 테이블
 CREATE TABLE Terms_And_Conditions (

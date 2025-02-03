@@ -705,7 +705,7 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
       <SlideUpModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        navigationLink="/beta/pricing"
+        navigationLink="/pricing"
         title="가지고 있는 스톤을 모두 사용했어요"
         content="더 대화를 나누기 위해서는 스톤 추가 구입이 필요해요."
       />
