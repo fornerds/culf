@@ -202,6 +202,7 @@ const UserDetail = () => {
                       >
                         <option value="USER">일반사용자</option>
                         <option value="ADMIN">관리자</option>
+                        <option value="SUPERUSER">슈퍼유저</option>
                       </CFormSelect>
                       <CButton 
                         color="primary" 

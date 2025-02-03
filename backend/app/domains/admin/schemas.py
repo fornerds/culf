@@ -15,7 +15,7 @@ class AdminUserCreate(BaseModel):
     birthdate: date
     gender: str = Field(..., pattern='^(M|F|N)$')
     status: str = Field(..., pattern='^(ACTIVE|INACTIVE|BANNED)$')
-    role: str = Field(..., pattern='^(USER|ADMIN)$')
+    role: str = Field(..., pattern='^(USER|ADMIN|SUPERUSER)$')
 
     @validator('password_confirmation')
     def passwords_match(cls, v, values, **kwargs):

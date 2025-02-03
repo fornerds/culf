@@ -136,7 +136,12 @@ const UserList = () => {
   };
 
   const getRoleText = (role) => {
-    return role === 'ADMIN' ? '관리자' : '일반사용자';
+    const roleMap = {
+      'SUPERUSER': '슈퍼유저',
+      'ADMIN': '관리자',
+      'USER': '일반사용자'
+    };
+    return roleMap[role] || '일반사용자';
   };
 
   if (loading) {

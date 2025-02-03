@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Custom ENUM types
 CREATE TYPE gender_enum AS ENUM ('M', 'F', 'N');
 CREATE TYPE status_enum AS ENUM ('ACTIVE', 'INACTIVE', 'BANNED', 'WITHDRAWN');
-CREATE TYPE role_enum AS ENUM ('USER', 'ADMIN');
+CREATE TYPE role_enum AS ENUM ('USER', 'ADMIN', 'SUPERUSER');
 CREATE TYPE subscription_status AS ENUM ('ACTIVE', 'CANCELLED');
 CREATE TYPE payment_status AS ENUM ('SUCCESS', 'FAILED', 'CANCELLED', 'REFUNDED');
 CREATE TYPE refund_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
@@ -446,6 +446,37 @@ CREATE TABLE token_grants (
 -- 인덱스 생성
 CREATE INDEX idx_token_grants_user_id ON token_grants(user_id);
 CREATE INDEX idx_token_grants_created_at ON token_grants(created_at);
+
+-- Footer 정보를 저장할 테이블 생성
+CREATE TABLE footers (
+    footer_id SERIAL PRIMARY KEY,
+    company_name VARCHAR(100) NOT NULL,          -- 상호: 주식회사 버킷래블
+    ceo_name VARCHAR(50) NOT NULL,               -- 대표자: 명선아
+    business_number VARCHAR(20) NOT NULL,        -- 사업자등록번호: 577-88-01749
+    address TEXT NOT NULL,                       -- 주소: 서울시 중구 청계천로 40, 1305호
+    email VARCHAR(100) NOT NULL,                 -- 이메일: culf.help@gmail.com
+    customer_center_number VARCHAR(20) NOT NULL, -- 고객센터: 031-365-4520
+    is_active BOOLEAN DEFAULT TRUE,              -- 현재 활성화된 푸터 여부
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 초기 데이터 삽입
+INSERT INTO footers (
+    company_name,
+    ceo_name,
+    business_number,
+    address,
+    email,
+    customer_center_number
+) VALUES (
+    '주식회사 버킷래블',
+    '명선아',
+    '577-88-01749',
+    '서울시 중구 청계천로 40, 1305호',
+    'culf.help@gmail.com',
+    '031-365-4520'
+);
 
 -- user_id 컬럼 타입 변경
 ALTER TABLE users ALTER COLUMN "user_id" SET DATA TYPE uuid;

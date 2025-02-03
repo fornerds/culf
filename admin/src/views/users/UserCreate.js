@@ -359,6 +359,7 @@ const UserCreate = () => {
                 >
                   <option value="USER">일반 사용자</option>
                   <option value="ADMIN">관리자</option>
+                  <option value="SUPERUSER">슈퍼유저</option>
                 </CFormSelect>
               </div>
 

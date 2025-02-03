@@ -20,7 +20,7 @@ class User(Base):
     deleted_at = Column(DateTime(timezone=True))
     last_login_at = Column(DateTime(timezone=True))
     status = Column(Enum('ACTIVE', 'INACTIVE', 'BANNED', 'WITHDRAWN', name='user_status_enum'), nullable=False, default='ACTIVE')
-    role = Column(Enum('USER', 'ADMIN', name='user_role_enum'), nullable=False, default='USER')
+    role = Column(Enum('USER', 'ADMIN', 'SUPERUSER', name='user_role_enum'), nullable=False, default='USER')
     delete_reason = Column(Text)
     marketing_agreed = Column(Boolean, nullable=False, default=False)
     is_corporate = Column(Boolean, nullable=False, default=False)

@@ -79,6 +79,16 @@ const SystemSettings = () => {
   const [tokenGrantsSearch, setTokenGrantsSearch] = useState('');
   const [tempTokenGrantsSearch, setTempTokenGrantsSearch] = useState('');
 
+  const [footerData, setFooterData] = useState({
+    company_name: '',
+    ceo_name: '',
+    business_number: '',
+    address: '',
+    email: '',
+    customer_center_number: '',
+  });
+  const [footerHistory, setFooterHistory] = useState([]);
+
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -103,6 +113,12 @@ const SystemSettings = () => {
     }
   }, [activeTab, tokenGrantsPage, tokenGrantsSearch]);
 
+  useEffect(() => {
+    if (activeTab === 'footer') {
+      fetchFooterData();
+    }
+  }, [activeTab]);
+  
   const searchUsers = async (email) => {
     if (!email) {
       setSearchResults([]);
@@ -311,6 +327,34 @@ const SystemSettings = () => {
     }
   };
 
+  // 푸터 관련 함수
+const fetchFooterData = async () => {
+  try {
+    const response = await httpClient.get('/footer');
+    setFooterData(response.data);
+    const historyResponse = await httpClient.get('/admin/footer/history');
+    setFooterHistory(historyResponse.data);
+  } catch (error) {
+    console.error('Error fetching footer data:', error);
+    setMessage({ type: 'danger', content: '푸터 정보를 불러오는데 실패했습니다.' });
+  }
+};
+
+const handleFooterSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  try {
+    await httpClient.post('/admin/footer', footerData);
+    setMessage({ type: 'success', content: '푸터 정보가 성공적으로 저장되었습니다.' });
+    await fetchFooterData();
+  } catch (error) {
+    console.error('Error updating footer:', error);
+    setMessage({ type: 'danger', content: '푸터 정보 저장에 실패했습니다.' });
+  } finally {
+    setLoading(false);
+  }
+};
+
   return (
     <CRow>
       <CCol xs={12}>
@@ -367,6 +411,18 @@ const SystemSettings = () => {
                   style={{ cursor: 'pointer' }}
                 >
                   쿠폰 관리
+                </CNavLink>
+              </CNavItem>
+              <CNavItem>
+                <CNavLink
+                  active={activeTab === 'footer'}
+                  onClick={() => {
+                    setActiveTab('footer');
+                    setMessage({ type: '', content: '' });
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  푸터 관리
                 </CNavLink>
               </CNavItem>
             </CNav>
@@ -922,6 +978,110 @@ const SystemSettings = () => {
               </>
             )}
 
+            {/* 푸터 관리 탭 */}
+            {activeTab === 'footer' && (
+              <>
+                <CForm onSubmit={handleFooterSubmit}>
+                  <CRow>
+                    <CCol md={6}>
+                      <CFormLabel>회사명</CFormLabel>
+                      <CFormInput
+                        value={footerData.company_name}
+                        onChange={(e) => setFooterData({ ...footerData, company_name: e.target.value })}
+                        required
+                        className="mb-3"
+                      />
+                    </CCol>
+                    <CCol md={6}>
+                      <CFormLabel>대표자명</CFormLabel>
+                      <CFormInput
+                        value={footerData.ceo_name}
+                        onChange={(e) => setFooterData({ ...footerData, ceo_name: e.target.value })}
+                        required
+                        className="mb-3"
+                      />
+                    </CCol>
+                  </CRow>
+
+                  <CRow>
+                    <CCol md={6}>
+                      <CFormLabel>사업자등록번호</CFormLabel>
+                      <CFormInput
+                        value={footerData.business_number}
+                        onChange={(e) => setFooterData({ ...footerData, business_number: e.target.value })}
+                        required
+                        className="mb-3"
+                      />
+                    </CCol>
+                    <CCol md={6}>
+                      <CFormLabel>고객센터 번호</CFormLabel>
+                      <CFormInput
+                        value={footerData.customer_center_number}
+                        onChange={(e) => setFooterData({ ...footerData, customer_center_number: e.target.value })}
+                        required
+                        className="mb-3"
+                        placeholder="02-1234-5678"
+                      />
+                    </CCol>
+                  </CRow>
+
+                  <CFormLabel>주소</CFormLabel>
+                  <CFormInput
+                    value={footerData.address}
+                    onChange={(e) => setFooterData({ ...footerData, address: e.target.value })}
+                    required
+                    className="mb-3"
+                  />
+
+                  <CFormLabel>이메일</CFormLabel>
+                  <CFormInput
+                    type="email"
+                    value={footerData.email}
+                    onChange={(e) => setFooterData({ ...footerData, email: e.target.value })}
+                    required
+                    className="mb-3"
+                  />
+
+                  <CButton type="submit" color="primary">
+                    {loading ? <CSpinner size="sm" /> : '저장'}
+                  </CButton>
+                </CForm>
+
+                {footerHistory.length > 0 && (
+                  <>
+                    <h4 className="mt-4 mb-3">변경 이력</h4>
+                    <CTable hover>
+                      <CTableHead>
+                        <CTableRow>
+                          <CTableHeaderCell>변경일시</CTableHeaderCell>
+                          <CTableHeaderCell>회사명</CTableHeaderCell>
+                          <CTableHeaderCell>대표자명</CTableHeaderCell>
+                          <CTableHeaderCell>고객센터 번호</CTableHeaderCell>
+                          <CTableHeaderCell>상태</CTableHeaderCell>
+                        </CTableRow>
+                      </CTableHead>
+                      <CTableBody>
+                        {footerHistory.map((footer) => (
+                          <CTableRow key={footer.footer_id}>
+                            <CTableDataCell>
+                              {format(new Date(footer.created_at), 'yyyy-MM-dd HH:mm:ss')}
+                            </CTableDataCell>
+                            <CTableDataCell>{footer.company_name}</CTableDataCell>
+                            <CTableDataCell>{footer.ceo_name}</CTableDataCell>
+                            <CTableDataCell>{footer.customer_center_number}</CTableDataCell>
+                            <CTableDataCell>
+                              <CBadge color={footer.is_active ? 'success' : 'secondary'}>
+                                {footer.is_active ? '사용중' : '이전 버전'}
+                              </CBadge>
+                            </CTableDataCell>
+                          </CTableRow>
+                        ))}
+                      </CTableBody>
+                    </CTable>
+                  </>
+                )}
+              </>
+            )}
           </CCardBody>
         </CCard>
       </CCol>

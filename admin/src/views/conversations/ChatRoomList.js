@@ -53,7 +53,7 @@ const ChatRoomList = () => {
     const averageTokens = validRooms.length > 0
       ? validRooms.reduce((sum, room) => sum + parseFloat(room.average_tokens_per_conversation), 0) / validRooms.length
       : 0;
-    
+
     const totalTokens = rooms.reduce((sum, room) => sum + (room.total_tokens_used || 0), 0);
 
     setTokenStats({
@@ -70,7 +70,7 @@ const ChatRoomList = () => {
       if (searchQuery) {
         url += `&search_query=${encodeURIComponent(searchQuery)}`;
       }
-      
+
       const { data } = await httpClient.get(url);
       setChatRooms(data.chat_rooms);
       setTotalCount(data.total_count || 0);
@@ -102,22 +102,23 @@ const ChatRoomList = () => {
     setLoading(true);
     try {
       const allChatRooms = await fetchAllChatRooms();
-      
+
       const exportData = allChatRooms.map(room => ({
         '사용자': room.user_name,
         '캐릭터': room.curator_name,
         '캐릭터 태그': room.curator_tags?.join(', ') || '',
         '시작 시간': new Date(room.created_at).toLocaleString(),
-        '마지막 메시지': room.last_message,
+        '대화 요약': room.title || '요약 없음',
         '마지막 채팅 시간': new Date(room.last_message_time).toLocaleString(),
         '메시지 수': room.message_count,
         '총 토큰 사용량': room.total_tokens_used?.toLocaleString() || '0',
-        '평균 토큰 사용량': room.average_tokens_per_conversation?.toFixed(1) || '0'
+        '평균 토큰 사용량': room.average_tokens_per_conversation?.toFixed(1) || '0',
+        '상태': room.is_active ? '활성' : '삭제됨'
       }));
-  
+
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
-  
+
       const wscols = [
         { wch: 15 }, // 사용자
         { wch: 15 }, // 캐릭터
@@ -130,7 +131,7 @@ const ChatRoomList = () => {
         { wch: 15 }  // 평균 스톤 사용량
       ];
       ws['!cols'] = wscols;
-  
+
       XLSX.utils.book_append_sheet(wb, ws, '채팅방목록');
       const fileName = `채팅방목록_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -168,7 +169,7 @@ const ChatRoomList = () => {
         <CCard className="mb-4">
           <CCardHeader className="d-flex justify-content-between align-items-center">
             <strong>채팅방 목록</strong>
-            <CButton 
+            <CButton
               color="primary"
               size="sm"
               onClick={handleExportExcel}
@@ -188,7 +189,7 @@ const ChatRoomList = () => {
                   onKeyPress={handleKeyPress}
                   style={{ maxWidth: '200px' }}
                 />
-                <CButton 
+                <CButton
                   color="primary"
                   onClick={handleSearch}
                 >
@@ -204,7 +205,7 @@ const ChatRoomList = () => {
                   <CTableHeaderCell style={{ width: '7%' }}>캐릭터</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '12%' }}>캐릭터 태그</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '13%' }}>시작 시간</CTableHeaderCell>
-                  <CTableHeaderCell style={{ width: '20%' }}>마지막 메시지</CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '20%' }}>대화 요약</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '13%' }}>마지막 채팅 시간</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '7%' }}>메시지 수</CTableHeaderCell>
                   <CTableHeaderCell style={{ width: '9%' }}>
@@ -217,12 +218,13 @@ const ChatRoomList = () => {
                       <span>총 토큰</span>
                     </CTooltip>
                   </CTableHeaderCell>
+                  <CTableHeaderCell style={{ width: '7%' }}>상태</CTableHeaderCell>
                 </CTableRow>
               </CTableHead>
               <CTableBody>
                 {chatRooms.map((room) => (
-                  <CTableRow 
-                    key={room.room_id} 
+                  <CTableRow
+                    key={room.room_id}
                     onClick={() => navigate(`/conversations/${room.room_id}`)}
                     style={{ cursor: 'pointer' }}
                   >
@@ -231,9 +233,9 @@ const ChatRoomList = () => {
                     <CTableDataCell>
                       <div className="d-flex gap-1 flex-wrap">
                         {room.curator_tags?.map((tag, index) => (
-                          <CBadge 
-                            key={index} 
-                            color="info" 
+                          <CBadge
+                            key={index}
+                            color="info"
                             className="text-white"
                             style={{ fontSize: '0.8rem' }}
                           >
@@ -246,9 +248,7 @@ const ChatRoomList = () => {
                       {new Date(room.created_at).toLocaleString()}
                     </CTableDataCell>
                     <CTableDataCell>
-                      {room.last_message && room.last_message.length > 30
-                        ? `${room.last_message.substring(0, 30)}...`
-                        : room.last_message}
+                      {room.title || '제목 없음'}
                     </CTableDataCell>
                     <CTableDataCell>
                       {new Date(room.last_message_time).toLocaleString()}
@@ -257,13 +257,18 @@ const ChatRoomList = () => {
                       {room.message_count}
                     </CTableDataCell>
                     <CTableDataCell>
-                      {room.average_tokens_per_conversation 
+                      {room.average_tokens_per_conversation
                         ? room.average_tokens_per_conversation.toFixed(1)
                         : '-'
                       }
                     </CTableDataCell>
                     <CTableDataCell>
                       {room.total_tokens_used?.toLocaleString() || '-'}
+                    </CTableDataCell>
+                    <CTableDataCell>
+                      <CBadge color={room.is_active ? 'danger' : 'success'}>
+                        {room.is_active ? '삭제됨' : '활성'}
+                      </CBadge>
                     </CTableDataCell>
                   </CTableRow>
                 ))}

@@ -128,7 +128,7 @@ def is_active(user: schemas.User) -> bool:
     return user.status == 'ACTIVE'
 
 def is_superuser(user: schemas.User) -> bool:
-    return user.role == 'ADMIN'
+    return user.role == 'SUPERUSER'
 
 
 def get_user_by_provider_id(db: Session, provider: str, provider_id: str) -> Optional[models.User]:

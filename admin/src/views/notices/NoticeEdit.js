@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import ReactQuill from 'react-quill'
+import 'react-quill/dist/quill.snow.css'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   CCard,
@@ -125,6 +127,28 @@ const NoticeEdit = () => {
     )
   }
 
+  // Quill 에디터 설정
+  const modules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'align': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  }
+
+  const formats = [
+    'header',
+    'bold', 'italic', 'underline', 'strike',
+    'list', 'bullet',
+    'color', 'background',
+    'align',
+    'link', 'image'
+  ]
+
   return (
     <CRow>
       <CCol xs={12}>
@@ -146,11 +170,13 @@ const NoticeEdit = () => {
 
               <div className="mb-3">
                 <CFormLabel>내용</CFormLabel>
-                <CFormTextarea
-                  rows={10}
+                <ReactQuill
+                  theme="snow"
                   value={formData.content}
-                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  required
+                  onChange={(value) => setFormData({ ...formData, content: value })}
+                  modules={modules}
+                  formats={formats}
+                  style={{ height: '400px', marginBottom: '50px' }}
                 />
               </div>
 

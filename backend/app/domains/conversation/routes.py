@@ -39,6 +39,7 @@ router = APIRouter()
 
 # OpenAI 클라이언트 초기화
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
+logging.info(settings.OPENAI_API_KEY)
 
 # 로그 설정
 logging.basicConfig(level=logging.INFO)
@@ -360,15 +361,17 @@ async def create_chat(
     """
     logging.info(f"사용자 {current_user.user_id}의 채팅 생성 시작")
 
-    user_tokens = token_services.get_user_tokens(db, current_user.user_id)
-    if user_tokens.total_tokens < CHAT_TOKEN_COST:  # 잔여 토큰이 채팅 비용보다 적은지 확인
-        raise HTTPException(
-            status_code=402,
-            detail={
-                "error": "not_enough_tokens",
-                "message": "스톤이 부족합니다. 스톤을 충전해주세요."
-            }
-        )
+    # 슈퍼유저와 관리자는 토큰 체크 제외
+    if current_user.role not in ['SUPERUSER', 'ADMIN']:
+        user_tokens = token_services.get_user_tokens(db, current_user.user_id)
+        if user_tokens.total_tokens < CHAT_TOKEN_COST:  # 잔여 토큰이 채팅 비용보다 적은지 확인
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "not_enough_tokens",
+                    "message": "스톤이 부족합니다. 스톤을 충전해주세요."
+                }
+            )
 
     try:
         # room_id가 주어진 경우 채팅방 정보 확인
@@ -640,7 +643,8 @@ async def create_chat(
         )
 
         # 토큰 사용량 업데이트
-        token_services.use_tokens(db, current_user.user_id, CHAT_TOKEN_COST)
+        if current_user.role not in ['SUPERUSER', 'ADMIN']:
+            token_services.use_tokens(db, current_user.user_id, CHAT_TOKEN_COST)
 
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,
@@ -1137,6 +1141,7 @@ async def get_chat_rooms(
                 "curator_tags": historic_tags.tag_names if historic_tags and isinstance(historic_tags.tag_names,
                                                                                         list) else
                 json.loads(historic_tags.tag_names) if historic_tags else [],
+                "title": room.title,
                 "last_message": last_conversation.question if last_conversation else None,
                 "last_message_time": (
                     last_conversation.answer_time or last_conversation.question_time
@@ -1315,3 +1320,24 @@ async def get_admin_conversations(
             status_code=500,
             detail="대화 목록 조회 중 오류가 발생했습니다."
         )
+
+
+@router.delete("/chat-rooms/{room_id}")
+async def delete_chat_room(
+        room_id: UUID,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """사용자가 자신의 채팅방을 비활성화(삭제) 처리합니다."""
+    chat_room = db.query(ChatRoom).filter(
+        ChatRoom.room_id == room_id,
+        ChatRoom.user_id == current_user.user_id
+    ).first()
+
+    if not chat_room:
+        raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
+
+    chat_room.is_active = False  # is_deleted 대신 is_active 사용
+    db.commit()
+
+    return {"message": "채팅방이 삭제되었습니다"}

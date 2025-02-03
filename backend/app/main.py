@@ -19,6 +19,7 @@ from app.domains.auth import routes as auth_routes
 from app.domains.admin import routes as admin_routes
 from app.domains.subscription import routes as subscription_routes
 from app.domains.payment import routes as payment_routes
+from app.domains.footer import routes as footer_routes
 from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 from fastapi.security import OAuth2
 import logging
@@ -114,6 +115,7 @@ app.include_router(inquiry_routes.router, prefix=f"{settings.API_V1_STR}", tags=
 app.include_router(payment_routes.router, prefix=f"{settings.API_V1_STR}", tags=["payment"])
 app.include_router(subscription_routes.router, prefix=f"{settings.API_V1_STR}", tags=["subscription"])
 app.include_router(admin_routes.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
+app.include_router(footer_routes.router, prefix=f"{settings.API_V1_STR}", tags=["footer"])
 
 @app.get("/")
 def read_root():

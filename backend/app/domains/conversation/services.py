@@ -47,8 +47,12 @@ def create_conversation(
     # 답변 요약 생성 (첫 50글자)
     answer_summary = extract_summary_from_answer(answer)
 
+    # 사용자 권한 확인
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    is_privileged_user = user.role in ['SUPERUSER', 'ADMIN']
+
     # 채팅방 스톤 통계 업데이트
-    if chat.room_id:
+    if chat.room_id and not is_privileged_user:
         chat_room = db.query(models.ChatRoom).filter(models.ChatRoom.room_id == chat.room_id).first()
         if chat_room:
             chat_room.update_token_stats(tokens_used)
