@@ -249,7 +249,6 @@ def save_payment_data(payment_info, payment_cache, db):
             status="SUCCESS",
         )
         db.add(payment_record)
-        process_tokens(payment_record, db)
 
     elif payment_cache.subscription_plan_id:
         subscription_plan = db.query(SubscriptionPlan).filter(
@@ -283,7 +282,7 @@ def save_payment_data(payment_info, payment_cache, db):
             subscription_id=subscription.subscription_id,
             payment_number=payment_info["imp_uid"],
             transaction_number=payment_info["pg_tid"],
-            tokens_purchased=subscription_plan.tokens_included if subscription_plan.tokens_included else None,
+            tokens_purchased=subscription_plan.tokens_included if subscription_plan.tokens_included else 0,
             amount=payment_info["amount"],
             payment_method=payment_cache.payment_method,
             used_coupon_id=payment_cache.coupon_id if payment_cache.coupon_id else None,
@@ -291,6 +290,8 @@ def save_payment_data(payment_info, payment_cache, db):
             status="SUCCESS",
         )
         db.add(payment_record)
+
+    process_tokens(payment_record, db)
 
     # 쿠폰 처리
     if payment_cache.coupon_id:
@@ -398,17 +399,27 @@ def issue_refund(inquiry_id: int, db: Session):
     token = db.query(Token).filter(Token.user_id == payment.user_id).first()
     if not token or token.total_tokens < payment.tokens_purchased:
         raise HTTPException(status_code=400, detail="환불에 필요한 스톤이 부족합니다.")
-
+    
     # 포트원 REST API로 환불 요청
+    refund_payload = {
+        "imp_uid": payment.payment_number,
+        "reason": refund.reason,
+        "amount": 0,
+        "checksum": refund.amount
+    }
+
+    # 가상계좌 환불 정보 추가 (필요한 경우)
+    if payment.payment_method == "virtual_account":
+        refund_payload.update({
+            "refund_holder": refund.refund_holder,
+            "refund_bank": refund.refund_bank,
+            "refund_account": refund.refund_account
+        })
+
     response = requests.post(
         url="https://api.iamport.kr/payments/cancel",
         headers={"Authorization": f"Bearer {access_token}"},
-        json={
-            "imp_uid": payment.payment_number,
-            "reason": refund.reason,
-            "amount": 0,
-            "checksum": payment.amount
-        }
+        json=refund_payload
     )
 
     if response.status_code != 200 or response.json().get("code") != 0:
@@ -419,10 +430,14 @@ def issue_refund(inquiry_id: int, db: Session):
     token.total_tokens -= payment.tokens_purchased
     refund.status = "APPROVED"
     refund.processed_at = datetime.now()
-    refund.processed_by = None  # 관리자 정보 추가 예정
+    refund.processed_by = None  # 관리자 정보 추가 예정\
+    payment.status = "REFUNDED"
     db.commit()
 
-    return {"status": "success", "data": response.json().get("response")}
+    return {
+        "status": "success",
+        "data": response.json().get("response")
+    }
 
 def schedule_subscription_payment(subscription_id, db: Session):
     """

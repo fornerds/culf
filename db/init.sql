@@ -184,7 +184,7 @@ CREATE TABLE User_Subscriptions (
     start_date DATE NOT NULL,
     next_billing_date DATE NOT NULL,
     status subscription_status NOT NULL DEFAULT 'ACTIVE',
-    subscription_number VARCHAR(20) UNIQUE NULL,
+    subscription_number VARCHAR(50) UNIQUE NULL,
     subscriptions_method VARCHAR(50) NOT NULL
 );
 

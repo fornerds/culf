@@ -1,5 +1,4 @@
 from fastapi import HTTPException, status
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import extract, or_
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
@@ -17,7 +16,6 @@ from app.domains.token.models import Token, TokenPlan
 from app.domains.user.models import User
 from app.domains.subscription.models import SubscriptionPlan, UserSubscription
 from app.domains.inquiry.models import Inquiry
-from app.domains.inquiry import schemas as inquiry_schemas
 from app.core.config import settings
 
 
@@ -35,7 +33,7 @@ def get_product_by_id(db: Session, product_id: int, product_type: str):
         return db.query(TokenPlan).filter(TokenPlan.token_plan_id == product_id).first()
     return None
 
-def get_me_payments(db: Session, user_id: int, page: int = 1, limit: int = 10, year: int = None, month: int = None):
+def get_me_payments(db: Session, user_id: UUID, page: int = 1, limit: int = 10, year: int = None, month: int = None):
     offset = (page - 1) * limit
     query = db.query(Payment).filter(Payment.user_id == user_id)
 
@@ -46,53 +44,86 @@ def get_me_payments(db: Session, user_id: int, page: int = 1, limit: int = 10, y
 
     return query.offset(offset).limit(limit).all()
 
-def cancel_payment_with_inquiry(db: Session, payment_id: UUID, user_id: UUID, inquiry_data: inquiry_schemas.InquiryCreate):
-    payment = db.query(Payment).filter(
-        Payment.payment_id == payment_id,
-        Payment.user_id == user_id,
-    ).first()
+
+def get_payment_detail(db: Session, payment_id: UUID):
+    payment = (
+        db.query(Payment)
+        .filter(Payment.payment_id == payment_id)
+        .options(
+            joinedload(Payment.refunds),
+            joinedload(Payment.user),
+        )
+        .first()
+    )
 
     if not payment:
         return None
 
-    try:
-        inquiry = Inquiry(
-            user_id=user_id,
-            type="PAYMENT",
-            title=inquiry_data.title,
-            email=inquiry_data.email,
-            contact=inquiry_data.contact,
-            content=inquiry_data.content,
-            attachments=jsonable_encoder(inquiry_data.attachments) if inquiry_data.attachments else None,
-            status="PENDING",
-            created_at=datetime.now(),
-        )
-        db.add(inquiry)
-        db.commit()
-        db.refresh(inquiry)
+    refund = None
+    inquiries = []
+    if payment.refunds:  # 리스트로 반환되므로 첫 번째 항목 사용
+        refund_obj = payment.refunds[0] if payment.refunds else None
+        if refund_obj:
+            refund = {
+                "refund_id": refund_obj.refund_id,
+                "payment_id": refund_obj.payment_id,
+                "amount": refund_obj.amount,
+                "reason": refund_obj.reason,
+                "status": refund_obj.status,
+                "processed_at": refund_obj.processed_at,
+                "created_at": refund_obj.created_at,
+            }
 
-        # 환불 데이터 생성
-        refund = Refund(
+            # 관련 문의사항 조회
+            inquiry = db.query(Inquiry).filter(Inquiry.inquiry_id == refund_obj.inquiry_id).first()
+            if inquiry:
+                inquiries.append({
+                    "inquiry_id": inquiry.inquiry_id,
+                    "type": inquiry.type,
+                    "title": inquiry.title,
+                    "email": inquiry.email,
+                    "contact": inquiry.contact,
+                    "content": inquiry.content,
+                    "status": inquiry.status,
+                    "created_at": inquiry.created_at,
+                })
+
+    return {
+        "payment_id": payment.payment_id,
+        "payment_number": payment.payment_number,
+        "amount": payment.amount,
+        "status": payment.status,
+        "payment_date": payment.payment_date,
+        "payment_method": payment.payment_method,
+        "user_nickname": payment.user.nickname if payment.user else None,
+        "refund": refund,
+        "inquiries": inquiries,
+    }
+
+def create_refund(db: Session, payment: Payment, user_id : UUID, inquiry: Inquiry):
+    """
+    환불(Refund) 테이블에 데이터를 생성하고, 생성된 환불 객체를 반환합니다.
+    """
+    try:
+        db_refund = Refund(
             payment_id=payment.payment_id,
             user_id=user_id,
             inquiry_id=inquiry.inquiry_id,
             amount=payment.amount,
-            reason=inquiry_data.content,
+            reason=inquiry.content,
             status="PENDING",
-            created_at=datetime.now(),
         )
-        db.add(refund)
+        db.add(db_refund)
         db.commit()
-        db.refresh(refund)
+        db.refresh(db_refund)
+        return db_refund
 
-        return {"inquiry": inquiry, "refund": refund}
     except Exception as e:
         db.rollback()
-        raise ValueError(f"Failed to create payment cancellation inquiry: {str(e)}")
+        raise ValueError(f"Failed to create refund: {str(e)}")
 
 def get_refund_detail(db: Session, refund_id: int):
     return db.query(Refund).filter(Refund.refund_id == refund_id).first()
-
 
 def get_coupons(
         db: Session,
@@ -167,62 +198,6 @@ def validate_coupon(db: Session, coupon_code: str, user_id: str):
         "is_valid": True,
         "discount_value": discount_value,
         "message": "유효한 쿠폰입니다."
-    }
-
-
-def get_payment_detail(db: Session, payment_id: UUID):
-    payment = (
-        db.query(Payment)
-        .filter(Payment.payment_id == payment_id)
-        .options(
-            joinedload(Payment.refunds),
-            joinedload(Payment.user),
-        )
-        .first()
-    )
-
-    if not payment:
-        return None
-
-    refund = None
-    inquiries = []
-    if payment.refunds:  # 리스트로 반환되므로 첫 번째 항목 사용
-        refund_obj = payment.refunds[0] if payment.refunds else None
-        if refund_obj:
-            refund = {
-                "refund_id": refund_obj.refund_id,
-                "payment_id": refund_obj.payment_id,
-                "amount": refund_obj.amount,
-                "reason": refund_obj.reason,
-                "status": refund_obj.status,
-                "processed_at": refund_obj.processed_at,
-                "created_at": refund_obj.created_at,
-            }
-
-            # 관련 문의사항 조회
-            inquiry = db.query(Inquiry).filter(Inquiry.inquiry_id == refund_obj.inquiry_id).first()
-            if inquiry:
-                inquiries.append({
-                    "inquiry_id": inquiry.inquiry_id,
-                    "type": inquiry.type,
-                    "title": inquiry.title,
-                    "email": inquiry.email,
-                    "contact": inquiry.contact,
-                    "content": inquiry.content,
-                    "status": inquiry.status,
-                    "created_at": inquiry.created_at,
-                })
-
-    return {
-        "payment_id": payment.payment_id,
-        "payment_number": payment.payment_number,
-        "amount": payment.amount,
-        "status": payment.status,
-        "payment_date": payment.payment_date,
-        "payment_method": payment.payment_method,
-        "user_nickname": payment.user.nickname if payment.user else None,
-        "refund": refund,
-        "inquiries": inquiries,
     }
 
 
@@ -343,7 +318,7 @@ def get_admin_payments(
     limit: int,
     sort: str,
     status: Optional[str] = None
-) -> List[payment_schemas.PaymentListResponse]:
+) -> List[payment_schemas.AdminPaymentListResponse]:
     query_builder = db.query(
         Payment,
         User.nickname.label("user_nickname"),
@@ -404,11 +379,10 @@ def get_admin_payments(
                 product_name = subscription.subscription_plan.plan_name
 
         payments.append(
-            payment_schemas.PaymentListResponse(
+            payment_schemas.AdminPaymentListResponse(
                 payment_id=payment.payment_id,
                 user_nickname=user_nickname,
                 product_name=product_name,
-                payment_number=payment_number,
                 amount=payment.amount,
                 payment_method=payment.payment_method,
                 status=payment.status,
@@ -419,6 +393,68 @@ def get_admin_payments(
 
     # 헤더에 전체 개수를 포함하여 반환
     return payments, total_count
+
+def get_admin_payment_detail(db: Session, payment_id: UUID):
+    """
+    결제 상세 조회 서비스
+    - 결제 내역, 환불 내역, 문의 내역 포함
+    """
+    # 결제 정보 조회 (환불 정보 및 사용자 정보 포함)
+    payment = (
+        db.query(Payment)
+        .filter(Payment.payment_id == payment_id)
+        .options(
+            joinedload(Payment.refunds),  # 환불 정보 로드
+            joinedload(Payment.user),    # 사용자 정보 로드
+        )
+        .first()
+    )
+
+    if not payment:
+        return None
+
+    # 환불 정보 처리
+    refund = None
+    inquiries = []
+    if payment.refunds:  # 환불 내역이 존재하면 첫 번째 항목 사용
+        refund_obj = payment.refunds[0]
+        if refund_obj:
+            refund = {
+                "refund_id": refund_obj.refund_id,
+                "payment_id": refund_obj.payment_id,
+                "amount": refund_obj.amount,
+                "reason": refund_obj.reason,
+                "status": refund_obj.status,
+                "processed_at": refund_obj.processed_at,
+                "created_at": refund_obj.created_at,
+            }
+
+            # 환불과 관련된 문의사항 조회
+            inquiry = db.query(Inquiry).filter(Inquiry.inquiry_id == refund_obj.inquiry_id).first()
+            if inquiry:
+                inquiries.append({
+                    "inquiry_id": inquiry.inquiry_id,
+                    "type": inquiry.type,
+                    "title": inquiry.title,
+                    "email": inquiry.email,
+                    "contact": inquiry.contact,
+                    "content": inquiry.content,
+                    "status": inquiry.status,
+                    "created_at": inquiry.created_at,
+                })
+
+    # 결제 상세 정보 반환
+    return {
+        "payment_id": payment.payment_id,
+        "payment_number": payment.payment_number,
+        "amount": payment.amount,
+        "status": payment.status,
+        "payment_date": payment.payment_date,
+        "payment_method": payment.payment_method,
+        "user_nickname": payment.user.nickname if payment.user else None,
+        "refund": refund,
+        "inquiries": inquiries,
+    }
 
 # 쿠폰 사용 관련 서비스 코드
 def create_coupon(db: Session, coupon_data: payment_schemas.CouponCreate):

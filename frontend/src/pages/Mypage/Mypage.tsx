@@ -6,10 +6,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useUser } from '@/hooks/user/useUser';
 
 export function Mypage() {
-  const { tab } = useParams();
+  const { tab = 'account' } = useParams();
   const navigate = useNavigate();
   
-  // useUser 훅을 사용하여 사용자 정보와 스톤 정보 가져오기
   const { 
     getUserInfo: { data: userInfo, isLoading: isUserLoading },
     getTokenInfo: { data: tokenInfo, isLoading: isTokenLoading }
@@ -33,7 +32,6 @@ export function Mypage() {
     },
   ];
 
-  // 로딩 중일 때 표시할 내용
   if (isUserLoading || isTokenLoading) {
     return <div>Loading...</div>;
   }
@@ -54,9 +52,10 @@ export function Mypage() {
 
       <Tab
         tabs={tabs}
-        defaultActiveTab={tab}
+        activeTab={tab}
         onClickTab={(tabId) => navigate(`/mypage/${tabId}`, { replace: true })}
       />
+      {tabs.find(t => t.id === tab)?.content}
     </>
   );
 }
