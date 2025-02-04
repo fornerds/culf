@@ -7,7 +7,7 @@ from app.db.base_class import Base
 class Banner(Base):
     __tablename__ = "banners"
 
-    banner_id = Column(Integer, primary_key=True, index=True)
+    banner_id = Column(Integer, primary_key=True, autoincrement=True)
     image_url = Column(String, nullable=False)
     target_url = Column(String, nullable=True)
     start_date = Column(Date, nullable=False)
