@@ -5,6 +5,7 @@ from sqlalchemy.sql import func
 from app.db.base_class import Base
 import uuid
 
+
 class Token(Base):
     __tablename__ = "tokens"
 
@@ -12,8 +13,11 @@ class Token(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False, unique=True)
     total_tokens = Column(Integer, nullable=False, default=0)
     used_tokens = Column(Integer, nullable=False, default=0)
+    subscription_tokens = Column(Integer, nullable=False, default=0)  # 정기결제 토큰 수
+    onetime_tokens = Column(Integer, nullable=False, default=0)  # 단건결제 토큰 수
+    subscription_expires_at = Column(Date)  # 정기결제 토큰 만료일
+    onetime_expires_at = Column(Date)  # 단건결제 토큰 만료일
     last_charged_at = Column(DateTime(timezone=True))
-    expires_at = Column(Date)
 
     user = relationship("User", back_populates="tokens")
     usage_history = relationship("TokenUsageHistory", back_populates="token")

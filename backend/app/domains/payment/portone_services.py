@@ -209,23 +209,32 @@ def get_portone_payment_info(imp_uid, token):
 def process_tokens(payment, db):
     """토큰 처리"""
     token = db.query(Token).filter(Token.user_id == payment.user_id).first()
+    current_date = payment.payment_date
 
     if not token:
         token = Token(
             user_id=payment.user_id,
             total_tokens=payment.tokens_purchased,
             used_tokens=0,
-            last_charged_at=payment.payment_date,
-            expires_at=payment.payment_date + timedelta(days=365),
+            subscription_tokens=0,
+            onetime_tokens=0,
+            last_charged_at=current_date
         )
         db.add(token)
-        logger.info(f"사용자 ID: {payment.user_id}에 대한 새로운 토큰 항목이 생성되었습니다.")
-    else:
-        token.total_tokens += payment.tokens_purchased
-        token.last_charged_at = payment.payment_date
-        token.expires_at = payment.payment_date + timedelta(days=365)
-        logger.info(f"사용자 ID: {payment.user_id}에 대한 토큰 항목이 업데이트되었습니다.")
 
+    # 정기결제인 경우
+    if payment.subscription_id:
+        token.subscription_tokens += payment.tokens_purchased
+        token.subscription_expires_at = current_date + timedelta(days=30)
+        logger.info(f"정기결제 토큰 추가: {payment.tokens_purchased}")
+    # 단건결제인 경우
+    else:
+        token.onetime_tokens += payment.tokens_purchased
+        token.onetime_expires_at = current_date + timedelta(days=365*5)
+        logger.info(f"단건결제 토큰 추가: {payment.tokens_purchased}")
+
+    token.total_tokens += payment.tokens_purchased
+    token.last_charged_at = current_date
     db.commit()
 
 def save_payment_data(payment_info, payment_cache, db):
@@ -428,6 +437,10 @@ def issue_refund(inquiry_id: int, db: Session):
 
     # 환불 처리 성공 시 데이터베이스 업데이트
     token.total_tokens -= payment.tokens_purchased
+    if payment.subscription_id:
+        token.subscription_tokens -= payment.tokens_purchased
+    else:
+        token.onetime_tokens -= payment.tokens_purchased
     refund.status = "APPROVED"
     refund.processed_at = datetime.now()
     refund.processed_by = None  # 관리자 정보 추가 예정\

@@ -232,19 +232,23 @@ def create_manual_payment(db: Session, payment_data: dict) -> Payment:
 
         # 스톤 지급 처리
         token = db.query(Token).filter(Token.user_id == payment_data['user_id']).first()
+        current_date = datetime.now()
+
         if not token:
             token = Token(
                 user_id=payment_data['user_id'],
                 total_tokens=token_plan.tokens,
                 used_tokens=0,
-                last_charged_at=datetime.now(),
-                expires_at=datetime.now() + timedelta(days=365),
+                onetime_tokens=token_plan.tokens,  # 수동결제는 단건결제로 처리
+                onetime_expires_at=current_date + timedelta(days=365*5),  # 5년 만료
+                last_charged_at=current_date
             )
             db.add(token)
         else:
             token.total_tokens += token_plan.tokens
-            token.last_charged_at = datetime.now()
-            token.expires_at = datetime.now() + timedelta(days=365)
+            token.onetime_tokens += token_plan.tokens
+            token.onetime_expires_at = current_date + timedelta(days=365*5)
+            token.last_charged_at = current_date
 
     elif payment_data.get('subscription_id'):
         subscription_plan = db.query(SubscriptionPlan).filter(
@@ -263,6 +267,8 @@ def create_manual_payment(db: Session, payment_data: dict) -> Payment:
                 status_code=400,
                 detail="User already has an active subscription."
             )
+
+        current_date = datetime.now()
 
         # 새 구독 생성
         subscription = UserSubscription(
@@ -289,14 +295,16 @@ def create_manual_payment(db: Session, payment_data: dict) -> Payment:
                     user_id=payment_data['user_id'],
                     total_tokens=subscription_plan.tokens_included,
                     used_tokens=0,
-                    last_charged_at=datetime.now(),
-                    expires_at=datetime.now() + timedelta(days=365),
+                    subscription_tokens=subscription_plan.tokens_included,  # 정기결제 토큰으로 처리
+                    subscription_expires_at=current_date + timedelta(days=30),  # 1달 만료
+                    last_charged_at=current_date
                 )
                 db.add(token)
             else:
                 token.total_tokens += subscription_plan.tokens_included
-                token.last_charged_at = datetime.now()
-                token.expires_at = datetime.now() + timedelta(days=365)
+                token.subscription_tokens += subscription_plan.tokens_included
+                token.subscription_expires_at = current_date + timedelta(days=30)
+                token.last_charged_at = current_date
 
     try:
         db.add(payment)
@@ -695,23 +703,35 @@ class PaymentService:
         logger.info(f"Subscription updated for user_id: {payment.user_id}")
 
     def _process_tokens(self, payment: Payment, db: Session):
+        """토큰 처리"""
         token = db.query(Token).filter(Token.user_id == payment.user_id).first()
+        current_date = datetime.now()
 
         if not token:
             token = Token(
                 user_id=payment.user_id,
                 total_tokens=payment.tokens_purchased,
                 used_tokens=0,
-                last_charged_at=payment.payment_date,
-                expires_at=payment.payment_date + timedelta(days=365),
+                subscription_tokens=0,
+                onetime_tokens=0,
+                last_charged_at=current_date
             )
             db.add(token)
-            logger.info(f"New token entry created for user_id: {payment.user_id}")
+
+        # 정기결제인 경우
+        if payment.subscription_id:
+            token.subscription_tokens += payment.tokens_purchased
+            token.subscription_expires_at = current_date + timedelta(days=30)
+            logger.info(f"사용자 ID: {payment.user_id}에 대한 정기결제 토큰이 추가되었습니다.")
+        # 단건결제인 경우
         else:
-            token.total_tokens += payment.tokens_purchased
-            token.last_charged_at = payment.payment_date
-            token.expires_at = payment.payment_date + timedelta(days=365)
-            logger.info(f"Token entry updated for user_id: {payment.user_id}")
+            token.onetime_tokens += payment.tokens_purchased
+            token.onetime_expires_at = current_date + timedelta(days=365 * 5)
+            logger.info(f"사용자 ID: {payment.user_id}에 대한 단건결제 토큰이 추가되었습니다.")
+
+        # total_tokens도 함께 업데이트
+        token.total_tokens += payment.tokens_purchased
+        token.last_charged_at = current_date
 
         db.commit()
 
