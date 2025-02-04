@@ -118,7 +118,7 @@ const SystemSettings = () => {
       fetchFooterData();
     }
   }, [activeTab]);
-  
+
   const searchUsers = async (email) => {
     if (!email) {
       setSearchResults([]);
@@ -215,15 +215,38 @@ const SystemSettings = () => {
     }
   };
 
+  // 할인율 계산 함수
+  const calculateDiscountRate = (price, discountedPrice) => {
+    if (!price || !discountedPrice) return null;
+    const rate = ((price - discountedPrice) / price) * 100;
+    return parseFloat(rate.toFixed(1));
+  };
+
   // Products API Calls
   const fetchProducts = async () => {
     try {
       const response = await httpClient.get('/payments/products');
-      const sortedData = {
-        subscription_plans: [...response.data.subscription_plans].sort((a, b) => a.price - b.price),
-        token_plans: [...response.data.token_plans].sort((a, b) => a.price - b.price)
-      };
-      setProducts(sortedData);
+
+      // subscription_plans 정렬 및 할인율 계산
+      const subscription_plans = [...response.data.subscription_plans]
+        .sort((a, b) => a.price - b.price)
+        .map(plan => ({
+          ...plan,
+          calculatedDiscountRate: calculateDiscountRate(plan.price, plan.discounted_price)
+        }));
+
+      // token_plans 정렬 및 할인율 계산
+      const token_plans = [...response.data.token_plans]
+        .sort((a, b) => a.price - b.price)
+        .map(plan => ({
+          ...plan,
+          calculatedDiscountRate: calculateDiscountRate(plan.price, plan.discounted_price)
+        }));
+
+      setProducts({
+        subscription_plans,
+        token_plans
+      });
     } catch (error) {
       console.error('Error fetching products:', error);
     }
@@ -328,32 +351,32 @@ const SystemSettings = () => {
   };
 
   // 푸터 관련 함수
-const fetchFooterData = async () => {
-  try {
-    const response = await httpClient.get('/footer');
-    setFooterData(response.data);
-    const historyResponse = await httpClient.get('/admin/footer/history');
-    setFooterHistory(historyResponse.data);
-  } catch (error) {
-    console.error('Error fetching footer data:', error);
-    setMessage({ type: 'danger', content: '푸터 정보를 불러오는데 실패했습니다.' });
-  }
-};
+  const fetchFooterData = async () => {
+    try {
+      const response = await httpClient.get('/footer');
+      setFooterData(response.data);
+      const historyResponse = await httpClient.get('/admin/footer/history');
+      setFooterHistory(historyResponse.data);
+    } catch (error) {
+      console.error('Error fetching footer data:', error);
+      setMessage({ type: 'danger', content: '푸터 정보를 불러오는데 실패했습니다.' });
+    }
+  };
 
-const handleFooterSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  try {
-    await httpClient.post('/admin/footer', footerData);
-    setMessage({ type: 'success', content: '푸터 정보가 성공적으로 저장되었습니다.' });
-    await fetchFooterData();
-  } catch (error) {
-    console.error('Error updating footer:', error);
-    setMessage({ type: 'danger', content: '푸터 정보 저장에 실패했습니다.' });
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleFooterSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await httpClient.post('/admin/footer', footerData);
+      setMessage({ type: 'success', content: '푸터 정보가 성공적으로 저장되었습니다.' });
+      await fetchFooterData();
+    } catch (error) {
+      console.error('Error updating footer:', error);
+      setMessage({ type: 'danger', content: '푸터 정보 저장에 실패했습니다.' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <CRow>
@@ -630,6 +653,7 @@ const handleFooterSubmit = async (e) => {
                       <CTableHeaderCell>상품명</CTableHeaderCell>
                       <CTableHeaderCell>가격</CTableHeaderCell>
                       <CTableHeaderCell>할인가</CTableHeaderCell>
+                      <CTableHeaderCell>할인율</CTableHeaderCell>
                       <CTableHeaderCell>포함 스톤</CTableHeaderCell>
                       <CTableHeaderCell>프로모션</CTableHeaderCell>
                       <CTableHeaderCell>작업</CTableHeaderCell>
@@ -641,6 +665,7 @@ const handleFooterSubmit = async (e) => {
                         <CTableDataCell>{plan.plan_name}</CTableDataCell>
                         <CTableDataCell>{Math.floor(plan.price).toLocaleString()}원</CTableDataCell>
                         <CTableDataCell>{plan.discounted_price ? Math.floor(plan.discounted_price).toLocaleString() : '-'}원</CTableDataCell>
+                        <CTableDataCell>{plan.calculatedDiscountRate ? `${plan.calculatedDiscountRate}%` : '-'}</CTableDataCell>
                         <CTableDataCell>{plan.tokens_included}개</CTableDataCell>
                         <CTableDataCell>
                           <CBadge color={plan.is_promotion ? 'success' : 'secondary'}>
@@ -648,11 +673,7 @@ const handleFooterSubmit = async (e) => {
                           </CBadge>
                         </CTableDataCell>
                         <CTableDataCell>
-                          <CButton
-                            color="primary"
-                            size="sm"
-                            onClick={() => handleEdit(plan, 'subscription')}
-                          >
+                          <CButton color="primary" size="sm" onClick={() => handleEdit(plan, 'subscription')}>
                             수정
                           </CButton>
                         </CTableDataCell>
@@ -679,18 +700,14 @@ const handleFooterSubmit = async (e) => {
                         <CTableDataCell>{plan.tokens}개</CTableDataCell>
                         <CTableDataCell>{Math.floor(plan.price).toLocaleString()}원</CTableDataCell>
                         <CTableDataCell>{plan.discounted_price ? Math.floor(plan.discounted_price).toLocaleString() : '-'}원</CTableDataCell>
-                        <CTableDataCell>{plan.discount_rate}%</CTableDataCell>
+                        <CTableDataCell>{plan.calculatedDiscountRate ? `${plan.calculatedDiscountRate}%` : '-'}</CTableDataCell>
                         <CTableDataCell>
                           <CBadge color={plan.is_promotion ? 'success' : 'secondary'}>
                             {plan.is_promotion ? '진행중' : '종료'}
                           </CBadge>
                         </CTableDataCell>
                         <CTableDataCell>
-                          <CButton
-                            color="primary"
-                            size="sm"
-                            onClick={() => handleEdit(plan, 'token')}
-                          >
+                          <CButton color="primary" size="sm" onClick={() => handleEdit(plan, 'token')}>
                             수정
                           </CButton>
                         </CTableDataCell>
@@ -789,10 +806,21 @@ const handleFooterSubmit = async (e) => {
                           <CFormInput
                             type="number"
                             value={Math.floor(editingProduct.price)}
-                            onChange={(e) => setEditingProduct({
-                              ...editingProduct,
-                              price: parseInt(e.target.value)
-                            })}
+                            onChange={(e) => {
+                              const newPrice = parseInt(e.target.value);
+                              const discountedPrice = editingProduct.discounted_price;
+                              let discountRate = null;
+
+                              if (newPrice && discountedPrice) {
+                                discountRate = ((newPrice - discountedPrice) / newPrice) * 100;
+                              }
+
+                              setEditingProduct({
+                                ...editingProduct,
+                                price: newPrice,
+                                discount_rate: discountRate ? parseFloat(discountRate.toFixed(1)) : null
+                              });
+                            }}
                             required
                           />
                           <CInputGroupText>원</CInputGroupText>
@@ -804,34 +832,42 @@ const handleFooterSubmit = async (e) => {
                           <CFormInput
                             type="number"
                             value={editingProduct.discounted_price ? Math.floor(editingProduct.discounted_price) : ''}
-                            onChange={(e) => setEditingProduct({
-                              ...editingProduct,
-                              discounted_price: e.target.value ? parseInt(e.target.value) : null
-                            })}
+                            onChange={(e) => {
+                              const discountedPrice = e.target.value ? parseInt(e.target.value) : null;
+                              const price = editingProduct.price;
+                              let discountRate = null;
+
+                              if (price && discountedPrice) {
+                                discountRate = ((price - discountedPrice) / price) * 100;
+                              }
+
+                              setEditingProduct({
+                                ...editingProduct,
+                                discounted_price: discountedPrice,
+                                discount_rate: discountRate ? parseFloat(discountRate.toFixed(1)) : null
+                              });
+                            }}
                           />
                           <CInputGroupText>원</CInputGroupText>
                         </CInputGroup>
                       </CCol>
                     </CRow>
 
-                    {editingProductType === 'token' && (
-                      <CRow>
-                        <CCol md={6}>
-                          <CFormLabel>할인율</CFormLabel>
-                          <CInputGroup className="mb-3">
-                            <CFormInput
-                              type="number"
-                              value={editingProduct.discount_rate || ''}
-                              onChange={(e) => setEditingProduct({
-                                ...editingProduct,
-                                discount_rate: e.target.value ? parseFloat(e.target.value) : null
-                              })}
-                            />
-                            <CInputGroupText>%</CInputGroupText>
-                          </CInputGroup>
-                        </CCol>
-                      </CRow>
-                    )}
+                    <CRow>
+                      <CCol md={6}>
+                        <CFormLabel>할인율</CFormLabel>
+                        <CInputGroup className="mb-3">
+                          <CFormInput
+                            type="text"
+                            value={calculateDiscountRate(editingProduct?.price, editingProduct?.discounted_price)
+                              ? `${calculateDiscountRate(editingProduct.price, editingProduct.discounted_price)}%`
+                              : '-'}
+                            disabled
+                          />
+                          <CInputGroupText>%</CInputGroupText>
+                        </CInputGroup>
+                      </CCol>
+                    </CRow>
 
                     <CFormCheck
                       id="edit-promotion"

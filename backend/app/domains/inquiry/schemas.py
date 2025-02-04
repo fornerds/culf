@@ -42,6 +42,15 @@ class InquiryResponse(BaseModel):
             }
         }
 
+class UserInfo(BaseModel):
+    user_id: UUID
+    email: str
+    phone_number: Optional[str]
+    nickname: str
+
+    class Config:
+        from_attributes = True
+
 class InquiryDetail(BaseModel):
     inquiry_id: int
     user_id: Optional[UUID] = None
@@ -53,6 +62,7 @@ class InquiryDetail(BaseModel):
     attachments: Optional[List[str]] = None
     status: str
     created_at: datetime
+    user: Optional[UserInfo] = None
 
     class Config:
         from_attributes = True

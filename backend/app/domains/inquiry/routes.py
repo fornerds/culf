@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from app.db.session import get_db
-from app.core.deps import get_current_active_user, get_current_admin_user
+from app.core.deps import get_current_active_user, get_current_admin_user, get_current_user
 from app.domains.user import schemas as user_schemas
 from . import schemas, services
 import logging
@@ -18,6 +18,7 @@ async def create_inquiry(
         contact: str = Form(...),
         content: str = Form(...),
         attachments: List[UploadFile] = File(None),
+        current_user: Optional[user_schemas.User] = Depends(get_current_user),  # 현재 사용자 정보
         db: Session = Depends(get_db)
 ):
     """문의사항 생성 API"""
@@ -31,6 +32,7 @@ async def create_inquiry(
             "email": email,
             "contact": contact,
             "content": content,
+            "user_id": current_user.user_id if current_user else None,  # 로그인한 경우 user_id 저장
             "attachments": attachment_urls if attachment_urls else None
         }
 

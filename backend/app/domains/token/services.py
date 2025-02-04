@@ -52,8 +52,9 @@ def get_user_tokens(db: Session, user_id: UUID) -> schemas.TokenInfo:
 
 
 def use_tokens(db: Session, user_id: UUID, tokens: int) -> None:
-    """토큰 사용 처리 함수. total_tokens에서 사용한 토큰을 차감합니다."""
+    """토큰 사용 처리 함수"""
     user_tokens = db.query(models.Token).filter(models.Token.user_id == user_id).first()
+    current_date = datetime.now().date()
 
     if not user_tokens:
         raise HTTPException(
@@ -61,7 +62,31 @@ def use_tokens(db: Session, user_id: UUID, tokens: int) -> None:
             detail="Token information not found for this user"
         )
 
-    # 잔여 토큰이 충분한지 확인
+    # 사용 가능한 토큰 계산
+    available_subscription_tokens = (
+        user_tokens.subscription_tokens
+        if user_tokens.subscription_expires_at and user_tokens.subscription_expires_at >= current_date
+        else 0
+    )
+
+    available_onetime_tokens = (
+        user_tokens.onetime_tokens
+        if user_tokens.onetime_expires_at and user_tokens.onetime_expires_at >= current_date
+        else 0
+    )
+
+    # 만료된 토큰 정리
+    if user_tokens.subscription_expires_at and user_tokens.subscription_expires_at < current_date:
+        user_tokens.subscription_tokens = 0
+        user_tokens.subscription_expires_at = None
+
+    if user_tokens.onetime_expires_at and user_tokens.onetime_expires_at < current_date:
+        user_tokens.onetime_tokens = 0
+        user_tokens.onetime_expires_at = None
+
+    # total_tokens 업데이트
+    user_tokens.total_tokens = available_subscription_tokens + available_onetime_tokens
+
     if user_tokens.total_tokens < tokens:
         raise HTTPException(
             status_code=402,
@@ -72,19 +97,36 @@ def use_tokens(db: Session, user_id: UUID, tokens: int) -> None:
         )
 
     try:
-        # 잔여 토큰에서 차감
-        user_tokens.total_tokens -= tokens
-        # 누적 사용량 증가
-        user_tokens.used_tokens += tokens
+        # 정기결제 스톤 우선 사용
+        subscription_tokens_to_use = min(tokens, available_subscription_tokens)
+        if subscription_tokens_to_use > 0:
+            user_tokens.subscription_tokens -= subscription_tokens_to_use
+            # 사용 기록 추가
+            usage_history = models.TokenUsageHistory(
+                user_id=user_id,
+                conversation_id=None,
+                tokens_used=subscription_tokens_to_use,
+                token_type='subscription',
+                used_at=datetime.now()
+            )
+            db.add(usage_history)
+            tokens -= subscription_tokens_to_use
 
-        # 사용 기록 추가
-        usage_history = models.TokenUsageHistory(
-            user_id=user_id,
-            conversation_id=None,  # conversation_id는 필요한 경우 별도로 설정
-            tokens_used=tokens,
-            used_at=datetime.now()
-        )
-        db.add(usage_history)
+        # 남은 토큰은 단건결제 스톤에서 사용
+        if tokens > 0:
+            user_tokens.onetime_tokens -= tokens
+            usage_history = models.TokenUsageHistory(
+                user_id=user_id,
+                conversation_id=None,
+                tokens_used=tokens,
+                token_type='onetime',
+                used_at=datetime.now()
+            )
+            db.add(usage_history)
+
+        # 전체 토큰 수치 업데이트
+        user_tokens.total_tokens -= (subscription_tokens_to_use + tokens)
+        user_tokens.used_tokens += (subscription_tokens_to_use + tokens)
 
         db.commit()
     except Exception as e:

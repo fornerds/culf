@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from . import models, schemas
@@ -55,13 +55,15 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     if welcome_tokens_setting:
         welcome_tokens = int(welcome_tokens_setting.value)
         if welcome_tokens > 0:
+            current_date = datetime.now()
             # Token 레코드 생성
             token = Token(
                 user_id=db_user.user_id,
                 total_tokens=welcome_tokens,
                 used_tokens=0,
-                last_charged_at=func.now(),
-                expires_at=func.now() + timedelta(days=365)  # 1년 후 만료
+                onetime_tokens=welcome_tokens,  # 웰컴 토큰은 단건결제 토큰으로 처리
+                onetime_expires_at=current_date + timedelta(days=365*5),  # 5년 만료
+                last_charged_at=func.now()
             )
             db.add(token)
             db.commit()

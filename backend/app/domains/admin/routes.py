@@ -1,5 +1,6 @@
 import uuid
-
+from datetime import timedelta, datetime
+from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Query, Body
 from pydantic import HttpUrl
 from sqlalchemy import or_
@@ -8,9 +9,11 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.db.session import get_db
 from app.domains.admin import services, schemas
+from app.domains.admin.models import SystemSetting
 from app.domains.admin.schemas import NotificationResponse, NotificationCreate, NotificationListResponse, \
     WelcomeTokenResponse, WelcomeTokenUpdate, TokenGrantResponse, TokenGrantCreate, SubscriptionPlanUpdate, \
     TokenPlanUpdate
+from app.domains.token.models import Token
 from app.domains.user import services as user_services
 from app.domains.banner import schemas as banner_schemas
 from app.domains.banner import services as banner_services
@@ -175,6 +178,27 @@ async def create_user(
         db.commit()
         db.refresh(user)
 
+        # 가입 축하 스톤 지급 로직
+        welcome_tokens_setting = db.query(SystemSetting).filter(
+            SystemSetting.key == 'welcome_tokens'
+        ).first()
+
+        if welcome_tokens_setting:
+            welcome_tokens = int(welcome_tokens_setting.value)
+            if welcome_tokens > 0:
+                current_date = datetime.now()
+                # Token 레코드 생성
+                token = Token(
+                    user_id=user.user_id,
+                    total_tokens=welcome_tokens,
+                    used_tokens=0,
+                    onetime_tokens=welcome_tokens,  # 웰컴 토큰은 단건결제 토큰으로 처리
+                    onetime_expires_at=current_date + timedelta(days=365*5),  # 5년 만료
+                    last_charged_at=func.now()
+                )
+                db.add(token)
+                db.commit()
+
         return user
 
     except HTTPException as e:
@@ -186,6 +210,7 @@ async def create_user(
             status_code=500,
             detail="내부 서버 오류가 발생했습니다."
         )
+
 @router.get("/users/{user_id}")
 async def get_user_detail(
     user_id: str,
