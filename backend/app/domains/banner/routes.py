@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 from app.db.session import get_db
-from app.core.deps import get_current_user, get_current_active_superuser
+from app.core.deps import get_current_user, get_current_admin_user
 from app.domains.user.models import User
 from . import schemas, services
 
@@ -20,7 +20,7 @@ async def get_all_banners(
     limit: int = 100,
     is_public: Optional[bool] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """전체 배너 목록을 조회합니다. (관리자용)"""
     return services.get_banners(db, skip=skip, limit=limit, is_public=is_public)
@@ -33,7 +33,7 @@ async def create_banner(
     end_date: date = Form(..., description="종료일 (YYYY-MM-DD)"),
     is_public: bool = Form(True, description="공개 여부"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """배너를 생성합니다."""
     banner_data = schemas.BannerCreate(
@@ -48,7 +48,7 @@ async def create_banner(
 async def get_banner(
     banner_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """특정 배너를 조회합니다."""
     banner = services.get_banner(db, banner_id=banner_id)
@@ -65,7 +65,7 @@ async def update_banner(
     is_public: Optional[bool] = Form(None),
     image_file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """배너를 수정합니다."""
     update_data = {}
@@ -88,7 +88,7 @@ async def update_banner(
 async def delete_banner(
     banner_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser)
+    current_user: User = Depends(get_current_admin_user)
 ):
     """배너를 삭제합니다."""
     success = services.delete_banner(db, banner_id)
