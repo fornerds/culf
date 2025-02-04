@@ -1,17 +1,28 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import styles from './Footer.module.css';
 import { Link } from '@/components/atom';
+import { footer } from '@/api';
 
 export function Footer() {
+  const { data: footerData } = useQuery({
+    queryKey: ['footer'],
+    queryFn: async () => {
+      const response = await footer.getFooter();
+      return response.data;
+    },
+    retry: false,
+  });
+
   return (
     <footer className={styles.footer}>
       <div className={`${styles.content} font-tag-2`}>
-        <p className={styles.info}>상호 : 주식회사 버킷트래블</p>
-        <p className={styles.info}>대표자 : 명선아</p>
-        <p className={styles.info}>사업자등록번호 : 577-88-01749</p>
-        <p className={styles.info}>주소 : 서울시 중구 청계천로 40, 1305호</p>
+        <p className={styles.info}>상호 : {footerData?.company_name}</p>
+        <p className={styles.info}>대표자 : {footerData?.ceo_name}</p>
+        <p className={styles.info}>사업자등록번호 : {footerData?.business_number}</p>
+        <p className={styles.info}>주소 : {footerData?.address}</p>
         <p className={styles.info}>
-          고객센터 : 031-365-4520 / culf.help@gmail.com
+          고객센터 : {footerData?.customer_center_number} / {footerData?.email}
         </p>
         <div className={styles.linkWrap}>
           <Link 
