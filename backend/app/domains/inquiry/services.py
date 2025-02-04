@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from fastapi import HTTPException, UploadFile
-from fastapi.encoders import jsonable_encoder
+from app.domains.user.models import User
 import uuid
 
 
@@ -65,6 +65,7 @@ def create_inquiry(db: Session, inquiry_data: dict):
     try:
         db_inquiry = models.Inquiry(
             type="GENERAL",  # 기본값으로 GENERAL 설정
+            user_id=inquiry_data.get("user_id"),
             title=inquiry_data["title"],
             email=inquiry_data["email"],
             contact=inquiry_data["contact"],
@@ -85,11 +86,17 @@ def create_inquiry(db: Session, inquiry_data: dict):
 
 def get_inquiry(db: Session, inquiry_id: int) -> Optional[models.Inquiry]:
     """문의사항 조회"""
-    inquiry = db.query(models.Inquiry).filter(models.Inquiry.inquiry_id == inquiry_id).first()
+    inquiry = db.query(models.Inquiry).join(
+        User,
+        models.Inquiry.user_id == User.user_id,
+        isouter=True  # LEFT OUTER JOIN
+    ).filter(
+        models.Inquiry.inquiry_id == inquiry_id
+    ).first()
+
     if inquiry:
         inquiry.attachments = _process_attachments(inquiry.attachments)
     return inquiry
-
 
 def get_user_inquiries(
         db: Session,
@@ -121,7 +128,11 @@ def get_admin_inquiries(
         end_date: Optional[datetime] = None
 ) -> List[models.Inquiry]:
     """관리자용 문의사항 목록 조회"""
-    query = db.query(models.Inquiry)
+    query = db.query(models.Inquiry, User).join(
+        User,
+        models.Inquiry.user_id == User.user_id,
+        isouter=True  # LEFT OUTER JOIN
+    )
 
     if status:
         query = query.filter(models.Inquiry.status == status)
@@ -129,15 +140,17 @@ def get_admin_inquiries(
     if start_date and end_date:
         query = query.filter(models.Inquiry.created_at.between(start_date, end_date))
 
-    inquiries = query \
+    results = query \
         .order_by(models.Inquiry.created_at.desc()) \
         .offset(skip) \
         .limit(limit) \
         .all()
 
-    # Process attachments for each inquiry
-    for inquiry in inquiries:
+    inquiries = []
+    for inquiry, user in results:
+        inquiry.user = user
         inquiry.attachments = _process_attachments(inquiry.attachments)
+        inquiries.append(inquiry)
 
     return inquiries
 

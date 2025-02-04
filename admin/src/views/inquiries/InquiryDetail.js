@@ -115,12 +115,20 @@ const InquiryDetail = () => {
                 {inquiry.title}
               </CListGroupItem>
               <CListGroupItem>
-                <div className="fw-bold">이메일</div>
+                <div className="fw-bold">문의 이메일</div>
                 {inquiry.email}
               </CListGroupItem>
               <CListGroupItem>
-                <div className="fw-bold">연락처</div>
+                <div className="fw-bold">문의 연락처</div>
                 {inquiry.contact}
+              </CListGroupItem>
+              <CListGroupItem>
+                <div className="fw-bold">가입 이메일</div>
+                {inquiry.user ? inquiry.user.email : '비회원'}
+              </CListGroupItem>
+              <CListGroupItem>
+                <div className="fw-bold">가입 연락처</div>
+                {inquiry.user ? (inquiry.user.phone_number || '미등록') : '비회원'}
               </CListGroupItem>
               <CListGroupItem>
                 <div className="fw-bold">접수일시</div>
@@ -170,14 +178,14 @@ const InquiryDetail = () => {
           이 문의사항을 해결 처리하시겠습니까?
         </CModalBody>
         <CModalFooter>
-          <CButton 
-            color="secondary" 
+          <CButton
+            color="secondary"
             onClick={() => setShowStatusModal(false)}
           >
             취소
           </CButton>
-          <CButton 
-            color="primary" 
+          <CButton
+            color="primary"
             onClick={handleStatusChange}
           >
             확인

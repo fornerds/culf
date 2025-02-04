@@ -135,8 +135,10 @@ const InquiryList = () => {
                 <CTableRow>
                   <CTableHeaderCell>ID</CTableHeaderCell>
                   <CTableHeaderCell>제목</CTableHeaderCell>
-                  <CTableHeaderCell>이메일</CTableHeaderCell>
-                  <CTableHeaderCell>연락처</CTableHeaderCell>
+                  <CTableHeaderCell>문의 이메일</CTableHeaderCell>
+                  <CTableHeaderCell>문의 연락처</CTableHeaderCell>
+                  <CTableHeaderCell>가입 이메일</CTableHeaderCell>
+                  <CTableHeaderCell>가입 연락처</CTableHeaderCell>
                   <CTableHeaderCell>상태</CTableHeaderCell>
                   <CTableHeaderCell>접수일</CTableHeaderCell>
                   <CTableHeaderCell>상태 변경</CTableHeaderCell>
@@ -150,6 +152,8 @@ const InquiryList = () => {
                     <CTableDataCell>{inquiry.title}</CTableDataCell>
                     <CTableDataCell>{inquiry.email}</CTableDataCell>
                     <CTableDataCell>{inquiry.contact}</CTableDataCell>
+                    <CTableDataCell>{inquiry.user ? inquiry.user.email : '비회원'}</CTableDataCell>
+                    <CTableDataCell>{inquiry.user ? (inquiry.user.phone_number || '미등록') : '비회원'}</CTableDataCell>
                     <CTableDataCell>{getStatusBadge(inquiry.status)}</CTableDataCell>
                     <CTableDataCell>
                       {format(new Date(inquiry.created_at), 'yyyy-MM-dd HH:mm')}
