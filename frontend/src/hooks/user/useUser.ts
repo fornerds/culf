@@ -54,13 +54,13 @@ export const useUser = () => {
     queryKey: ['userInfo'],
     queryFn: async () => {
       // 현재 상태 디버깅
-      console.group('🔍 Fetching User Info');
-      console.log('Current State:', {
-        pathname: window.location.pathname,
-        accessToken: tokenService.getAccessToken(),
-        registrationInProgress
-      });
-      console.groupEnd();
+      // console.group('🔍 Fetching User Info');
+      // console.log('Current State:', {
+      //   pathname: window.location.pathname,
+      //   accessToken: tokenService.getAccessToken(),
+      //   registrationInProgress
+      // });
+      // console.groupEnd();
   
       // Login Status 체크
       const loginStatus = document.cookie
@@ -236,15 +236,15 @@ export const useUser = () => {
   }, []);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.group('👤 User State Updated');
-      console.log('Query Status:', userInfoQuery.status);
-      console.log('Is Initialized:', isInitialized);
-      console.log('Registration in Progress:', registrationInProgress);
-      console.log('User Data:', userInfoQuery.data);
-      console.log('Access Token:', tokenService.getAccessToken());
-      console.groupEnd();
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.group('👤 User State Updated');
+    //   console.log('Query Status:', userInfoQuery.status);
+    //   console.log('Is Initialized:', isInitialized);
+    //   console.log('Registration in Progress:', registrationInProgress);
+    //   console.log('User Data:', userInfoQuery.data);
+    //   console.log('Access Token:', tokenService.getAccessToken());
+    //   console.groupEnd();
+    // }
   }, [userInfoQuery.status, isInitialized, registrationInProgress]);
 
   return {
