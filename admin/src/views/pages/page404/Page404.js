@@ -19,17 +19,17 @@ const Page404 = () => {
           <CCol md={6}>
             <div className="clearfix">
               <h1 className="float-start display-3 me-4">404</h1>
-              <h4 className="pt-3">Oops! You{"'"}re lost.</h4>
+              <h4 className="pt-3">페이지를 찾을 수 없습니다.</h4>
               <p className="text-body-secondary float-start">
-                The page you are looking for was not found.
+                죄송합니다. 요청하신 페이지를 찾을 수 없습니다.
               </p>
             </div>
             <CInputGroup className="input-prepend">
               <CInputGroupText>
                 <CIcon icon={cilMagnifyingGlass} />
               </CInputGroupText>
-              <CFormInput type="text" placeholder="What are you looking for?" />
-              <CButton color="info">Search</CButton>
+              <CFormInput type="text" placeholder="검색어를 입력하세요" />
+              <CButton color="info">검색</CButton>
             </CInputGroup>
           </CCol>
         </CRow>

@@ -10,7 +10,10 @@ export const authReducer = (state = initialState, action) => {
       return {
         ...state,
         isAuthenticated: true,
-        user: action.payload,
+        user: {
+          username: action.payload.username,
+          role: action.payload.role
+        },
         error: null,
       }
     case 'LOGIN_FAILURE':

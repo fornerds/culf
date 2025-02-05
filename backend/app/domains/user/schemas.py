@@ -48,6 +48,7 @@ class UserInfo(BaseModel):
     email: str
     nickname: str
     phone_number: str
+    role: str
     total_tokens: int
     created_at: datetime
     updated_at: datetime

@@ -52,10 +52,11 @@ const ChatRoomDetail = () => {
   if (!chatRoom) {
     return <div>채팅방을 찾을 수 없습니다.</div>;
   }
+  // 현재 테마 모드를 가져오는 로직 추가
+  const isDarkMode = document.documentElement.getAttribute('data-coreui-theme') === 'dark';
 
   return (
     <CCard className="h-100">
-      {/* 채팅방 헤더 */}
       <CCardHeader className="d-flex justify-content-between align-items-center">
         <div>
           <div className="fw-bold fs-5">채팅방 상세</div>
@@ -72,8 +73,7 @@ const ChatRoomDetail = () => {
         </CButton>
       </CCardHeader>
 
-      {/* 채팅방 정보 */}
-      <div className="bg-light border-bottom p-3">
+      <div className="border-bottom p-3">
         <div className="row g-3">
           <div className="col-md-3">
             <div className="fw-bold">사용자</div>
@@ -95,14 +95,13 @@ const ChatRoomDetail = () => {
         </div>
       </div>
 
-      {/* 채팅 메시지 영역 */}
       <CCardBody 
         className="chat-container p-4" 
         ref={chatContainerRef}
         style={{ 
           height: 'calc(100vh - 300px)',
           overflowY: 'auto',
-          backgroundColor: '#f8f9fa'
+          backgroundColor: 'var(--cui-body-bg)'
         }}
       >
         <div className="chat-messages">
@@ -126,7 +125,7 @@ const ChatRoomDetail = () => {
               {/* 메시지 내용 */}
               <div style={{ maxWidth: '70%' }}>
                 {/* 발신자 이름 */}
-                <div className="small text-muted mb-1">
+                <div className="small text-medium-emphasis mb-1">
                   {message.is_curator ? chatRoom.curator_name : chatRoom.user_name}
                 </div>
                 
@@ -135,14 +134,17 @@ const ChatRoomDetail = () => {
                   className={`message-bubble p-3 rounded-3 ${
                     message.is_curator 
                       ? 'bg-primary text-white' 
-                      : 'bg-white border'
+                      : 'bg-light-subtle border'
                   }`}
+                  style={{
+                    color: message.is_curator ? 'white' : 'var(--cui-body-color)'
+                  }}
                 >
                   <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                     {message.content}
                   </div>
                   <div className="small text-end mt-1">
-                    <small className={message.is_curator ? 'text-white' : 'text-muted'}>
+                    <small className={message.is_curator ? 'text-white' : 'text-medium-emphasis'}>
                       {new Date(message.created_at).toLocaleString()}
                     </small>
                   </div>
