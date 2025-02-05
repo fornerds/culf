@@ -70,6 +70,7 @@ def read_user_me(current_user: user_schemas.User = Depends(get_current_user), db
         'email': user.email,
         'nickname': user.nickname,
         'phone_number': user.phone_number,
+        'role': user.role,
         'total_tokens': tokens.total_tokens,
         'created_at': user.created_at,
         'updated_at': user.updated_at,

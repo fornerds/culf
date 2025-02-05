@@ -40,12 +40,27 @@ const Login = () => {
       })
       
       const { access_token } = response.data
-      localStorage.setItem('token', access_token)
+      
+      // 사용자 정보 가져오기
       httpClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+      const userResponse = await httpClient.get('/users/me')
+      const userData = userResponse.data
+      
+      // 관리자 권한 체크
+      if (userData.role !== 'ADMIN') {
+        setError('관리자만 접근할 수 있습니다.')
+        setIsLoading(false)
+        return
+      }
+      
+      localStorage.setItem('token', access_token)
       
       dispatch({ 
         type: 'LOGIN_SUCCESS', 
-        payload: { username: email } 
+        payload: { 
+          username: email,
+          role: userData.role 
+        }
       })
       
       navigate('/')
@@ -59,6 +74,9 @@ const Login = () => {
           case 401:
             errorMessage = '아이디 또는 비밀번호가 올바르지 않습니다.'
             break
+          case 403:
+            errorMessage = '접근이 거부되었습니다.'
+            break
           case 404:
             errorMessage = '존재하지 않는 계정입니다.'
             break
@@ -66,7 +84,7 @@ const Login = () => {
             errorMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
             break
           default:
-            errorMessage = error.response.data?.detail || '로그인에 실패했습니다.'
+            errorMessage = error.response.data?.detail?.message || '로그인에 실패했습니다.'
         }
       }
       
@@ -89,7 +107,7 @@ const Login = () => {
               <CCard className="p-4">
                 <CCardBody>
                   <CForm onSubmit={handleSubmit}>
-                    <h1>로그인</h1>
+                    <h1>관리자 로그인</h1>
                     <p className="text-medium-emphasis">관리자 계정으로 로그인하세요</p>
                     {error && (
                       <CAlert color="danger" className="mb-3">
