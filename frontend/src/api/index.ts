@@ -519,4 +519,9 @@ export const curator = {
     }),
 };
 
+// Footer API
+export const footer = {
+  getFooter: () => api.get('/footer'),
+};
+
 export default api;

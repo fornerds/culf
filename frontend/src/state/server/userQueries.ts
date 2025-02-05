@@ -69,12 +69,12 @@ export const useLogin = (): UseMutationResult<
       // 인증 상태 업데이트
       useAuthStore.getState().setAuth(true, user, access_token, refresh_token);
       
-      if (process.env.NODE_ENV === 'development') {
-        console.group('🔑 Login Success');
-        console.log('User:', user);
-        console.log('Cache cleared and new auth state set');
-        console.groupEnd();
-      }
+      // if (process.env.NODE_ENV === 'development') {
+      //   console.group('🔑 Login Success');
+      //   console.log('User:', user);
+      //   console.log('Cache cleared and new auth state set');
+      //   console.groupEnd();
+      // }
     },
   });
 };

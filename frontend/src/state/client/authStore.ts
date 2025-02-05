@@ -83,14 +83,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       tokenService.removeAccessToken();
     }
     
-    if (process.env.NODE_ENV === 'development') {
-      console.group('🔐 Auth State Update');
-      console.log('Authenticated:', isAuthenticated);
-      console.log('User:', user);
-      console.log('Access Token:', access_token || tokenService.getAccessToken() || 'None');
-      console.log('Registration in progress:', get().registrationInProgress);
-      console.groupEnd();
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.group('🔐 Auth State Update');
+    //   console.log('Authenticated:', isAuthenticated);
+    //   console.log('User:', user);
+    //   console.log('Access Token:', access_token || tokenService.getAccessToken() || 'None');
+    //   console.log('Registration in progress:', get().registrationInProgress);
+    //   console.groupEnd();
+    // }
     
     set({
       isAuthenticated,
