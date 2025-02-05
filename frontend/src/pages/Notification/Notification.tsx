@@ -4,7 +4,8 @@ import styles from './Notification.module.css';
 import { MyNotice, Notice } from '@/components/organism';
 import { Tab } from '@/modules';
 
-export function PublicNotification() {
+export const PublicNotification = () => {
+  console.log('PublicNotification Rendering');
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -17,12 +18,14 @@ export function PublicNotification() {
     ...(isAuthenticated ? [{
       id: 'my-notice',
       label: '내 알림',
-      content: null, // 클릭 시 my-notice로 이동할 것이므로 content 불필요
+      content: null,
     }] : []),
   ];
 
+  console.log('PublicNotification Tabs:', tabs);
+
   return (
-    <div className={styles.notification}>
+    <div className={styles.container}>
       <Tab
         tabs={tabs}
         defaultActiveTab="notice"
@@ -34,16 +37,17 @@ export function PublicNotification() {
       />
     </div>
   );
-}
+};
 
-export function PrivateNotification() {
+export const PrivateNotification = () => {
+  console.log('PrivateNotification Rendering');
   const navigate = useNavigate();
 
   const tabs = [
     {
       id: 'notice',
       label: '공지사항',
-      content: null, // 클릭 시 notice로 이동할 것이므로 content 불필요
+      content: null,
     },
     {
       id: 'my-notice',
@@ -52,8 +56,10 @@ export function PrivateNotification() {
     },
   ];
 
+  console.log('PrivateNotification Tabs:', tabs);
+
   return (
-    <div className={styles.notification}>
+    <div className={styles.container}>
       <Tab
         tabs={tabs}
         defaultActiveTab="my-notice"
@@ -65,4 +71,9 @@ export function PrivateNotification() {
       />
     </div>
   );
-}
+};
+
+export default {
+  PublicNotification,
+  PrivateNotification
+};

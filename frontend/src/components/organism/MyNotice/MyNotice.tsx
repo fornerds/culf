@@ -6,13 +6,20 @@ import styles from './MyNotice.module.css';
 import { LoadingAnimation } from '@/components/atom';
 import logoimage from '@/assets/images/culf.png';
 
-export function MyNotice() {
+export const MyNotice = () => {
+  console.log('MyNotice Component Rendering');
   const navigate = useNavigate();
-  const { data, isLoading, error } = useNotifications({});
+  const { data, isLoading, error } = useNotifications();
+  
+  console.log('MyNotice Data:', {
+    isLoading,
+    error,
+    data,
+  });
 
   if (isLoading) {
     return (
-      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+      <div className={styles.loadingContainer}>
         <LoadingAnimation
           imageUrl={logoimage}
           alt="Description"
@@ -20,34 +27,35 @@ export function MyNotice() {
           height={19}
           duration={2200} 
         />
-        <p className='font-tag-1' style={{color: "#a1a1a1"}}>로딩 중</p>
+        <p className="font-tag-1" style={{color: "#a1a1a1"}}>로딩 중</p>
       </div>
     );
   }
-  
-  if (error) return <div className={styles.error}>Failed to load notifications</div>;
 
-  const formattedNotices = data?.notifications.map(notification => ({
-    id: notification.notification_id.toString(),
-    title: notification.message,
-    date: new Date(notification.created_at).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric'
-    })
-  })) || [];
-
-  const handleNoticeClick = (noticeId: string) => {
-    navigate(`/notification/my-notice/${noticeId}`);
-  };
+  if (error) {
+    return <div className={styles.errorMessage}>알림을 불러오는데 실패했습니다.</div>;
+  }
 
   if (!data?.notifications.length) {
     return (
-      <div className={styles.empty}>
+      <div className={styles.emptyMessage}>
         <p className="font-button-2">알림이 없습니다.</p>
       </div>
     );
   }
 
-  return <NoticeList notices={formattedNotices} onNoticeClick={handleNoticeClick} />;
-}
+  const formattedNotices = data.notifications.map(notification => ({
+    id: notification.notification_id.toString(),
+    title: notification.message,
+    date: new Date(notification.created_at).toLocaleDateString()
+  }));
+
+  return (
+    <div className={styles.notificationWrapper}>
+      <NoticeList 
+        notices={formattedNotices}
+        onNoticeClick={(id) => navigate(`/notification/my-notice/${id}`)}
+      />
+    </div>
+  );
+};

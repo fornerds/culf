@@ -1,25 +1,24 @@
 import React from 'react';
-import { useNotices } from '@/hooks/notice/useNotice';
 import { useNavigate } from 'react-router-dom';
-import styles from './Notice.module.css';
 import { LoadingAnimation } from '@/components/atom';
+import { useNotices } from '@/hooks/notice/useNotice';
 import logoimage from '@/assets/images/culf.png';
-import PinIcon from '@/assets/icons/pin.svg?react';
-import { useAuthStore } from '@/state/client/authStore';
+import styles from './Notice.module.css';
 
-interface NoticeListProps {
-  page?: number;
-  limit?: number;
-}
-
-export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
+export const Notice = () => {
+  console.log('Notice Component Rendering');
   const navigate = useNavigate();
-  const { data, isLoading, error } = useNotices({ page, limit });
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { data, isLoading, error } = useNotices();
+
+  console.log('Notice Data:', {
+    isLoading,
+    error,
+    data
+  });
 
   if (isLoading) {
     return (
-      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+      <div className={styles.loadingContainer}>
         <LoadingAnimation
           imageUrl={logoimage}
           alt="Description"
@@ -27,26 +26,21 @@ export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
           height={19}
           duration={2200} 
         />
-        <p className='font-tag-1' style={{color: "#a1a1a1"}}>로딩 중</p>
+        <p className="font-tag-1" style={{color: "#a1a1a1"}}>로딩 중</p>
       </div>
     );
   }
 
   if (error) {
-    return <div className={styles.container}>공지사항을 불러오는데 실패했습니다.</div>;
+    return <div className={styles.errorMessage}>공지사항을 불러오는데 실패했습니다.</div>;
   }
 
-  const sortedNotices = data?.notices?.sort((a, b) => {
-    if (a.is_important !== b.is_important) {
-      return b.is_important ? 1 : -1;
-    }
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  }) || [];
+  const formattedNotices = data?.notices || [];
 
   return (
     <div className={styles.container}>
       <div className={styles.noticeList}>
-        {sortedNotices.map((notice) => (
+        {formattedNotices.map((notice) => (
           <div
             key={notice.notice_id}
             className={`${styles.noticeItem} ${notice.is_important ? styles.important : ''}`}
@@ -58,15 +52,14 @@ export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
               <span className={`${styles.date} font-tag-2`}>
                 {new Date(notice.created_at).toLocaleDateString()}
               </span>
-              {isAuthenticated && notice.is_read && (
+              {notice.is_read && (
                 <span className={`${styles.readStatus} font-tag-2`}>읽음</span>
               )}
             </div>
-            {notice.is_important && <PinIcon width="24px" height="24px"/>}
           </div>
         ))}
         
-        {(!sortedNotices.length) && (
+        {!formattedNotices.length && (
           <div className={styles.empty}>
             <p className="font-button-2">등록된 공지사항이 없습니다.</p>
           </div>
@@ -74,4 +67,4 @@ export function Notice({ page = 1, limit = 10 }: NoticeListProps) {
       </div>
     </div>
   );
-}
+};
