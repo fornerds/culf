@@ -10,6 +10,8 @@ from uuid import UUID
 from app.domains.curator import services as curator_services
 from app.domains.conversation.models import ChatRoom, Conversation
 from app.domains.curator.models import Curator
+from app.domains.user.models import User
+
 from sqlalchemy import func
 
 def extract_summary_from_answer(answer: str) -> str:
@@ -48,7 +50,7 @@ def create_conversation(
     answer_summary = extract_summary_from_answer(answer)
 
     # 사용자 권한 확인
-    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    user = db.query(User).filter(User.user_id == user_id).first()
     is_privileged_user = user.role in ['SUPERUSER', 'ADMIN']
 
     # 채팅방 스톤 통계 업데이트
