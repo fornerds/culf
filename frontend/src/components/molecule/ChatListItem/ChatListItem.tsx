@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './ChatListItem.module.css';
 import LinkIcon from '@/assets/icons/link.svg?react';
+import DeleteIcon from '@/assets/icons/delete.svg?react';
 
 interface ChatListItemProps {
   curatorImage: string;
@@ -23,8 +24,8 @@ export function ChatListItem({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent navigation when clicking delete
-    e.stopPropagation(); // Prevent event bubbling
+    e.preventDefault();
+    e.stopPropagation();
     
     if (!onDelete || isDeleting) return;
     
@@ -49,25 +50,28 @@ export function ChatListItem({
           />
         </div>
         <div className={styles.chatInfo}>
-          <h3 className={`${styles.curatorName} font-button-2`}>{curatorName}</h3>
-          <p className={`${styles.lastMessage} font-text-4`}>{lastMessage}</p>
-          <span className={`${styles.lastMessageDate} font-tag-2`}>
-            {lastMessageDate}
-          </span>
-        </div>
-        <div className={styles.chatListItemSideWrap}>
-          <div className={styles.arrowIcon}>
-            <LinkIcon />
+          <div className={styles.chatInfoHeader}>
+            <h3 className={`${styles.curatorName} font-button-2`}>{curatorName}</h3>
+            <div className={styles.arrowIcon}>
+              <LinkIcon />
+            </div>
           </div>
-          {onDelete && (
-            <button 
-              className={styles.deleteButton}
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? '삭제 중...' : '삭제'}
-            </button>
-          )}
+          <p className={`${styles.lastMessage} font-text-4`}>{lastMessage}</p>
+          <div className={styles.chatInfoFooter}>
+            <span className={`${styles.lastMessageDate} font-tag-2`}>
+              {lastMessageDate}
+            </span>
+            {onDelete && (
+              <button 
+                className={styles.deleteButton}
+                onClick={handleDelete}
+                disabled={isDeleting}
+                aria-label="채팅방 삭제"
+              >
+                {isDeleting ? '삭제 중...' : <DeleteIcon />}
+              </button>
+            )}
+          </div>
         </div>
       </Link>
     </div>
