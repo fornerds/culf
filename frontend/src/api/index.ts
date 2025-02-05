@@ -364,6 +364,9 @@ export const chat = {
 
   getChatRoomById: (roomId: string) => api.get(`/chat-rooms/${roomId}`),
 
+  deleteChatRoom: (roomId: string) =>
+    api.delete(`/chat-rooms/${roomId}`),
+
   getChatRoomCurator: (roomId: string) =>
     api.get(`/chat-rooms/${roomId}/curator`),
 };

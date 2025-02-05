@@ -14,9 +14,10 @@ interface ChatData {
 
 export type ChatListProps = {
   chats: ChatData[];
+  onDelete?: (chatId: string) => void;
 };
 
-export function ChatList({ chats }: ChatListProps) {
+export function ChatList({ chats, onDelete }: ChatListProps) {
   return (
     <div className={styles.chatList}>
       {chats.map((chat) => (
@@ -27,6 +28,7 @@ export function ChatList({ chats }: ChatListProps) {
           lastMessage={chat.lastMessage}
           lastMessageDate={chat.lastMessageDate}
           chatLink={`/chat/${chat.id}`}
+          onDelete={onDelete ? () => onDelete(chat.id) : undefined}
         />
       ))}
     </div>

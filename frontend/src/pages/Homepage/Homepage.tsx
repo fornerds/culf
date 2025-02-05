@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import styles from './Homepage.module.css';
 import { Header, Cards, ChatList } from '@/components/organism';
 import { Footer } from '@/components/molecule';
@@ -124,6 +124,30 @@ export function Homepage() {
     })
   })) || []).slice(0, 5);
 
+  const queryClient = useQueryClient();
+
+  const handleChatDelete = async (chatId: string) => {
+    // Optimistic update
+    const previousChatRooms = queryClient.getQueryData(['chatRooms']);
+    
+    // Update the UI immediately
+    queryClient.setQueryData(['chatRooms'], (old: any) => {
+      return old.filter((room: any) => room.room_id !== chatId);
+    });
+  
+    try {
+      // 채팅방 삭제 API 호출
+      await chat.deleteChatRoom(chatId);
+      // On success, refetch to ensure sync
+      queryClient.invalidateQueries(['chatRooms']);
+    } catch (error) {
+      // On error, rollback to previous data
+      queryClient.setQueryData(['chatRooms'], previousChatRooms);
+      console.error('Failed to delete chat room:', error);
+      alert('채팅방 삭제에 실패했습니다. 다시 시도해주세요.');
+    }
+  };
+
   const NoChats = () => (
     <div className={styles.noneChatList}>
       지난 대화 목록이 없습니다.
@@ -162,7 +186,10 @@ export function Homepage() {
             지난 대화를<br />이어가 볼까요?
           </h2>
           {formattedChatRooms.length > 0 ? (
-            <ChatList chats={formattedChatRooms} />
+            <ChatList 
+              chats={formattedChatRooms} 
+              onDelete={handleChatDelete}
+            />
           ) : (
             <NoChats />
           )}
