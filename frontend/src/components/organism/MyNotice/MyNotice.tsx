@@ -17,21 +17,6 @@ export const MyNotice = () => {
     data,
   });
 
-  if (isLoading) {
-    return (
-      <div className={styles.loadingContainer}>
-        <LoadingAnimation
-          imageUrl={logoimage}
-          alt="Description"
-          width={58}
-          height={19}
-          duration={2200} 
-        />
-        <p className="font-tag-1" style={{color: "#a1a1a1"}}>로딩 중</p>
-      </div>
-    );
-  }
-
   if (error) {
     return <div className={styles.errorMessage}>알림을 불러오는데 실패했습니다.</div>;
   }

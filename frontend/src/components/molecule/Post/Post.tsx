@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './Post.module.css';
+import DOMPurify from 'dompurify';
 
 interface PostProps {
   title: string;
@@ -9,9 +10,30 @@ interface PostProps {
   };
   date: string;
   content: string;
+  contentType?: 'text' | 'html';
 }
 
-export function Post({ title, author, date, content }: PostProps): JSX.Element {
+export function Post({ title, author, date, content, contentType = 'text' }: PostProps): JSX.Element {
+  const renderContent = () => {
+    if (contentType === 'html') {
+      // HTML 문자열을 안전하게 sanitize
+      const sanitizedContent = DOMPurify.sanitize(content);
+      return (
+        <div 
+          className={`${styles.content} font-text-2`}
+          dangerouslySetInnerHTML={{ __html: sanitizedContent }}
+        />
+      );
+    }
+    
+    // 기존 텍스트 형식
+    return (
+      <div className={`${styles.content} font-text-2`}>
+        {content}
+      </div>
+    );
+  };
+
   return (
     <>
       <h1 className={`${styles.title} font-title-3`}>{title}</h1>
@@ -34,9 +56,7 @@ export function Post({ title, author, date, content }: PostProps): JSX.Element {
         </div>
       </div>
 
-      <div className={`${styles.content} font-text-2`}>
-        {content}
-      </div>
+      {renderContent()}
     </>
   );
 }

@@ -33,7 +33,8 @@ export function NoticeDetail() {
       name: "컬프",
     },
     date: new Date(notice.created_at).toLocaleString('ko-KR'),
-    content: notice.content
+    content: notice.content,
+    contentType: "html"
   };
 
   return <Post {...postData} />;
