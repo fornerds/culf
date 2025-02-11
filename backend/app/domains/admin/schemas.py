@@ -34,6 +34,14 @@ class AdminUserResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class AdminUserUpdate(BaseModel):
+    nickname: Optional[str] = Field(None, min_length=2, max_length=50)
+    phone_number: Optional[str] = Field(None, pattern=r'^\d{10,11}$')
+    birthdate: Optional[date]
+    gender: Optional[str] = Field(None, pattern='^(M|F|N)$')
+    marketing_agreed: Optional[bool]
+    is_corporate: Optional[bool]
+
 class UserRoleUpdate(BaseModel):
     role: str
 

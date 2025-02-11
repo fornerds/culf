@@ -10,6 +10,8 @@ import {
   CSpinner,
   CForm,
   CFormSelect,
+  CFormInput,
+  CFormCheck,
   CListGroup,
   CListGroupItem,
   CBadge,
@@ -18,6 +20,7 @@ import {
   CModalTitle,
   CModalBody,
   CModalFooter,
+  CAlert,
 } from '@coreui/react';
 import { format } from 'date-fns';
 import httpClient from '../../api/httpClient';
@@ -28,12 +31,35 @@ const UserDetail = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editRole, setEditRole] = useState('');
   const [editStatus, setEditStatus] = useState('');
+  const [error, setError] = useState('');
+  const [editData, setEditData] = useState({
+    nickname: '',
+    phone_number: '',
+    birthdate: '',
+    gender: '',
+    marketing_agreed: false,
+    is_corporate: false
+  });
 
   useEffect(() => {
     fetchUserDetail();
   }, [id]);
+
+  useEffect(() => {
+    if (user) {
+      setEditData({
+        nickname: user.nickname || '',
+        phone_number: user.phone_number || '',
+        birthdate: user.birthdate || '',
+        gender: user.gender || 'N',
+        marketing_agreed: user.marketing_agreed || false,
+        is_corporate: user.is_corporate || false
+      });
+    }
+  }, [user]);
 
   const fetchUserDetail = async () => {
     try {
@@ -46,6 +72,49 @@ const UserDetail = () => {
       console.error('Error fetching user details:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      setError('');
+      await httpClient.put(`admin/users/${id}`, editData);
+      await fetchUserDetail();
+      setShowEditModal(false);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      
+      // 중복 에러 처리
+      if (error.response?.data?.detail === "Nickname already exists") {
+        setError('이미 사용중인 닉네임입니다.');
+        return;
+      }
+      
+      if (error.response?.data?.detail === "Phone number already exists") {
+        setError('이미 사용중인 전화번호입니다.');
+        return;
+      }
+      
+      // validation 에러 처리
+      if (error.response?.data?.details) {
+        const details = error.response.data.details;
+        const errorMessages = details.map(detail => {
+          const fieldErrors = {
+            phone_number: '전화번호는 10-11자리 숫자로 입력해주세요',
+            nickname: '닉네임은 2-50자 사이로 입력해주세요',
+          };
+  
+          const field = detail.loc[1];
+          return fieldErrors[field] || detail.msg;
+        });
+  
+        setError(errorMessages.join('\n'));
+      } else if (error.response?.data?.detail) {
+        // 기타 서버 에러 메시지 처리
+        setError(error.response.data.detail);
+      } else {
+        setError('사용자 정보 수정 중 오류가 발생했습니다.');
+      }
     }
   };
 
@@ -106,8 +175,18 @@ const UserDetail = () => {
           <CCardHeader className="d-flex justify-content-between align-items-center">
             <strong>사용자 상세 정보</strong>
             <div>
-              <CButton 
-                color="danger" 
+              <CButton
+                color="primary"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEditModal(true)}
+                className="me-2"
+                disabled={user.status === 'WITHDRAWN'}
+              >
+                정보 수정
+              </CButton>
+              <CButton
+                color="danger"
                 variant="outline"
                 size="sm"
                 onClick={() => setShowDeleteModal(true)}
@@ -115,8 +194,8 @@ const UserDetail = () => {
               >
                 계정 비활성화
               </CButton>
-              <CButton 
-                color="secondary" 
+              <CButton
+                color="secondary"
                 size="sm"
                 onClick={() => navigate('/users')}
               >
@@ -177,8 +256,8 @@ const UserDetail = () => {
                         <option value="ACTIVE">활성</option>
                         <option value="BANNED">차단</option>
                       </CFormSelect>
-                      <CButton 
-                        color="primary" 
+                      <CButton
+                        color="primary"
                         size="sm"
                         onClick={handleStatusChange}
                         disabled={user.status === 'WITHDRAWN'}
@@ -204,8 +283,8 @@ const UserDetail = () => {
                         <option value="ADMIN">관리자</option>
                         <option value="SUPERUSER">슈퍼유저</option>
                       </CFormSelect>
-                      <CButton 
-                        color="primary" 
+                      <CButton
+                        color="primary"
                         size="sm"
                         onClick={handleRoleChange}
                         disabled={user.status === 'WITHDRAWN'}
@@ -235,7 +314,7 @@ const UserDetail = () => {
                 </CListGroupItem>
                 <CListGroupItem>
                   <div className="fw-bold">마지막 충전일</div>
-                  {user.token_info.last_charged_at 
+                  {user.token_info.last_charged_at
                     ? format(new Date(user.token_info.last_charged_at), 'yyyy-MM-dd HH:mm:ss')
                     : '-'
                   }
@@ -259,6 +338,105 @@ const UserDetail = () => {
           </CCardBody>
         </CCard>
       </CCol>
+
+      {/* 수정 모달 */}
+      <CModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        size="lg"
+      >
+        <CModalHeader>
+          <CModalTitle>사용자 정보 수정</CModalTitle>
+        </CModalHeader>
+        <CModalBody>
+          {error && (
+            <CAlert color="danger" className="mb-3">
+              {error}
+            </CAlert>
+          )}
+          <CForm>
+            <div className="mb-3">
+              <label className="form-label">닉네임</label>
+              <CFormInput
+                type="text"
+                value={editData.nickname}
+                onChange={(e) => setEditData({ ...editData, nickname: e.target.value })}
+                placeholder="닉네임을 입력하세요"
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">전화번호</label>
+              <CFormInput
+                type="text"
+                value={editData.phone_number}
+                onChange={(e) => {
+                  // 숫자만 허용
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  // 최대 11자리까지만 입력
+                  if (value.length <= 11) {
+                    setEditData({ ...editData, phone_number: value });
+                  }
+                }}
+                isInvalid={editData.phone_number && !/^\d{10,11}$/.test(editData.phone_number)}
+                placeholder="전화번호를 입력하세요 (숫자만 10-11자리)"
+              />
+              {editData.phone_number && !/^\d{10,11}$/.test(editData.phone_number) && (
+                <div className="invalid-feedback">
+                  전화번호는 10-11자리 숫자로 입력해주세요
+                </div>
+              )}
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">생년월일</label>
+              <CFormInput
+                type="date"
+                value={editData.birthdate}
+                onChange={(e) => setEditData({ ...editData, birthdate: e.target.value })}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">성별</label>
+              <CFormSelect
+                value={editData.gender}
+                onChange={(e) => setEditData({ ...editData, gender: e.target.value })}
+              >
+                <option value="M">남성</option>
+                <option value="F">여성</option>
+                <option value="N">미지정</option>
+              </CFormSelect>
+            </div>
+
+            <div className="mb-3">
+              <CFormCheck
+                id="marketingAgreed"
+                label="마케팅 수신 동의"
+                checked={editData.marketing_agreed}
+                onChange={(e) => setEditData({ ...editData, marketing_agreed: e.target.checked })}
+              />
+            </div>
+
+            <div className="mb-3">
+              <CFormCheck
+                id="isCorporate"
+                label="기업회원 여부"
+                checked={editData.is_corporate}
+                onChange={(e) => setEditData({ ...editData, is_corporate: e.target.checked })}
+              />
+            </div>
+          </CForm>
+        </CModalBody>
+        <CModalFooter>
+          <CButton color="secondary" onClick={() => setShowEditModal(false)}>
+            취소
+          </CButton>
+          <CButton color="primary" onClick={handleEditSubmit}>
+            저장
+          </CButton>
+        </CModalFooter>
+      </CModal>
 
       <CModal
         visible={showDeleteModal}

@@ -46,10 +46,12 @@ const Login = () => {
       const userResponse = await httpClient.get('/users/me')
       const userData = userResponse.data
       
-      // 관리자 권한 체크
-      if (userData.role !== 'ADMIN') {
-        setError('관리자만 접근할 수 있습니다.')
+      // 관리자 또는 슈퍼유저가 아닌 경우 로그인 차단
+      if (!['ADMIN'].includes(userData.role)) {
+        setError('관리자 계정으로만 로그인이 가능합니다.')
         setIsLoading(false)
+        // 헤더에서 토큰 제거
+        delete httpClient.defaults.headers.common['Authorization']
         return
       }
       

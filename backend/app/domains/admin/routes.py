@@ -229,6 +229,66 @@ async def get_user_detail(
         logger.error(f"Error getting user detail: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@router.put("/users/{user_id}", response_model=schemas.AdminUserResponse)
+async def update_user_profile(
+    user_id: str,
+    user_update: schemas.AdminUserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """관리자용 사용자 프로필 수정 API"""
+    try:
+        # 사용자 존재 여부 확인
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # WITHDRAWN 상태의 사용자는 수정 불가
+        if user.status == 'WITHDRAWN':
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot update withdrawn user's profile"
+            )
+
+        # 닉네임 중복 체크
+        if user_update.nickname and user_update.nickname != user.nickname:
+            existing_user = db.query(User).filter(
+                User.nickname == user_update.nickname,
+                User.user_id != user_id
+            ).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Nickname already exists"
+                )
+
+        # 전화번호 중복 체크
+        if user_update.phone_number and user_update.phone_number != user.phone_number:
+            existing_user = db.query(User).filter(
+                User.phone_number == user_update.phone_number,
+                User.user_id != user_id
+            ).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Phone number already exists"
+                )
+
+        # 업데이트할 필드 설정
+        update_data = user_update.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(user, field, value)
+
+        db.commit()
+        db.refresh(user)
+        return user
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.put("/users/{user_id}/role")
 async def update_user_role(
     user_id: str,
