@@ -48,7 +48,7 @@ def initiate_one_time_payment(payment_request, db: Session, current_user):
     payment_data = {
         "channelKey": ChannelKey,
         "merchant_uid": merchant_uid,
-        "name": f"{token_plan.tokens} tokens",
+        "name": f"{token_plan.tokens} 스톤",
         "amount": final_price,
         "buyer_email": current_user.email,
         "buyer_name": current_user.nickname,
@@ -109,7 +109,7 @@ def initiate_subscription_payment(subscription_request, db: Session, current_use
         SubscriptionPlan.plan_id == subscription_request.plan_id
     ).first()
     if not subscription_plan:
-        raise HTTPException(status_code=404, detail="구독 플랜을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="스톤 구독 플랜을 찾을 수 없습니다.")
 
     base_price = float(subscription_plan.discounted_price or subscription_plan.price)
 
@@ -226,12 +226,12 @@ def process_tokens(payment, db):
     if payment.subscription_id:
         token.subscription_tokens += payment.tokens_purchased
         token.subscription_expires_at = current_date + timedelta(days=30)
-        logger.info(f"정기결제 토큰 추가: {payment.tokens_purchased}")
+        logger.info(f"정기결제 스톤 추가: {payment.tokens_purchased}")
     # 단건결제인 경우
     else:
         token.onetime_tokens += payment.tokens_purchased
         token.onetime_expires_at = current_date + timedelta(days=365*5)
-        logger.info(f"단건결제 토큰 추가: {payment.tokens_purchased}")
+        logger.info(f"단건결제 스톤 추가: {payment.tokens_purchased}")
 
     token.total_tokens += payment.tokens_purchased
     token.last_charged_at = current_date
@@ -354,7 +354,7 @@ def validate_payment_info(payment_request, db):
             SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
         ).first()
         if not subscription_plan:
-            raise HTTPException(status_code=404, detail="구독 플랜을 찾을 수 없습니다.")
+            raise HTTPException(status_code=404, detail="스톤 구독 플랜을 찾을 수 없습니다.")
         expected_amount = float(subscription_plan.discounted_price or subscription_plan.price)
 
     if expected_amount is None:
@@ -468,7 +468,7 @@ def schedule_subscription_payment(subscription_id, db: Session):
         SubscriptionPlan.plan_id == subscription.plan_id
     ).first()
     if not subscription_plan:
-        raise HTTPException(status_code=404, detail="구독 플랜을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="스톤 구독 플랜을 찾을 수 없습니다.")
 
     next_billing_date = subscription.next_billing_date
 
