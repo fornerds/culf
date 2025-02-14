@@ -55,7 +55,6 @@ export function Mypage() {
         activeTab={tab}
         onClickTab={(tabId) => navigate(`/mypage/${tabId}`, { replace: true })}
       />
-      {tabs.find(t => t.id === tab)?.content}
     </>
   );
 }
