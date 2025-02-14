@@ -4,7 +4,7 @@ import logoGray from '@/assets/images/culf_gray.png';
 import logo from '@/assets/images/culf.png';
 
 interface PriceOption {
-  type: 'subscription' | 'token';
+  type: 'subscription' | 'stone';
   title: string;
   subtitle?: string;
   originalPrice: number;

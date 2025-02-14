@@ -7,7 +7,7 @@ import EditIcon from '@/assets/icons/edit.svg?react';
 import styles from './Pricing.module.css';
 
 interface SelectedPlan {
-  type: 'subscription' | 'token';
+  type: 'subscription' | 'stone';
   id: number;
 }
 
@@ -19,7 +19,7 @@ export function Pricing() {
   const { data: products } = getProducts;
   const { data: tokenData } = getTokenInfo;
 
-  function handleSelect(type: 'subscription' | 'token', id: number) {
+  function handleSelect(type: 'subscription' | 'stone', id: number) {
     if (selectedPlan?.id === id && selectedPlan?.type === type) {
       setSelectedPlan(null);
     } else {
@@ -79,17 +79,17 @@ export function Pricing() {
           {products?.token_plans.map((plan) => (
             <PriceCard
               key={plan.token_plan_id}
-              type="token"
+              type="stone"
               title={`스톤 ${plan.tokens}개`}
               subtitle="한번만 결제되는 단건 구매 상품입니다."
               originalPrice={Number(plan.price)}
               finalPrice={Number(plan.discounted_price)}
               discountPercentage={Number(plan.discount_rate)}
               isSelected={
-                selectedPlan?.type === 'token' &&
+                selectedPlan?.type === 'stone' &&
                 selectedPlan?.id === plan.token_plan_id
               }
-              onClick={() => handleSelect('token', plan.token_plan_id)}
+              onClick={() => handleSelect('stone', plan.token_plan_id)}
             />
           ))}
         </div>
