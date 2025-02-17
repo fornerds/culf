@@ -5,9 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { Checkbox } from '@/components/atom/Checkbox';
 import { useUser } from '@/hooks/user/useUser';
 import { useAuthStore } from '@/state/client/authStore';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { Popup } from '@/components/molecule/Popup';
 import { tokenService } from '@/utils/tokenService';
+import { subscription } from '@/api';
 
 interface DeleteReasonOption {
   id: string;
@@ -36,10 +37,21 @@ export function DeleteAccount() {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showCompletePopup, setShowCompletePopup] = useState(false);
+  const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isOtherReasonSelected = selectedReasons.includes(OTHER_REASON_ID);
   const hasSelectedReasons = selectedReasons.length > 0;
+
+  // 구독 정보 조회
+  const { data: subscriptionInfo } = useQuery({
+    queryKey: ['subscriptionInfo'],
+    queryFn: async () => {
+      const response = await subscription.getMySubscription();
+      return response.data;
+    },
+    staleTime: 0
+  });
 
   const handleReasonChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id, checked } = e.target;
@@ -70,6 +82,18 @@ export function DeleteAccount() {
       return;
     }
 
+    // 활성 구독이 있는지 확인
+    const hasActiveSubscription = subscriptionInfo?.some(sub => sub.status === 'ACTIVE');
+    
+    if (hasActiveSubscription) {
+      setShowSubscriptionPopup(true);
+      return;
+    }
+
+    await processDeleteAccount();
+  };
+
+  const processDeleteAccount = async () => {
     try {
       const reasons = selectedReasons
         .map(id => DELETE_REASONS.find(reason => reason.id === id)?.label)
@@ -92,6 +116,10 @@ export function DeleteAccount() {
     queryClient.clear();
     logout();
     navigate('/login', { replace: true });
+  };
+
+  const handleSubscriptionPopupConfirm = () => {
+    navigate('/mypage/payment');
   };
 
   const handleCancel = () => {
@@ -185,6 +213,16 @@ export function DeleteAccount() {
         onClose={handlePopupClose}
         content="탈퇴가 완료되었습니다."
         confirmText="확인"
+      />
+
+      <Popup
+        type="confirm"
+        isOpen={showSubscriptionPopup}
+        onClose={() => setShowSubscriptionPopup(false)}
+        onConfirm={handleSubscriptionPopupConfirm}
+        content="현재 구독중인 상품이 있습니다. 회원 탈퇴 전에 상품 구독을 취소하시겠습니까?"
+        confirmText="예"
+        cancelText="아니오"
       />
     </>
   );
