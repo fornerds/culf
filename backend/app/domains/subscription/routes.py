@@ -16,7 +16,7 @@ def read_my_subscription(
     current_user: user_models.User = Depends(get_current_active_user)
 ):
     user_id = current_user.user_id
-    subscription_info = services.SubscriptionService.get_user_subscription(db, user_id)
+    subscription_info = services.is_user_subscribed(db, user_id)
     if not subscription_info:
         raise HTTPException(status_code=404, detail="Subscription information not found for this user")
     return subscription_info

@@ -28,6 +28,7 @@ class UserSubscription(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False)
     plan_id = Column(Integer, ForeignKey('subscription_plans.plan_id'), nullable=False)
     start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
     next_billing_date = Column(Date, nullable=False)
     status = Column(Enum('ACTIVE', 'CANCELLED', name='subscription_status_enum'), nullable=False, default='ACTIVE')
     subscription_number = Column(String(50), unique=True, nullable=True)

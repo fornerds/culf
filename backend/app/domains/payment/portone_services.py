@@ -222,16 +222,9 @@ def process_tokens(payment, db):
         )
         db.add(token)
 
-    # 정기결제인 경우
-    if payment.subscription_id:
-        token.subscription_tokens += payment.tokens_purchased
-        token.subscription_expires_at = current_date + timedelta(days=30)
-        logger.info(f"정기결제 스톤 추가: {payment.tokens_purchased}")
-    # 단건결제인 경우
-    else:
-        token.onetime_tokens += payment.tokens_purchased
-        token.onetime_expires_at = current_date + timedelta(days=365*5)
-        logger.info(f"단건결제 스톤 추가: {payment.tokens_purchased}")
+    token.onetime_tokens += payment.tokens_purchased
+    token.onetime_expires_at = current_date + timedelta(days=365*5)
+    logger.info(f"단건결제 스톤 추가: {payment.tokens_purchased}")
 
     token.total_tokens += payment.tokens_purchased
     token.last_charged_at = current_date
@@ -258,25 +251,51 @@ def save_payment_data(payment_info, payment_cache, db):
             status="SUCCESS",
         )
         db.add(payment_record)
+        process_tokens(payment_record, db)
 
     elif payment_cache.subscription_plan_id:
         subscription_plan = db.query(SubscriptionPlan).filter(
             SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
         ).first()
 
+        # 1. 현재 결제일(payment_date) 계산
         payment_date = datetime.fromtimestamp(payment_info["paid_at"])
-        day_of_payment = payment_date.day
-        next_month = payment_date.month + 1 if payment_date.month < 12 else 1
-        next_year = payment_date.year if payment_date.month < 12 else payment_date.year + 1
-        _, last_day_of_next_month = monthrange(next_year, next_month)
-        next_billing_day = min(day_of_payment, last_day_of_next_month)
-        next_billing_date = payment_date.replace(year=next_year, month=next_month, day=next_billing_day)
 
+        # 2. 결제일(day_of_payment)을 기준으로 다음 달 정보 구하기
+        day_of_payment = payment_date.day
+        if payment_date.month < 12:
+            next_month = payment_date.month + 1
+            next_year = payment_date.year
+        else:
+            # 12월 결제라면 다음 달은 1월, 년도는 +1
+            next_month = 1
+            next_year = payment_date.year + 1
+
+        # 3. 다음 달의 '마지막 일자' 구하기
+        _, last_day_of_next_month = monthrange(next_year, next_month)
+
+        # 4. 다음 결제일(next_billing_day) 계산
+        next_billing_day = min(day_of_payment, last_day_of_next_month)
+
+        # 5. 실제 다음 결제일(날짜/시간) 생성
+        next_billing_date = payment_date.replace(
+            year=next_year,
+            month=next_month,
+            day=next_billing_day
+        )
+
+        # 6. end_date 설정 예시
+        end_date = next_billing_date - timedelta(days=1)
+
+        # 7. UserSubscription 엔티티 생성
         subscription = UserSubscription(
             user_id=payment_cache.user_id,
             plan_id=subscription_plan.plan_id,
+
             start_date=payment_date.date(),
+            end_date=end_date.date(),  # 새로 추가된 end_date 칼럼 저장
             next_billing_date=next_billing_date.date(),
+
             status="ACTIVE",
             subscription_number=payment_info["customer_uid"],
             subscriptions_method=payment_cache.payment_method,
@@ -285,6 +304,7 @@ def save_payment_data(payment_info, payment_cache, db):
         db.commit()
         db.refresh(subscription)
 
+        # 8. Payment 엔티티 생성 (결제 기록)
         payment_record = Payment(
             payment_id=payment_cache.merchant_uid,
             user_id=payment_cache.user_id,
@@ -299,8 +319,6 @@ def save_payment_data(payment_info, payment_cache, db):
             status="SUCCESS",
         )
         db.add(payment_record)
-
-    process_tokens(payment_record, db)
 
     # 쿠폰 처리
     if payment_cache.coupon_id:
