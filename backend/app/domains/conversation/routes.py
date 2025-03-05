@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.domains.user.models import User
 from app.domains.token import services as token_services
+from app.domains.subscription import services as subscription_services
 from app.core.config import settings
 from app.domains.conversation.chat_prompt import PROMPT
 from . import schemas, services
@@ -363,15 +364,20 @@ async def create_chat(
 
     # 슈퍼유저와 관리자는 토큰 체크 제외
     if current_user.role not in ['SUPERUSER', 'ADMIN']:
-        user_tokens = token_services.get_user_tokens(db, current_user.user_id)
-        if user_tokens.total_tokens < CHAT_TOKEN_COST:  # 잔여 토큰이 채팅 비용보다 적은지 확인
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "error": "not_enough_tokens",
-                    "message": "스톤이 부족합니다. 스톤을 충전해주세요."
-                }
-            )
+        # 구독(무제한) 여부 확인
+        is_subscribed = subscription_services.is_user_subscribed(db, current_user.user_id)
+        
+        # 구독이 아니라면, 일반 토큰 보유 여부 확인
+        if not is_subscribed:
+            user_tokens = token_services.get_user_tokens(db, current_user.user_id)
+            if user_tokens.total_tokens < CHAT_TOKEN_COST:
+                raise HTTPException(
+                    status_code=402,
+                    detail={
+                        "error": "not_enough_tokens",
+                        "message": "스톤이 부족합니다. 스톤을 충전해주세요."
+                    }
+                )
 
     try:
         # room_id가 주어진 경우 채팅방 정보 확인
@@ -644,7 +650,9 @@ async def create_chat(
 
         # 토큰 사용량 업데이트
         if current_user.role not in ['SUPERUSER', 'ADMIN']:
-            token_services.use_tokens(db, current_user.user_id, CHAT_TOKEN_COST)
+            # 구독이 아닌 경우에만 일반 토큰 차감
+            if not is_subscribed:
+                token_services.use_tokens(db, current_user.user_id, CHAT_TOKEN_COST)
 
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,

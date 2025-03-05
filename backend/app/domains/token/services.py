@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from typing import List
 from . import models, schemas
 from uuid import UUID
-from . import models, schemas
 
 def get_all_token_plans(db: Session) -> List[models.TokenPlan]:
     return db.query(models.TokenPlan).all()
