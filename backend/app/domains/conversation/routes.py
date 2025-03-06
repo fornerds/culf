@@ -650,9 +650,7 @@ async def create_chat(
 
         # 토큰 사용량 업데이트
         if current_user.role not in ['SUPERUSER', 'ADMIN']:
-            # 구독이 아닌 경우에만 일반 토큰 차감
-            if not is_subscribed:
-                token_services.use_tokens(db, current_user.user_id, CHAT_TOKEN_COST)
+            token_services.use_tokens(db, current_user.user_id, CHAT_TOKEN_COST, conversation.conversation_id)
 
         return schemas.ConversationResponse(
             conversation_id=conversation.conversation_id,

@@ -35,5 +35,6 @@ class UserSubscription(Base):
     subscriptions_method = Column(String(50), nullable=False)
 
     subscription_plan = relationship("SubscriptionPlan", back_populates="user_subscriptions")
+    usage_history = relationship("TokenUsageHistory", back_populates="user_subscriptions")
     payments = relationship("Payment", back_populates="subscription")
     payment_caches = relationship("PaymentCache", back_populates="subscription", cascade="all, delete-orphan")

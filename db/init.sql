@@ -149,10 +149,7 @@ CREATE TABLE tokens (
     user_id UUID NOT NULL UNIQUE REFERENCES users(user_id),
     total_tokens INTEGER NOT NULL DEFAULT 0,
     used_tokens INTEGER NOT NULL DEFAULT 0,
-    subscription_tokens INTEGER NOT NULL DEFAULT 0,
-    onetime_tokens INTEGER NOT NULL DEFAULT 0,
-    subscription_expires_at DATE,
-    onetime_expires_at DATE,
+    tokens_expires_at DATE,
     last_charged_at TIMESTAMPTZ
 );
 
@@ -161,6 +158,7 @@ CREATE TABLE token_usage_history (
     history_id SERIAL PRIMARY KEY,
     user_id UUID REFERENCES Users(user_id),
     conversation_id UUID REFERENCES Conversations(conversation_id),
+    subscription_id REFERENCES User_subscriptions(subscription_id),
     tokens_used INTEGER NOT NULL DEFAULT 0,
     used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -185,6 +183,7 @@ CREATE TABLE User_Subscriptions (
     user_id UUID REFERENCES Users(user_id),
     plan_id INTEGER REFERENCES Subscription_Plans(plan_id),
     start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
     next_billing_date DATE NOT NULL,
     status subscription_status NOT NULL DEFAULT 'ACTIVE',
     subscription_number VARCHAR(50) UNIQUE NULL,
@@ -539,9 +538,9 @@ INSERT INTO Conversations (conversation_id, user_id, question, answer, question_
 INSERT INTO Subscription_Plans (plan_id, plan_name, price, discounted_price, tokens_included, description, is_promotion) VALUES (1, '베이직 구독', 9900, 9900, 100, '월 100스톤이 제공되는 베이직 구독 플랜입니다.', false), (2, '프리미엄 구독', 29900, 25000, 500, '월 500스톤이 제공되는 프리미엄 구독 플랜입니다.', true), (3, '프로페셔널 구독', 49900, 45000, 1000, '월 1000스톤이 제공되는 프로페셔널 구독 플랜입니다.', true);
 
 -- Tokens 테이블 mock 데이터
-INSERT INTO Tokens (user_id, total_tokens, used_tokens, subscription_tokens, onetime_tokens, subscription_expires_at, onetime_expires_at, last_charged_at) VALUES ((SELECT user_id FROM Users WHERE email='user1@example.com'), 100, 30, 50, 50, '2023-10-01', '2028-09-01', '2023-09-01');
+INSERT INTO Tokens (user_id, total_tokens, used_tokens, tokens_expires_at, last_charged_at) VALUES ((SELECT user_id FROM Users WHERE email='user1@example.com'), 100, 50, '2028-09-01', '2023-09-01');
 
-INSERT INTO Tokens (user_id, total_tokens, used_tokens, subscription_tokens, onetime_tokens, subscription_expires_at, onetime_expires_at, last_charged_at) VALUES ((SELECT user_id FROM Users WHERE email='user2@example.com'), 250, 80, 100, 150, '2023-09-15', '2028-08-15', '2023-08-15');
+INSERT INTO Tokens (user_id, total_tokens, used_tokens, tokens_expires_at, last_charged_at) VALUES ((SELECT user_id FROM Users WHERE email='user2@example.com'), 250, 150, '2028-08-15', '2023-08-15');
 -- Notices 테이블 mock 데이터
 INSERT INTO Notices (title, content, image_url, start_date, end_date, view_count, is_public) VALUES
 ('서비스 업데이트 안내', '9월 20일부터 새로운 AI 모델이 적용됩니다. 더욱 정확하고 다양한 답변을 경험해보세요!', 'update_notice.jpg', '2023-09-15', '2023-09-30', 150, true),

@@ -61,8 +61,7 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
                 user_id=db_user.user_id,
                 total_tokens=welcome_tokens,
                 used_tokens=0,
-                onetime_tokens=welcome_tokens,  # 웰컴 토큰은 단건결제 토큰으로 처리
-                onetime_expires_at=current_date + timedelta(days=365*5),  # 5년 만료
+                tokens_expires_at=current_date + timedelta(days=365*5),  # 5년 만료
                 last_charged_at=func.now()
             )
             db.add(token)

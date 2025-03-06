@@ -34,3 +34,6 @@ class UserSubscriptionResponse(BaseModel):
 
 class UserSubscriptionUpdate(BaseModel):
     plan_id: Optional[int] = None  # 변경할 구독 플랜 ID
+
+class SubscriptionStatusResponse(BaseModel):
+    is_subscribed: bool

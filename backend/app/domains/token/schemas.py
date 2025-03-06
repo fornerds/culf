@@ -32,22 +32,3 @@ class TokenPlanResponse(TokenPlanBase):
 
     class Config:
         orm_mode = True
-
-class UserTokenResponse(BaseModel):
-    token_id: int
-    user_id: UUID
-    total_tokens: int
-    used_tokens: int
-    last_charged_at: Optional[datetime] = None
-    expires_at: Optional[date] = None
-
-    class Config:
-        orm_mode = True
-
-class TokenInfo(BaseModel):
-    total_tokens: int
-    used_tokens: int
-    last_charged_at: Optional[datetime]
-
-    class Config:
-        orm_mode = True

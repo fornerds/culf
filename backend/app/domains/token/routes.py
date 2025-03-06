@@ -1,5 +1,4 @@
 from typing import List
-from app.domains.token.schemas import TokenPlanCreate, TokenPlanUpdate, TokenPlanResponse, UserTokenResponse
 from app.db.session import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -21,28 +20,18 @@ def read_token_plan(token_plan_id: int, db: Session = Depends(get_db)):
     return token_plan
 
 @router.post("/admin/settings/tokens", response_model=schemas.TokenPlanResponse)
-def create_token_plan(token_plan: TokenPlanCreate, db: Session = Depends(get_db)):
+def create_token_plan(token_plan: schemas.TokenPlanCreate, db: Session = Depends(get_db)):
     return services.create_token_plan(db, token_plan)
 
 @router.put("/admin/settings/tokens/{token_plan_id}", response_model=schemas.TokenPlanResponse)
-def update_token_plan(token_plan_id: int, token_plan: TokenPlanUpdate, db: Session = Depends(get_db)):
+def update_token_plan(token_plan_id: int, token_plan: schemas.TokenPlanUpdate, db: Session = Depends(get_db)):
     return services.update_token_plan(db, token_plan_id, token_plan)
 
 @router.delete("/admin/settings/tokens/{token_plan_id}", status_code=204)
 def delete_token_plan(token_plan_id: int, db: Session = Depends(get_db)):
     services.delete_token_plan(db, token_plan_id)
 
-@router.get("/users/me/tokens", response_model=schemas.UserTokenResponse)
-def read_my_tokens(
-    db: Session = Depends(get_db),
-    current_user: user_schemas.User = Depends(get_current_active_user)
-):
-    token_info = services.get_user_tokens(db, current_user.user_id)
-    if not token_info:
-        raise HTTPException(status_code=404, detail="Token information not found for this user")
-    return token_info
-
-@router.get("/tokens", response_model=schemas.TokenInfo)
+@router.get("/users/me/tokens", response_model=schemas.TokenInfo)
 def get_user_tokens(
     db: Session = Depends(get_db),
     current_user: user_schemas.User = Depends(get_current_active_user)

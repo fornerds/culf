@@ -9,6 +9,9 @@ from app.domains.auth import services as auth_services
 from app.domains.user import schemas as user_schemas
 from app.domains.user import services as user_services
 from app.domains.token import services as token_services
+from app.domains.subscription import services as subscription_services
+from app.domains.payment import portone_services
+from app.domains.payment import services as payment_services
 from app.domains.user.models import User
 from uuid import UUID
 from app.core.config import settings
@@ -143,6 +146,9 @@ def delete_user_me(
 ):
     """
     회원 탈퇴 요청
+    1) 환불 가능 구독이 있다면 자동으로 환불 문의(Inquiry) 및 Refund(PENDING) 생성
+    2) 현재 구독 상태(정기 결제)라면 예약 결제 취소
+    3) 회원 탈퇴 처리
     """
     user = user_services.get_user(db, user_id=current_user.user_id)
     
@@ -153,6 +159,19 @@ def delete_user_me(
             "message": "탈퇴한 회원입니다."
         })
 
+    # 1) 환불 가능 구독이 있으면 환불 처리
+    try:
+        payment_services.create_refund_inquiry_for_subscription(db, current_user.user_id)
+    except HTTPException as e:
+        raise HTTPException(status_code=400, detail=f"자동 환불 실패: {e.detail}")
+
+    # 2) 현재 구독 상태(정기 결제)라면 예약 결제 취소
+    try:
+        portone_services.cancel_scheduled_payments(db, current_user.user_id)
+    except Exception as ex:
+        pass
+
+    # 3) 실제 회원 탈퇴 처리
     user_services.delete_user(db, current_user.user_id, delete_info)
     return {"message": "회원 탈퇴가 완료되었습니다."}
 

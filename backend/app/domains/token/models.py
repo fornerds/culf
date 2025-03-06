@@ -13,10 +13,7 @@ class Token(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False, unique=True)
     total_tokens = Column(Integer, nullable=False, default=0)
     used_tokens = Column(Integer, nullable=False, default=0)
-    subscription_tokens = Column(Integer, nullable=False, default=0)  # 정기결제 토큰 수
-    onetime_tokens = Column(Integer, nullable=False, default=0)  # 단건결제 토큰 수
-    subscription_expires_at = Column(Date)  # 정기결제 토큰 만료일
-    onetime_expires_at = Column(Date)  # 단건결제 토큰 만료일
+    tokens_expires_at = Column(Date)  # 단건결제 토큰 만료일
     last_charged_at = Column(DateTime(timezone=True))
 
     user = relationship("User", back_populates="tokens")
@@ -28,9 +25,11 @@ class TokenUsageHistory(Base):
     history_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('tokens.user_id'), nullable=False)
     conversation_id = Column(UUID(as_uuid=True), ForeignKey('conversations.conversation_id'), nullable=False)
+    subscription_id = Column(Integer, ForeignKey('user_subscriptions.subscription_id'), nullable=True) # 무제한 스톤 사용 여부
     tokens_used = Column(Integer, nullable=False, default=0)
     used_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    subscription = relationship("UserSubscription", back_populates="usage_history")
     token = relationship("Token", back_populates="usage_history")
     conversation = relationship("Conversation")
 

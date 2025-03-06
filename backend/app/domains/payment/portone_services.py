@@ -9,7 +9,8 @@ import logging
 from app.domains.token.models import TokenPlan, Token
 from app.domains.payment.models import Payment, Coupon, PaymentCache, UserCoupon, Refund
 from app.domains.payment import services, schemas
-from app.domains.subscription.models import SubscriptionPlan, UserSubscription
+from app.domains.subscription import services as subscription_services
+from app.domains.subscription import models as subscriprion_models
 from app.core.config import settings
 
 logger = logging.getLogger("app")
@@ -95,18 +96,16 @@ def initiate_one_time_payment(payment_request, db: Session, current_user):
 def initiate_subscription_payment(subscription_request, db: Session, current_user):
     """첫 구독 결제 요청"""
     # 기존 활성화된 구독 정보 확인
-    existing_subscription = db.query(UserSubscription).filter(
-        UserSubscription.user_id == current_user.user_id,
-        UserSubscription.status == "ACTIVE"
-    ).first()
+
+    existing_subscription = subscription_services.is_user_subscribed
     if existing_subscription:
         raise HTTPException(
             status_code=400,
             detail="이미 활성화된 구독이 있습니다."
         )
 
-    subscription_plan = db.query(SubscriptionPlan).filter(
-        SubscriptionPlan.plan_id == subscription_request.plan_id
+    subscription_plan = db.query(subscriprion_models.SubscriptionPlan).filter(
+        subscriprion_models.SubscriptionPlan.plan_id == subscription_request.plan_id
     ).first()
     if not subscription_plan:
         raise HTTPException(status_code=404, detail="스톤 구독 플랜을 찾을 수 없습니다.")
@@ -216,14 +215,13 @@ def process_tokens(payment, db):
             user_id=payment.user_id,
             total_tokens=payment.tokens_purchased,
             used_tokens=0,
-            subscription_tokens=0,
-            onetime_tokens=0,
+            tokens_expires_at=0,
             last_charged_at=current_date
         )
         db.add(token)
 
-    token.onetime_tokens += payment.tokens_purchased
-    token.onetime_expires_at = current_date + timedelta(days=365*5)
+    token.total_tokens += payment.tokens_purchased
+    token.tokens_expires_at = current_date + timedelta(days=365*5)
     logger.info(f"단건결제 스톤 추가: {payment.tokens_purchased}")
 
     token.total_tokens += payment.tokens_purchased
@@ -254,8 +252,8 @@ def save_payment_data(payment_info, payment_cache, db):
         process_tokens(payment_record, db)
 
     elif payment_cache.subscription_plan_id:
-        subscription_plan = db.query(SubscriptionPlan).filter(
-            SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
+        subscription_plan = db.query(subscriprion_models.SubscriptionPlan).filter(
+            subscriprion_models.SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
         ).first()
 
         # 1. 현재 결제일(payment_date) 계산
@@ -288,7 +286,7 @@ def save_payment_data(payment_info, payment_cache, db):
         end_date = next_billing_date - timedelta(days=1)
 
         # 7. UserSubscription 엔티티 생성
-        subscription = UserSubscription(
+        subscription = subscriprion_models.UserSubscription(
             user_id=payment_cache.user_id,
             plan_id=subscription_plan.plan_id,
 
@@ -368,8 +366,8 @@ def validate_payment_info(payment_request, db):
         expected_amount = float(token_plan.discounted_price or token_plan.price)
 
     elif payment_cache.subscription_plan_id:
-        subscription_plan = db.query(SubscriptionPlan).filter(
-            SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
+        subscription_plan = db.query(subscriprion_models.SubscriptionPlan).filter(
+            subscriprion_models.SubscriptionPlan.plan_id == payment_cache.subscription_plan_id
         ).first()
         if not subscription_plan:
             raise HTTPException(status_code=404, detail="스톤 구독 플랜을 찾을 수 없습니다.")
@@ -412,8 +410,47 @@ def verify_and_save_payment(payment_request, db):
     save_payment_data(payment_info, payment_cache, db)
     return {"status": "success", "message": "결제 처리가 완료되었습니다."}
 
+def cancel_scheduled_payments(customer_uid: str, headers: dict):
+    """
+    아임포트 정기결제 예약 목록을 조회하고,
+    해당하는 모든 예약을 unschedule(취소)한다.
+    """
+    schedule_api_url = f"https://api.iamport.kr/subscribe/payments/schedule/customers/{customer_uid}"
+    params = {
+        "schedule-status": "scheduled",  # 예약 상태가 'scheduled' 인 것만 조회
+        # 필요시 "from", "to", "page" 등 추가
+    }
+
+    # 1) 예약 목록 조회
+    schedule_response = requests.get(schedule_api_url, headers=headers, params=params)
+    if schedule_response.status_code != 200 or schedule_response.json().get("code") != 0:
+        error_msg = schedule_response.json().get("message", "예약 조회 실패")
+        raise HTTPException(status_code=400, detail=f"예약 조회 실패: {error_msg}")
+
+    schedule_data = schedule_response.json().get("response")
+    schedules = schedule_data.get("list", [])
+
+    # 2) 스케줄 unschedule
+    for sch in schedules:
+        merchant_uid = sch.get("merchant_uid")
+        if not merchant_uid:
+            continue
+        unschedule_payload = {
+            "customer_uid": customer_uid,
+            "merchant_uid": [merchant_uid]
+        }
+        unschedule_resp = requests.post(
+            url="https://api.iamport.kr/subscribe/payments/unschedule",
+            headers=headers,
+            json=unschedule_payload
+        )
+        if unschedule_resp.status_code != 200 or unschedule_resp.json().get("code") != 0:
+            msg = unschedule_resp.json().get("message", "예약 취소 실패")
+            raise HTTPException(status_code=400, detail=f"예약 취소 실패: {msg}")
+
 def issue_refund(inquiry_id: int, db: Session):
     access_token = get_portone_token()
+    headers = {"Authorization": f"Bearer {access_token}"}
 
     refund = db.query(Refund).filter(Refund.inquiry_id == inquiry_id).first()
     if not refund or refund.status != "PENDING":
@@ -427,7 +464,7 @@ def issue_refund(inquiry_id: int, db: Session):
     if not token or token.total_tokens < payment.tokens_purchased:
         raise HTTPException(status_code=400, detail="환불에 필요한 스톤이 부족합니다.")
     
-    # 포트원 REST API로 환불 요청
+    # 1) 아임포트 REST API로 환불 요청
     refund_payload = {
         "imp_uid": payment.payment_number,
         "reason": refund.reason,
@@ -445,7 +482,7 @@ def issue_refund(inquiry_id: int, db: Session):
 
     response = requests.post(
         url="https://api.iamport.kr/payments/cancel",
-        headers={"Authorization": f"Bearer {access_token}"},
+        headers=headers,
         json=refund_payload
     )
 
@@ -453,16 +490,32 @@ def issue_refund(inquiry_id: int, db: Session):
         error_message = response.json().get("message", "알 수 없는 오류가 발생했습니다.")
         raise HTTPException(status_code=400, detail=f"환불 요청 실패: {error_message}")
 
-    # 환불 처리 성공 시 데이터베이스 업데이트
-    token.total_tokens -= payment.tokens_purchased
+    # 2) 구독 결제 취소(예약 취소) & 구독 상태 업데이트
     if payment.subscription_id:
-        token.subscription_tokens -= payment.tokens_purchased
+        subscription = db.query(subscriprion_models.UserSubscription).filter(
+            subscriprion_models.UserSubscription.subscription_id == payment.subscription_id
+        ).first()
+
+        if subscription:
+            # status, end_date, next_billing_date
+            subscription.end_date = (datetime.now() - timedelta(days=1)).date()
+            subscription.next_billing_date = (datetime.now() - timedelta(days=1)).date()
+            subscription.status = 'CANCELLED'
+
+            # 이미 예약된 결제 일정(정기결제) 취소 (아임포트)
+            customer_uid = subscription.subscription_number
+            if customer_uid:
+                cancel_scheduled_payments(customer_uid=customer_uid, headers=headers)
     else:
-        token.onetime_tokens -= payment.tokens_purchased
+        # 일반 단건 결제 → 스톤 차감
+        token.total_tokens -= payment.tokens_purchased
+
+    # 3) 환불/결제 상태 업데이트
     refund.status = "APPROVED"
     refund.processed_at = datetime.now()
-    refund.processed_by = None  # 관리자 정보 추가 예정\
+    refund.processed_by = None  # 관리자 정보 추가 가능
     payment.status = "REFUNDED"
+
     db.commit()
 
     return {
@@ -476,14 +529,14 @@ def schedule_subscription_payment(subscription_id, db: Session):
     """
     token = get_portone_token()
 
-    subscription = db.query(UserSubscription).filter(
-        UserSubscription.subscription_id == subscription_id
+    subscription = db.query(subscriprion_models.UserSubscription).filter(
+        subscriprion_models.UserSubscription.subscription_id == subscription_id
     ).first()
     if not subscription:
         raise HTTPException(status_code=404, detail="구독 정보를 찾을 수 없습니다.")
 
-    subscription_plan = db.query(SubscriptionPlan).filter(
-        SubscriptionPlan.plan_id == subscription.plan_id
+    subscription_plan = db.query(subscriprion_models.SubscriptionPlan).filter(
+        subscriprion_models.SubscriptionPlan.plan_id == subscription.plan_id
     ).first()
     if not subscription_plan:
         raise HTTPException(status_code=404, detail="스톤 구독 플랜을 찾을 수 없습니다.")
@@ -541,15 +594,15 @@ def process_subscription_payment(payment_info, db: Session):
         logging.info(f"Duplicate subscription payment detected. Imp_uid: {payment_info['imp_uid']}")
         return
 
-    subscription = db.query(UserSubscription).filter(
-        UserSubscription.subscription_number == payment_info["customer_uid"]
+    subscription = db.query(subscriprion_models.UserSubscription).filter(
+        subscriprion_models.UserSubscription.subscription_number == payment_info["customer_uid"]
     ).first()
 
     if not subscription:
         raise HTTPException(status_code=404, detail="구독 정보를 찾을 수 없습니다.")
 
-    subscription_plan = db.query(SubscriptionPlan).filter(
-        SubscriptionPlan.plan_id == subscription.plan_id
+    subscription_plan = db.query(subscriprion_models.SubscriptionPlan).filter(
+        subscriprion_models.SubscriptionPlan.plan_id == subscription.plan_id
     ).first()
 
     if not subscription_plan:
@@ -614,8 +667,8 @@ def handle_failed_subscription_payment(payment_info, db: Session):
     """
     실패한 구독 결제 처리 로직
     """
-    subscription = db.query(UserSubscription).filter(
-        UserSubscription.subscription_number == payment_info["customer_uid"]
+    subscription = db.query(subscriprion_models.UserSubscription).filter(
+        subscriprion_models.UserSubscription.subscription_number == payment_info["customer_uid"]
     ).first()
 
     if not subscription:
@@ -645,57 +698,13 @@ def handle_failed_subscription_payment(payment_info, db: Session):
     db.commit()
     logging.info(f"Failed subscription payment processed and subscription cancelled. Subscription ID: {subscription.subscription_id}")
 
-def change_subscription_plan(change_request: schemas.SubscriptionChangeRequest, db: Session):
-    """
-    사용자의 구독 플랜 변경
-    """
-    # 기존 구독 정보 조회
-    subscription = db.query(UserSubscription).filter(
-        UserSubscription.user_id == change_request.user_id,
-        UserSubscription.status == "ACTIVE",
-    ).first()
-
-    if not subscription:
-        raise HTTPException(status_code=404, detail="활성화된 구독을 찾을 수 없습니다.")
-
-    # 새 구독 플랜 확인
-    new_plan = db.query(SubscriptionPlan).filter(
-        SubscriptionPlan.plan_id == change_request.new_plan_id
-    ).first()
-
-    if not new_plan:
-        raise HTTPException(status_code=404, detail="새 구독 플랜을 찾을 수 없습니다.")
-
-    # 기존 구독 상태를 CANCELLED로 변경
-    subscription.status = "CANCELLED"
-    db.add(subscription)
-    db.commit()
-
-    # 새 구독 정보 생성
-    new_subscription = UserSubscription(
-        user_id=change_request.user_id,
-        plan_id=new_plan.plan_id,
-        start_date=datetime.now().date(),
-        next_billing_date=(datetime.now() + timedelta(days=30)).date(),
-        status="ACTIVE",
-        subscription_number=subscription.subscription_number,  # 기존 빌링키 재사용
-        subscriptions_method=subscription.subscriptions_method,
-    )
-    db.add(new_subscription)
-    db.commit()
-    db.refresh(new_subscription)
-
-    logging.info(f"Subscription plan changed. New subscription ID: {new_subscription.subscription_id}")
-
-    return new_subscription
-
 def initiate_change_payment_method(change_request, db: Session, current_user):
     """
     구독 결제 방식 변경 요청 초기화
     """
-    active_subscription = db.query(UserSubscription).filter(
-        UserSubscription.user_id == current_user.user_id,
-        UserSubscription.status == "ACTIVE"
+    active_subscription = db.query(subscriprion_models.UserSubscription).filter(
+        subscriprion_models.UserSubscription.user_id == current_user.user_id,
+        subscriprion_models.UserSubscription.status == "ACTIVE"
     ).first()
 
     if not active_subscription:
@@ -704,12 +713,23 @@ def initiate_change_payment_method(change_request, db: Session, current_user):
             detail="현재 활성화된 구독이 없습니다. 새로운 구독을 생성하세요."
         )
 
-    subscription_plan = db.query(SubscriptionPlan).filter(
-        SubscriptionPlan.plan_id == active_subscription.plan_id,
+    subscription_plan = db.query(subscriprion_models.SubscriptionPlan).filter(
+        subscriprion_models.SubscriptionPlan.plan_id == active_subscription.plan_id,
     ).first()
 
     if not subscription_plan:
         raise HTTPException(status_code=404, detail="구독 플랜 정보를 찾을 수 없습니다.")
+
+    # 기존 예약 취소
+    old_customer_uid = active_subscription.subscription_number
+    if old_customer_uid:
+        access_token = get_portone_token()
+        try:
+            cancel_scheduled_payments(old_customer_uid, access_token)
+            logging.info(f"Canceled existing schedule for customer_uid={old_customer_uid}")
+        except HTTPException as e:
+            logging.error(f"Failed to cancel existing schedule: {e.detail}")
+            raise
 
     merchant_uid = str(uuid.uuid4())
     customer_uid = f"{current_user.user_id}-customer"
