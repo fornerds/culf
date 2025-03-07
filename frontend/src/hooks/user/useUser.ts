@@ -53,68 +53,67 @@ export const useUser = () => {
   const userInfoQuery = useQuery<UserInfo, Error>({
     queryKey: ['userInfo'],
     queryFn: async () => {
-      // 현재 상태 디버깅
-      // console.group('🔍 Fetching User Info');
-      // console.log('Current State:', {
-      //   pathname: window.location.pathname,
-      //   accessToken: tokenService.getAccessToken(),
-      //   registrationInProgress
-      // });
-      // console.groupEnd();
-  
       // Login Status 체크
       const loginStatus = document.cookie
         .split('; ')
-        .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
+        .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
         ?.split('=')[1];
-  
+
       // Skip API call if:
       // 1. SNS registration is in progress
       // 2. We're on the terms page
       if (loginStatus === 'continue' || window.location.pathname === '/terms') {
-        console.log('Skipping user info fetch - SNS registration or terms page');
+        console.log(
+          'Skipping user info fetch - SNS registration or terms page',
+        );
         return null;
       }
-  
+
       try {
         // 실제 API 호출
         const response = await userApi.getMyInfo();
-  
+
         // API 응답 성공시 상태 업데이트
         if (response.data) {
           const currentToken = tokenService.getAccessToken();
-          setAuth(true, {
-            id: response.data.user_id,
-            email: response.data.email,
-            nickname: response.data.nickname
-          }, currentToken);
-  
+          // null 체크 추가하여 currentToken이 null일 경우 전달하지 않음
+          setAuth(
+            true,
+            {
+              id: response.data.user_id,
+              email: response.data.email,
+              nickname: response.data.nickname,
+            },
+            currentToken || undefined,
+          );
+
           return response.data;
         }
-  
+
         return null;
       } catch (error) {
         console.error('Failed to fetch user info:', error);
         const currentToken = tokenService.getAccessToken();
-        
-        // 스톤이 있는 경우는 일단 에러를 무시
+
+        // 토큰이 있는 경우는 일단 에러를 무시
         if (currentToken) {
           return null;
         }
-        
+
         setAuth(false, null);
         throw error;
       }
     },
-    enabled: // 쿼리 실행 조건
+    // 쿼리 실행 조건
+    enabled:
       isInitialized && // 초기화 완료
       !!tokenService.getAccessToken() && // 토큰 존재
       !document.cookie.includes('OAUTH_LOGIN_STATUS=continue') && // SNS 로그인 진행 중 아님
       window.location.pathname !== '/terms', // terms 페이지 아님
     staleTime: 5 * 60 * 1000, // 5분
-    cacheTime: 10 * 60 * 1000, // 10분
+    gcTime: 10 * 60 * 1000, // 10분 (cacheTime 대신 gcTime 사용)
     retry: 1, // 한 번의 재시도 허용
-    retryDelay: 1000 // 1초 후 재시도
+    retryDelay: 1000, // 1초 후 재시도
   });
 
   const tokenInfoQuery = useQuery<TokenInfo, Error>({
@@ -122,7 +121,7 @@ export const useUser = () => {
     queryFn: async () => {
       const loginStatus = document.cookie
         .split('; ')
-        .find(row => row.startsWith('OAUTH_LOGIN_STATUS='))
+        .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
         ?.split('=')[1];
 
       if (loginStatus === 'continue' || window.location.pathname === '/terms') {
@@ -137,13 +136,15 @@ export const useUser = () => {
         return null;
       }
     },
-    enabled: isInitialized && 
-             !registrationInProgress && 
-             userInfoQuery.isSuccess &&
-             !!tokenService.getAccessToken() &&
-             !document.cookie.includes('OAUTH_LOGIN_STATUS=continue'),
+    enabled:
+      isInitialized &&
+      !registrationInProgress &&
+      userInfoQuery.isSuccess &&
+      !!tokenService.getAccessToken() &&
+      !document.cookie.includes('OAUTH_LOGIN_STATUS=continue'),
     staleTime: 5 * 60 * 1000,
-    retry: false
+    gcTime: 10 * 60 * 1000, // cacheTime 대신 gcTime 사용
+    retry: false,
   });
 
   const updateUserInfoMutation = useMutation<UserInfo, Error, UpdateUserData>({
@@ -153,32 +154,40 @@ export const useUser = () => {
     },
     onSuccess: () => {
       userInfoQuery.refetch();
-    }
+    },
   });
 
-  const deleteAccountMutation = useMutation<void, Error, { reason?: string; feedback?: string }>({
+  const deleteAccountMutation = useMutation<
+    void,
+    Error,
+    { reason?: string; feedback?: string }
+  >({
     mutationFn: async ({ reason, feedback }) => {
       await userApi.deleteAccount(reason, feedback);
       setAuth(false, null);
     },
   });
 
-  const verifyPasswordMutation = useMutation<string, Error, VerifyPasswordData>({
-    mutationFn: async ({ current_password }) => {
-      const response = await userApi.verifyPassword(current_password);
-      return response.data.message;
+  const verifyPasswordMutation = useMutation<string, Error, VerifyPasswordData>(
+    {
+      mutationFn: async ({ current_password }) => {
+        const response = await userApi.verifyPassword(current_password);
+        return response.data.message;
+      },
     },
-  });
+  );
 
-  const changePasswordMutation = useMutation<string, Error, ChangePasswordData>({
-    mutationFn: async ({ new_password, new_password_confirm }) => {
-      const response = await userApi.changePassword(
-        new_password,
-        new_password_confirm
-      );
-      return response.data.message;
+  const changePasswordMutation = useMutation<string, Error, ChangePasswordData>(
+    {
+      mutationFn: async ({ new_password, new_password_confirm }) => {
+        const response = await userApi.changePassword(
+          new_password,
+          new_password_confirm,
+        );
+        return response.data.message;
+      },
     },
-  });
+  );
 
   const updateUserInfo = async (userData: UpdateUserData) => {
     try {
@@ -202,7 +211,7 @@ export const useUser = () => {
   const verifyPassword = async (currentPassword: string) => {
     try {
       return await verifyPasswordMutation.mutateAsync({
-        current_password: currentPassword
+        current_password: currentPassword,
       });
     } catch (error) {
       console.error('Failed to verify password:', error);
@@ -210,17 +219,20 @@ export const useUser = () => {
     }
   };
 
-  const changePassword = async (currentPassword: string, newPassword: string) => {
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+  ) => {
     try {
       // 먼저 현재 비밀번호 검증
       await verifyPasswordMutation.mutateAsync({
-        current_password: currentPassword
+        current_password: currentPassword,
       });
-      
+
       // 검증 성공 후 새 비밀번호로 변경
       return await changePasswordMutation.mutateAsync({
         new_password: newPassword,
-        new_password_confirm: newPassword
+        new_password_confirm: newPassword,
       });
     } catch (error) {
       console.error('Failed to change password:', error);
@@ -235,25 +247,16 @@ export const useUser = () => {
     };
   }, []);
 
+  // 토큰 변경 시 사용자 정보 다시 불러오기
   useEffect(() => {
-    // if (process.env.NODE_ENV === 'development') {
-    //   console.group('👤 User State Updated');
-    //   console.log('Query Status:', userInfoQuery.status);
-    //   console.log('Is Initialized:', isInitialized);
-    //   console.log('Registration in Progress:', registrationInProgress);
-    //   console.log('User Data:', userInfoQuery.data);
-    //   console.log('Access Token:', tokenService.getAccessToken());
-    //   console.groupEnd();
-    // }
-  }, [userInfoQuery.status, isInitialized, registrationInProgress]);
+    const token = tokenService.getAccessToken();
+    if (token && isInitialized) {
+      userInfoQuery.refetch();
+    }
+  }, [tokenService.getAccessToken(), isInitialized]);
 
   return {
-    isLoading: userInfoQuery.isLoading || 
-               tokenInfoQuery.isLoading || 
-               updateUserInfoMutation.isLoading || 
-               deleteAccountMutation.isLoading || 
-               verifyPasswordMutation.isLoading || 
-               changePasswordMutation.isLoading,
+    isLoading: userInfoQuery.isLoading || tokenInfoQuery.isLoading,
     isError: userInfoQuery.isError,
     error: userInfoQuery.error,
     isInitialized,
@@ -264,6 +267,6 @@ export const useUser = () => {
     verifyPassword,
     changePassword,
     refetchUser: userInfoQuery.refetch,
-    refetchTokens: tokenInfoQuery.refetch
+    refetchTokens: tokenInfoQuery.refetch,
   };
 };

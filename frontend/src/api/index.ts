@@ -28,50 +28,48 @@ const api: AxiosInstance = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    const token = tokenService.getAccessToken();
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  },
-);
-
-// Response interceptor with improved token refresh logic
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    // Skip auth handling for home page
-    if (window.location.pathname === '/' && error.response?.status === 401) {
+// 단순화된 request 인터셉터
+export const setupRequestInterceptor = () => {
+  api.interceptors.request.use(
+    (config) => {
+      // 모든 요청에 토큰 추가
+      const token = tokenService.getAccessToken();
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
       return Promise.reject(error);
-    }
+    },
+  );
+};
 
-    // Handle token refresh for 401 errors
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+// 단순화된 response 인터셉터 - 로직을 더 명확하게
+export const setupResponseInterceptor = () => {
+  api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
 
-      try {
-        // Check if we have a refresh token in cookies
+      // 인증 관련 오류 (401)만 특별 처리
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        // 리프레시 토큰 존재 확인
         const hasRefreshToken = document.cookie
           .split('; ')
           .some((row) => row.startsWith('refresh_token='));
 
         if (!hasRefreshToken) {
-          // No refresh token, clear auth state
+          // 리프레시 토큰이 없으면 로그아웃 처리
+          console.log('No refresh token, logging out');
           tokenService.removeAccessToken();
           useAuthStore.getState().setAuth(false, null);
 
-          // Redirect if not on login/home page
+          // 로그인이 필요한 페이지에서만 리다이렉트
           if (
             !window.location.pathname.includes('/login') &&
-            window.location.pathname !== '/'
+            window.location.pathname !== '/' &&
+            !window.location.pathname.includes('/notification/notice')
           ) {
             window.location.href = '/login';
           }
@@ -79,54 +77,54 @@ api.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        // Attempt to refresh the token
-        const res = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          {
-            withCredentials: true,
-          },
-        );
+        // 토큰 갱신 시도
+        originalRequest._retry = true;
 
-        if (res.status === 200 && res.data.access_token) {
-          // Update the token
-          tokenService.setAccessToken(res.data.access_token);
+        try {
+          console.log('Attempting to refresh token...');
+          const response = await axios.post(
+            `${API_BASE_URL}/auth/refresh`,
+            {},
+            { withCredentials: true },
+          );
 
-          // Update auth state with new token and user info
-          if (res.data.user) {
-            useAuthStore
-              .getState()
-              .setAuth(true, res.data.user, res.data.access_token);
+          if (response.data && response.data.access_token) {
+            // 새 토큰 저장
+            const { access_token, user } = response.data;
+            tokenService.setAccessToken(access_token);
+
+            // 인증 상태 업데이트
+            useAuthStore.getState().setAuth(true, user, access_token);
+
+            // 원래 요청의 헤더 업데이트
+            originalRequest.headers['Authorization'] = `Bearer ${access_token}`;
+
+            // 원래 요청 재시도
+            return api(originalRequest);
           }
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
 
-          // Update the request headers
-          originalRequest.headers['Authorization'] =
-            `Bearer ${res.data.access_token}`;
+          // 토큰 갱신 실패 시 로그아웃 처리
+          tokenService.removeAccessToken();
+          useAuthStore.getState().setAuth(false, null);
 
-          // Retry the original request
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-
-        // Clear all auth state
-        tokenService.removeAccessToken();
-        useAuthStore.getState().setAuth(false, null);
-        useAuthStore.getState().resetSnsAuth?.();
-
-        // Redirect to login if not already there or on home page
-        if (
-          !window.location.pathname.includes('/login') &&
-          window.location.pathname !== '/'
-        ) {
-          window.location.href = '/login';
+          // 로그인이 필요한 페이지에서만 리다이렉트
+          if (
+            !window.location.pathname.includes('/login') &&
+            window.location.pathname !== '/' &&
+            !window.location.pathname.includes('/notification/notice')
+          ) {
+            window.location.href = '/login';
+          }
         }
       }
-    }
 
-    return Promise.reject(error);
-  },
-);
+      // 기타 모든 오류는 그대로 반환
+      return Promise.reject(error);
+    },
+  );
+};
 
 // Banner
 export const banner = {
@@ -135,26 +133,47 @@ export const banner = {
 
 // Auth API
 export const auth = {
-  login: (email: string, password: string) => {
-    // 로그인 전에 기존 토큰과 상태 초기화
-    tokenService.removeAccessToken();
-    useAuthStore.getState().setAuth(false, null);
+  login: async (email: string, password: string) => {
+    console.log('로그인 요청:', { email });
 
-    return api.post('/auth/login', { email, password });
+    // 기존 토큰을 먼저 제거하여 인증 초기화
+    tokenService.removeAccessToken();
+
+    try {
+      const response = await api.post('/auth/login', { email, password });
+
+      // 토큰 및 사용자 정보 확인
+      if (response.data && response.data.access_token) {
+        console.log('로그인 성공, 토큰 수신');
+        return response;
+      } else {
+        console.error('로그인 응답에 토큰이 없음:', response.data);
+        throw new Error('로그인 응답에 토큰이 없습니다.');
+      }
+    } catch (error) {
+      console.error('로그인 API 호출 오류:', error);
+      throw error;
+    }
   },
 
   logout: async () => {
+    console.log('로그아웃 요청');
     try {
       await api.post('/logout');
+      console.log('로그아웃 API 성공');
+    } catch (error) {
+      console.error('로그아웃 API 오류(무시):', error);
     } finally {
-      // 로그아웃 API 호출 결과와 관계없이 클라이언트 상태 초기화
+      // API 성공 여부와 관계없이 클라이언트 상태 초기화
       tokenService.removeAccessToken();
       useAuthStore.getState().setAuth(false, null);
       useAuthStore.getState().resetSnsAuth?.();
+      console.log('로그아웃 및 상태 초기화 완료');
     }
   },
 
   register: (userData: any) => {
+    console.log('회원가입 요청');
     const providerInfo = document.cookie
       .split('; ')
       .find((row) => row.startsWith('provider_info='))
@@ -171,27 +190,40 @@ export const auth = {
   },
 
   refreshToken: async () => {
-    // 기존 토큰 제거
-    tokenService.removeAccessToken();
+    console.log('토큰 리프레시 요청');
+    try {
+      // 리프레시 토큰으로 새 액세스 토큰 요청
+      const response = await api.post(
+        '/auth/refresh',
+        {},
+        {
+          withCredentials: true,
+        },
+      );
 
-    const response = await api.post(
-      '/auth/refresh',
-      {},
-      {
-        withCredentials: true,
-      },
-    );
+      // 새 토큰이 있으면 저장
+      if (response.data && response.data.access_token) {
+        tokenService.setAccessToken(response.data.access_token);
+        console.log('새 액세스 토큰 저장 완료');
+      } else {
+        console.warn('리프레시 응답에 액세스 토큰이 없음:', response.data);
+      }
 
-    if (response.data.access_token) {
-      tokenService.setAccessToken(response.data.access_token);
+      return response;
+    } catch (error) {
+      console.error('토큰 리프레시 실패:', error);
+      // 리프레시 실패 시 기존 토큰 제거
+      tokenService.removeAccessToken();
+      throw error;
     }
-
-    return response;
   },
 
-  loginSNS: (provider: string, accessToken: string) =>
-    api.post(`/auth/login/${provider}`, { access_token: accessToken }),
+  loginSNS: (provider: string, accessToken: string) => {
+    console.log('SNS 로그인 요청:', provider);
+    return api.post(`/auth/login/${provider}`, { access_token: accessToken });
+  },
 
+  // 나머지 메서드는 그대로 유지...
   findEmail: (phoneNumber: string, birthdate: string) =>
     api.post('/auth/find-email', { phone_number: phoneNumber, birthdate }),
 

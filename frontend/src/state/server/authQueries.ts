@@ -205,8 +205,11 @@ export const useRequestPhoneVerification = () =>
 
 export const useVerifyPhone = () =>
   useMutation({
-    mutationFn: async ({ phoneNumber, verificationCode }: VerifyPhoneData) => {
-      const response = await auth.verifyPhone(phoneNumber, verificationCode);
+    mutationFn: async ({
+      phone_number,
+      verification_code,
+    }: VerifyPhoneData) => {
+      const response = await auth.verifyPhone(phone_number, verification_code);
       return response.data;
     },
   });
@@ -350,12 +353,15 @@ export const useAuth = () => {
     }
   };
 
-  const verifyPhone = async (phoneNumber: string, verificationCode: string) => {
+  const verifyPhone = async (
+    phone_number: string,
+    verification_code: string,
+  ) => {
     setIsLoading(true);
     try {
       return await verifyPhoneMutation.mutateAsync({
-        phoneNumber,
-        verificationCode,
+        phone_number,
+        verification_code,
       });
     } finally {
       setIsLoading(false);
