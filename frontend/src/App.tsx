@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Routes,
   Route,
@@ -13,11 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useHeaderStore } from './state/client/useHeaderStore';
 import { useSideMenuStore } from './state/client/useSideMenuStore';
 import { useUser } from './hooks/user/useUser';
-import { tokenService } from './utils/tokenService';
-import { useAuthStore } from './state/client/authStore';
-import { LoadingAnimation } from './components/atom';
 
-// 페이지 임포트
 import { Homepage } from './pages/Homepage';
 import { Mypage } from './pages/Mypage';
 import { Login } from './pages/Login';
@@ -40,17 +36,20 @@ import {
 } from './pages/Notification';
 import { CustomerInquiry } from './pages/CustomerInquiry';
 import logoimage from './assets/images/culf.png';
-import { auth } from './api';
+import axios from 'axios';
+import { API_BASE_URL, auth } from './api';
 import { OAuthCallback } from './pages/OAuthCallback';
+import { tokenService } from './utils/tokenService';
+import { useAuthStore } from './state/client/authStore';
+import { LoadingAnimation } from './components/atom';
 
-// 전역 QueryClient 생성 및 설정
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: false,
       gcTime: 5 * 60 * 1000,
-      staleTime: 1 * 60 * 1000, // 1분으로 단축하여 더 자주 업데이트
+      staleTime: 5 * 60 * 1000,
     },
     mutations: {
       retry: false,
@@ -58,87 +57,61 @@ const queryClient = new QueryClient({
   },
 });
 
-// 로그인한 사용자일 경우 홈으로 리다이렉트하는 공개 라우트
+// 로그인한 사용자일 경우 홈으로 리다이렉트
 const PublicRoute = ({ children }: { children: JSX.Element }) => {
   const accessToken = tokenService.getAccessToken();
   return accessToken ? <Navigate to="/" replace /> : children;
 };
 
-// 인증 상태를 확인하는 개선된 PrivateOutlet
+// 인증 보호 기능을 추가한 PrivateOutlet 구성
 export const PrivateOutlet = () => {
   const [isChecking, setIsChecking] = useState(true);
   const { setAuth } = useAuthStore();
-  const location = useLocation();
   const accessToken = tokenService.getAccessToken();
+  const { getUserInfo, isLoading } = useUser();
+  const location = useLocation();
 
   useEffect(() => {
     let isActive = true;
 
     const validateAuth = async () => {
       try {
-        // SNS 로그인 진행 중 확인
+        // Terms 페이지이면서 SNS 로그인 진행 중인 경우
         const loginStatus = document.cookie
           .split('; ')
           .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
           ?.split('=')[1];
 
         // SNS 회원가입 진행 중이면 검증 절차 건너뛰기
-        if (loginStatus === 'continue' && location.pathname === '/terms') {
+        if (loginStatus === 'continue') {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('SNS Registration in progress, skipping auth check');
+          }
           setIsChecking(false);
           return;
         }
 
-        // 토큰이 있는 경우
+        // access token이 있으면 해당 토큰으로 인증 시도
         if (accessToken) {
           try {
-            // 서버에서 현재 사용자 정보 가져오기
-            const userResponse = await auth.refreshToken();
-            if (isActive && userResponse.data && userResponse.data.user) {
-              const { access_token, user } = userResponse.data;
-              // 인증 상태 및 토큰 업데이트
-              tokenService.setAccessToken(access_token);
-              setAuth(true, user, access_token);
-
-              // 사용자 정보 캐시 초기화
-              queryClient.invalidateQueries({ queryKey: ['userInfo'] });
+            await getUserInfo.refetch();
+            if (isActive) {
+              setAuth(true, getUserInfo.data || null);
             }
           } catch (error) {
             console.error('Failed to validate user:', error);
             if (isActive) {
-              tokenService.removeAccessToken();
               setAuth(false, null);
             }
           }
         } else {
-          // 액세스 토큰이 없는 경우 리프레시 토큰 확인
+          // access token이 없는 경우
           const hasRefreshToken = document.cookie
             .split('; ')
             .some((row) => row.startsWith('refresh_token='));
 
-          if (hasRefreshToken) {
-            // 리프레시 토큰으로 새 액세스 토큰 요청
-            try {
-              const refreshResponse = await auth.refreshToken();
-              if (
-                isActive &&
-                refreshResponse.data &&
-                refreshResponse.data.access_token
-              ) {
-                const { access_token, user } = refreshResponse.data;
-                tokenService.setAccessToken(access_token);
-                setAuth(true, user, access_token);
-
-                // 사용자 정보 캐시 초기화
-                queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-              }
-            } catch (refreshError) {
-              console.error('Refresh token failed:', refreshError);
-              if (isActive) {
-                setAuth(false, null);
-              }
-            }
-          } else {
-            // 토큰이 전혀 없는 경우 인증 실패 처리
+          if (!hasRefreshToken) {
+            // 리프레시 토큰도 없는 경우 인증 실패
             if (isActive) {
               setAuth(false, null);
             }
@@ -161,10 +134,9 @@ export const PrivateOutlet = () => {
     return () => {
       isActive = false;
     };
-  }, [location.pathname, accessToken]);
+  }, [location.pathname]);
 
-  // 로딩 상태 표시
-  if (isChecking) {
+  if (isChecking || isLoading) {
     return (
       <div
         style={{
@@ -189,7 +161,6 @@ export const PrivateOutlet = () => {
     );
   }
 
-  // SNS 회원가입 확인
   const loginStatus = document.cookie
     .split('; ')
     .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
@@ -200,7 +171,7 @@ export const PrivateOutlet = () => {
     return <Outlet />;
   }
 
-  // 인증 확인 후 접근 허용 또는 로그인 페이지로 리다이렉트
+  // access token이 있거나 SNS 인증 성공 상태면 접근 허용
   return accessToken || loginStatus === 'success' ? (
     <Outlet />
   ) : (
@@ -208,7 +179,6 @@ export const PrivateOutlet = () => {
   );
 };
 
-// 라우트 설정을 담당하는 컴포넌트
 function AppRoutes() {
   const {
     setUseHeader,
@@ -219,20 +189,23 @@ function AppRoutes() {
     resetHeader,
   } = useHeaderStore();
   const { isOpen, toggle } = useSideMenuStore();
+  const action = useNavigationType();
   const location = useLocation();
   const pathname = location.pathname;
 
-  // 메뉴 버튼 클릭 핸들러
   const handleMenuClick = useCallback(() => {
+    console.log('Menu clicked in App.tsx');
     toggle();
   }, [toggle]);
 
-  // 메뉴 버튼 클릭 이벤트 설정
   useEffect(() => {
     setOnMenuClick(handleMenuClick);
   }, [setOnMenuClick, handleMenuClick]);
 
-  // 페이지별 헤더 설정
+  useEffect(() => {
+    console.log('App effect, SideMenu isOpen:', isOpen);
+  }, [isOpen]);
+
   useEffect(() => {
     resetHeader();
 
@@ -326,6 +299,12 @@ function AppRoutes() {
     } else {
       setUseHeader(false);
     }
+
+    console.log('Header state updated:', {
+      pathname,
+      useHeader: useHeaderStore.getState().useHeader,
+      showMenuButton: useHeaderStore.getState().showMenuButton,
+    });
   }, [
     pathname,
     setUseHeader,
@@ -338,7 +317,6 @@ function AppRoutes() {
   return (
     <Layout>
       <Routes>
-        {/* 공개 라우트 */}
         <Route path="/" element={<Homepage />} />
         <Route
           path="/login"
@@ -395,13 +373,7 @@ function AppRoutes() {
   );
 }
 
-// App 컴포넌트 - 앱의 최상위 컴포넌트
 function App() {
-  // 앱 초기화 시 AuthStore에 QueryClient 설정
-  useEffect(() => {
-    useAuthStore.getState().setQueryClient(queryClient);
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename="/">

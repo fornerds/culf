@@ -53,6 +53,15 @@ export const useUser = () => {
   const userInfoQuery = useQuery<UserInfo, Error>({
     queryKey: ['userInfo'],
     queryFn: async () => {
+      // 현재 상태 디버깅
+      // console.group('🔍 Fetching User Info');
+      // console.log('Current State:', {
+      //   pathname: window.location.pathname,
+      //   accessToken: tokenService.getAccessToken(),
+      //   registrationInProgress
+      // });
+      // console.groupEnd();
+
       // Login Status 체크
       const loginStatus = document.cookie
         .split('; ')
@@ -76,7 +85,6 @@ export const useUser = () => {
         // API 응답 성공시 상태 업데이트
         if (response.data) {
           const currentToken = tokenService.getAccessToken();
-          // null 체크 추가하여 currentToken이 null일 경우 전달하지 않음
           setAuth(
             true,
             {
@@ -84,7 +92,7 @@ export const useUser = () => {
               email: response.data.email,
               nickname: response.data.nickname,
             },
-            currentToken || undefined,
+            currentToken,
           );
 
           return response.data;
@@ -95,7 +103,7 @@ export const useUser = () => {
         console.error('Failed to fetch user info:', error);
         const currentToken = tokenService.getAccessToken();
 
-        // 토큰이 있는 경우는 일단 에러를 무시
+        // 스톤이 있는 경우는 일단 에러를 무시
         if (currentToken) {
           return null;
         }
@@ -111,7 +119,7 @@ export const useUser = () => {
       !document.cookie.includes('OAUTH_LOGIN_STATUS=continue') && // SNS 로그인 진행 중 아님
       window.location.pathname !== '/terms', // terms 페이지 아님
     staleTime: 5 * 60 * 1000, // 5분
-    gcTime: 10 * 60 * 1000, // 10분 (cacheTime 대신 gcTime 사용)
+    cacheTime: 10 * 60 * 1000, // 10분
     retry: 1, // 한 번의 재시도 허용
     retryDelay: 1000, // 1초 후 재시도
   });
@@ -143,7 +151,6 @@ export const useUser = () => {
       !!tokenService.getAccessToken() &&
       !document.cookie.includes('OAUTH_LOGIN_STATUS=continue'),
     staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000, // cacheTime 대신 gcTime 사용
     retry: false,
   });
 
@@ -247,16 +254,26 @@ export const useUser = () => {
     };
   }, []);
 
-  // 토큰 변경 시 사용자 정보 다시 불러오기
   useEffect(() => {
-    const token = tokenService.getAccessToken();
-    if (token && isInitialized) {
-      userInfoQuery.refetch();
-    }
-  }, [tokenService.getAccessToken(), isInitialized]);
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.group('👤 User State Updated');
+    //   console.log('Query Status:', userInfoQuery.status);
+    //   console.log('Is Initialized:', isInitialized);
+    //   console.log('Registration in Progress:', registrationInProgress);
+    //   console.log('User Data:', userInfoQuery.data);
+    //   console.log('Access Token:', tokenService.getAccessToken());
+    //   console.groupEnd();
+    // }
+  }, [userInfoQuery.status, isInitialized, registrationInProgress]);
 
   return {
-    isLoading: userInfoQuery.isLoading || tokenInfoQuery.isLoading,
+    isLoading:
+      userInfoQuery.isLoading ||
+      tokenInfoQuery.isLoading ||
+      updateUserInfoMutation.isLoading ||
+      deleteAccountMutation.isLoading ||
+      verifyPasswordMutation.isLoading ||
+      changePasswordMutation.isLoading,
     isError: userInfoQuery.isError,
     error: userInfoQuery.error,
     isInitialized,
