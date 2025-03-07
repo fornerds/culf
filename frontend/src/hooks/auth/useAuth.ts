@@ -1,192 +1,278 @@
-// hooks/auth/useAuth.ts
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { auth } from '../../api/index';
-import { useAuthStore } from '../../state/client/authStore';
+// hooks/user/useUser.ts
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { user as userApi, token } from '@/api';
+import { useAuthStore } from '@/state/client/authStore';
+import { useEffect, useState } from 'react';
 import { tokenService } from '@/utils/tokenService';
 
-interface User {
-  id: string;
+interface UserInfo {
+  user_id: string;
   email: string;
   nickname: string;
-}
-
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-interface RegisterData {
-  email: string;
-  password: string;
-  password_confirmation: string;
-  nickname: string;
   phone_number: string;
-  birthdate: string;
-  gender: 'M' | 'F' | 'N';
-  marketing_agreed: boolean;
+  total_tokens: number;
+  created_at: string;
+  updated_at: string;
+  subscription?: {
+    subscription_id: number;
+    plan_id: number;
+    plan_name: string;
+    price: string;
+    next_billing_date: string;
+    status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED';
+  };
+  notifications: any[];
+  notification_settings: any[];
+  notice_reads: any[];
 }
 
-interface PhoneVerificationData {
-  phone_number: string;
+interface UpdateUserData {
+  nickname?: string;
+  phone_number?: string;
 }
 
-interface PasswordResetData {
-  email: string;
+interface VerifyPasswordData {
+  current_password: string;
+}
+
+interface ChangePasswordData {
   new_password: string;
-  new_password_confirmation: string;
+  new_password_confirm: string;
 }
 
-export const useAuth = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const { isAuthenticated, user, setAuth } = useAuthStore();
+interface TokenInfo {
+  total_tokens: number;
+  used_tokens: number;
+  last_charged_at: string;
+}
 
-  const loginMutation = useMutation({
-    mutationFn: (credentials: LoginCredentials) =>
-      auth.login(credentials.email, credentials.password),
-    onSuccess: (response) => {
-      const { access_token, user } = response.data;
-      tokenService.setAccessToken(access_token);
-      setAuth(true, user);
+export const useUser = () => {
+  const { setAuth, registrationInProgress } = useAuthStore();
+  const [isInitialized, setIsInitialized] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Get user info
+  const userInfoQuery = useQuery<UserInfo, Error>({
+    queryKey: ['userInfo'],
+    queryFn: async () => {
+      // Check login status to determine if we should fetch user info
+      const loginStatus = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
+        ?.split('=')[1];
+
+      // Skip API call during SNS registration or on terms page
+      if (loginStatus === 'continue' || window.location.pathname === '/terms') {
+        return null;
+      }
+
+      try {
+        const response = await userApi.getMyInfo();
+
+        if (response.data) {
+          const currentToken = tokenService.getAccessToken();
+          // Update the auth store with latest user info
+          setAuth(
+            true,
+            {
+              id: response.data.user_id,
+              email: response.data.email,
+              nickname: response.data.nickname,
+            },
+            currentToken,
+          );
+
+          return response.data;
+        }
+
+        return null;
+      } catch (error) {
+        console.error('Failed to fetch user info:', error);
+
+        // If we have a token, don't throw error so UI doesn't break
+        if (tokenService.getAccessToken()) {
+          return null;
+        }
+
+        // Clear auth state if we don't have a valid token
+        setAuth(false, null);
+        throw error;
+      }
+    },
+    enabled:
+      isInitialized &&
+      !!tokenService.getAccessToken() &&
+      !document.cookie.includes('OAUTH_LOGIN_STATUS=continue') &&
+      window.location.pathname !== '/terms',
+    staleTime: 1 * 60 * 1000, // 1 minute - more frequent refreshes
+    retry: 1,
+    retryDelay: 1000,
+  });
+
+  // Get token info
+  const tokenInfoQuery = useQuery<TokenInfo, Error>({
+    queryKey: ['tokenInfo'],
+    queryFn: async () => {
+      const loginStatus = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('OAUTH_LOGIN_STATUS='))
+        ?.split('=')[1];
+
+      if (loginStatus === 'continue' || window.location.pathname === '/terms') {
+        return null;
+      }
+
+      try {
+        const response = await token.getMyTokenInfo();
+        return response.data;
+      } catch (error) {
+        console.error('Failed to fetch token info:', error);
+        return null;
+      }
+    },
+    enabled:
+      isInitialized &&
+      !registrationInProgress &&
+      userInfoQuery.isSuccess &&
+      !!userInfoQuery.data &&
+      !!tokenService.getAccessToken(),
+    staleTime: 1 * 60 * 1000, // 1 minute
+    retry: false,
+  });
+
+  // Update user info
+  const updateUserInfoMutation = useMutation({
+    mutationFn: async (userData: UpdateUserData) => {
+      const response = await userApi.updateMyInfo(userData);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userInfo'] });
     },
   });
 
-  const registerMutation = useMutation({
-    mutationFn: (data: RegisterData) => auth.register(data),
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: () => Promise.resolve(),
-    onSuccess: () => {
-      tokenService.removeAccessToken();
+  // Delete account
+  const deleteAccountMutation = useMutation({
+    mutationFn: async ({
+      reason,
+      feedback,
+    }: {
+      reason?: string;
+      feedback?: string;
+    }) => {
+      await userApi.deleteAccount(reason, feedback);
       setAuth(false, null);
     },
   });
 
-  const snsLoginMutation = useMutation({
-    mutationFn: ({ provider, token }: { provider: string; token: string }) =>
-      auth.loginSNS(provider, token),
-    onSuccess: (response) => {
-      const { access_token, user, isNewUser, need_additional_info } =
-        response.data;
-      tokenService.setAccessToken(access_token);
-      setAuth(true, user);
+  // Verify password
+  const verifyPasswordMutation = useMutation({
+    mutationFn: async ({ current_password }: VerifyPasswordData) => {
+      const response = await userApi.verifyPassword(current_password);
+      return response.data.message;
     },
   });
 
-  const findEmailMutation = useMutation({
-    mutationFn: ({
-      phoneNumber,
-      birthdate,
-    }: {
-      phoneNumber: string;
-      birthdate: string;
-    }) => auth.findEmail(phoneNumber, birthdate),
-  });
-
-  const requestPhoneVerificationMutation = useMutation({
-    mutationFn: (data: PhoneVerificationData) =>
-      auth.requestPhoneVerification(data.phone_number),
-  });
-
-  const verifyPhoneMutation = useMutation({
-    mutationFn: ({
-      phoneNumber,
-      verificationCode,
-    }: {
-      phoneNumber: string;
-      verificationCode: string;
-    }) => auth.verifyPhone(phoneNumber, verificationCode),
-  });
-
-  const resetPasswordMutation = useMutation({
-    mutationFn: (data: PasswordResetData) =>
-      auth.resetPassword(
-        data.email,
-        data.new_password,
-        data.new_password_confirmation,
-      ),
-  });
-
-  const refreshTokenMutation = useMutation({
-    mutationFn: () => auth.refreshToken(),
-    onSuccess: (response) => {
-      const { access_token, user } = response.data;
-      tokenService.setAccessToken(access_token);
-      setAuth(true, user);
+  // Change password
+  const changePasswordMutation = useMutation({
+    mutationFn: async ({
+      new_password,
+      new_password_confirm,
+    }: ChangePasswordData) => {
+      const response = await userApi.changePassword(
+        new_password,
+        new_password_confirm,
+      );
+      return response.data.message;
     },
   });
 
-  const login = async (credentials: LoginCredentials) => {
-    setIsLoading(true);
+  // Utility functions
+  const updateUserInfo = async (userData: UpdateUserData) => {
     try {
-      await loginMutation.mutateAsync(credentials);
-    } finally {
-      setIsLoading(false);
+      const response = await updateUserInfoMutation.mutateAsync(userData);
+      return response;
+    } catch (error) {
+      console.error('Failed to update user info:', error);
+      throw error;
     }
   };
 
-  const register = async (data: RegisterData) => {
-    setIsLoading(true);
+  const deleteAccount = async (reason?: string, feedback?: string) => {
     try {
-      await registerMutation.mutateAsync(data);
-    } finally {
-      setIsLoading(false);
+      await deleteAccountMutation.mutateAsync({ reason, feedback });
+    } catch (error) {
+      console.error('Failed to delete account:', error);
+      throw error;
     }
   };
 
-  const logout = async () => {
-    setIsLoading(true);
+  const verifyPassword = async (currentPassword: string) => {
     try {
-      await logoutMutation.mutateAsync();
-    } finally {
-      setIsLoading(false);
+      return await verifyPasswordMutation.mutateAsync({
+        current_password: currentPassword,
+      });
+    } catch (error) {
+      console.error('Failed to verify password:', error);
+      throw error;
     }
   };
 
-  const snsLogin = async (provider: string, token: string) => {
-    setIsLoading(true);
-    try {
-      await snsLoginMutation.mutateAsync({ provider, token });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const findEmail = (phoneNumber: string, birthdate: string) =>
-    findEmailMutation.mutate({ phoneNumber, birthdate });
-
-  const requestPhoneVerification = (phoneNumber: string) =>
-    requestPhoneVerificationMutation.mutate({ phone_number: phoneNumber });
-
-  const verifyPhone = (phoneNumber: string, verificationCode: string) =>
-    verifyPhoneMutation.mutate({ phoneNumber, verificationCode });
-
-  const resetPassword = (
-    email: string,
+  const changePassword = async (
+    currentPassword: string,
     newPassword: string,
-    newPasswordConfirmation: string,
-  ) =>
-    resetPasswordMutation.mutate({
-      email,
-      new_password: newPassword,
-      new_password_confirmation: newPasswordConfirmation,
-    });
+  ) => {
+    try {
+      // First verify the current password
+      await verifyPasswordMutation.mutateAsync({
+        current_password: currentPassword,
+      });
 
-  const refreshToken = () => refreshTokenMutation.mutate();
+      // If verification succeeds, change the password
+      return await changePasswordMutation.mutateAsync({
+        new_password: newPassword,
+        new_password_confirm: newPassword,
+      });
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      throw error;
+    }
+  };
+
+  // Initialize the hook
+  useEffect(() => {
+    setIsInitialized(true);
+    return () => {
+      setIsInitialized(false);
+    };
+  }, []);
+
+  // Conditionally refresh user info when token changes
+  useEffect(() => {
+    const token = tokenService.getAccessToken();
+    if (token && isInitialized) {
+      userInfoQuery.refetch();
+    }
+  }, [tokenService.getAccessToken(), isInitialized]);
 
   return {
-    isAuthenticated,
-    user,
-    isLoading,
-    login,
-    register,
-    logout,
-    snsLogin,
-    findEmail,
-    requestPhoneVerification,
-    verifyPhone,
-    resetPassword,
-    refreshToken,
+    isLoading:
+      userInfoQuery.isLoading ||
+      tokenInfoQuery.isLoading ||
+      updateUserInfoMutation.isLoading ||
+      deleteAccountMutation.isLoading ||
+      verifyPasswordMutation.isLoading ||
+      changePasswordMutation.isLoading,
+    isError: userInfoQuery.isError,
+    error: userInfoQuery.error,
+    isInitialized,
+    getUserInfo: userInfoQuery,
+    getTokenInfo: tokenInfoQuery,
+    updateUserInfo,
+    deleteAccount,
+    verifyPassword,
+    changePassword,
+    refetchUser: userInfoQuery.refetch,
+    refetchTokens: tokenInfoQuery.refetch,
   };
 };

@@ -42,26 +42,44 @@ api.interceptors.request.use(
   },
 );
 
-// Response interceptor
+// Response interceptor with improved token refresh logic
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // pathname이 '/'인 경우에는 401 에러를 무시하고 진행
+    // Skip auth handling for home page
     if (window.location.pathname === '/' && error.response?.status === 401) {
       return Promise.reject(error);
     }
 
-    // 401 에러이고 토큰 갱신 시도를 하지 않은 경우에만 갱신 시도
+    // Handle token refresh for 401 errors
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
-        // 기존 상태 초기화
-        tokenService.removeAccessToken();
-        useAuthStore.getState().setAuth(false, null);
+        // Check if we have a refresh token in cookies
+        const hasRefreshToken = document.cookie
+          .split('; ')
+          .some((row) => row.startsWith('refresh_token='));
 
+        if (!hasRefreshToken) {
+          // No refresh token, clear auth state
+          tokenService.removeAccessToken();
+          useAuthStore.getState().setAuth(false, null);
+
+          // Redirect if not on login/home page
+          if (
+            !window.location.pathname.includes('/login') &&
+            window.location.pathname !== '/'
+          ) {
+            window.location.href = '/login';
+          }
+
+          return Promise.reject(error);
+        }
+
+        // Attempt to refresh the token
         const res = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
@@ -71,22 +89,32 @@ api.interceptors.response.use(
         );
 
         if (res.status === 200 && res.data.access_token) {
-          // 새로운 토큰으로 갱신
+          // Update the token
           tokenService.setAccessToken(res.data.access_token);
+
+          // Update auth state with new token and user info
+          if (res.data.user) {
+            useAuthStore
+              .getState()
+              .setAuth(true, res.data.user, res.data.access_token);
+          }
+
+          // Update the request headers
           originalRequest.headers['Authorization'] =
             `Bearer ${res.data.access_token}`;
 
-          // 새로운 토큰으로 원래 요청 재시도
+          // Retry the original request
           return api(originalRequest);
         }
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
-        // 토큰 갱신 실패 시 로그인 페이지로 리다이렉트 (홈페이지 제외)
+
+        // Clear all auth state
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
         useAuthStore.getState().resetSnsAuth?.();
 
-        // 현재 URL이 로그인 페이지나 홈페이지가 아닌 경우에만 리다이렉트
+        // Redirect to login if not already there or on home page
         if (
           !window.location.pathname.includes('/login') &&
           window.location.pathname !== '/'
