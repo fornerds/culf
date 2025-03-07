@@ -1,6 +1,5 @@
 // state/client/authStore.ts
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 import { QueryClient } from '@tanstack/react-query';
 import { tokenService } from '@/utils/tokenService';
 
@@ -13,15 +12,11 @@ interface User {
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
-  accessToken: string | null;
   selectedValues: string[];
   isMarketingAgreed: boolean;
-  registrationInProgress: boolean;
-  snsProvider: string | null;
-  snsProviderId: string | null;
+  queryClient: QueryClient | null;
+  registrationInProgress: boolean; // SNS 회원가입 진행 중 상태 추가
 
-  // Methods
-  setQueryClient: (queryClient: QueryClient) => void;
   setSelectedValues: (
     update: string[] | ((prev: string[]) => string[]),
   ) => void;
@@ -29,184 +24,123 @@ interface AuthState {
   setAuth: (
     isAuthenticated: boolean,
     user: User | null,
-    accessToken?: string,
+    access_token?: string,
   ) => void;
-  startRegistration: () => void;
-  completeRegistration: () => void;
+  startRegistration: () => void; // 회원가입 프로세스 시작
+  completeRegistration: () => void; // 회원가입 프로세스 완료
   logout: () => void;
+  snsProvider: string | null;
+  snsProviderId: string | null;
   setSnsAuth: (provider: string, providerId: string) => void;
   resetSnsAuth: () => void;
-  hasRefreshToken: () => boolean;
-
-  // QueryClient for cache invalidation
-  queryClient: QueryClient | null;
+  setQueryClient: (queryClient: QueryClient) => void;
+  hasRefreshToken: () => boolean; // 리프레시 토큰 존재 여부 확인 함수 추가
 }
 
-// sessionStorage를 사용하도록 설정된 저장소
-const sessionStorageAdapter = {
-  getItem: (name: string) => {
-    const value = sessionStorage.getItem(name);
-    return value ? JSON.parse(value) : null;
-  },
-  setItem: (name: string, value: unknown) => {
-    sessionStorage.setItem(name, JSON.stringify(value));
-  },
-  removeItem: (name: string) => {
-    sessionStorage.removeItem(name);
-  },
-};
+export const useAuthStore = create<AuthState>()((set, get) => ({
+  isAuthenticated: false,
+  user: null,
+  queryClient: null,
+  selectedValues: [],
+  isMarketingAgreed: false,
+  registrationInProgress: false,
 
-// 개선된 버전 - sessionStorage 사용
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
+  setQueryClient: (queryClient: QueryClient) => {
+    set({ queryClient });
+  },
+
+  setSelectedValues: (update) =>
+    set((state) => ({
+      selectedValues:
+        typeof update === 'function' ? update(state.selectedValues) : update,
+    })),
+
+  setIsMarketingAgreed: (isMarketingAgreed: boolean) =>
+    set({ isMarketingAgreed }),
+
+  startRegistration: () => {
+    set({ registrationInProgress: true });
+  },
+
+  completeRegistration: () => {
+    set({ registrationInProgress: false });
+  },
+
+  setAuth: (isAuthenticated, user, access_token?: string) => {
+    if (get().queryClient) {
+      try {
+        get().queryClient.clear();
+      } catch (error) {
+        console.error('Failed to clear query cache:', error);
+      }
+    }
+
+    // access_token이 있으면 저장, 없으면 기존 토큰 유지
+    if (access_token) {
+      tokenService.setAccessToken(access_token);
+    }
+
+    // 인증 상태가 false로 변경될 때만 토큰 제거
+    if (!isAuthenticated) {
+      tokenService.removeAccessToken();
+    }
+
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.group('🔐 Auth State Update');
+    //   console.log('Authenticated:', isAuthenticated);
+    //   console.log('User:', user);
+    //   console.log('Access Token:', access_token || tokenService.getAccessToken() || 'None');
+    //   console.log('Registration in progress:', get().registrationInProgress);
+    //   console.groupEnd();
+    // }
+
+    set({
+      isAuthenticated,
+      user,
+    });
+  },
+
+  hasRefreshToken: () => {
+    const hasToken = document.cookie
+      .split('; ')
+      .some((row) => row.startsWith('refresh_token='));
+    return hasToken;
+  },
+
+  logout: () => {
+    tokenService.removeAccessToken(); // 토큰 제거를 먼저 수행
+
+    if (get().queryClient) {
+      try {
+        get().queryClient.clear();
+      } catch (error) {
+        console.error('Failed to clear query cache during logout:', error);
+      }
+    }
+
+    set({
       isAuthenticated: false,
       user: null,
-      accessToken: null,
-      queryClient: null,
-      selectedValues: [],
-      isMarketingAgreed: false,
-      registrationInProgress: false,
       snsProvider: null,
       snsProviderId: null,
+      registrationInProgress: false,
+    });
+  },
 
-      setQueryClient: (queryClient: QueryClient) => {
-        set({ queryClient });
-      },
-
-      setSelectedValues: (update) =>
-        set((state) => ({
-          selectedValues:
-            typeof update === 'function'
-              ? update(state.selectedValues)
-              : update,
-        })),
-
-      setIsMarketingAgreed: (isMarketingAgreed: boolean) =>
-        set({ isMarketingAgreed }),
-
-      startRegistration: () => {
-        set({ registrationInProgress: true });
-      },
-
-      completeRegistration: () => {
-        set({ registrationInProgress: false });
-      },
-
-      setAuth: (isAuthenticated, user, accessToken?: string) => {
-        // 중요: 인증 상태를 변경하기 전에 쿼리 캐시를 무효화
-        const queryClient = get().queryClient;
-        if (queryClient) {
-          // null 체크 추가
-          try {
-            // 모든 사용자 관련 쿼리를 무효화
-            queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-            queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
-          } catch (error) {
-            console.error('Failed to invalidate queries:', error);
-          }
-        }
-
-        // 인증 상태 업데이트 (토큰 + 사용자 정보)
-        if (isAuthenticated && accessToken) {
-          // 로그인 성공 시 토큰 저장 (sessionStorage)
-          tokenService.setAccessToken(accessToken);
-
-          // 상태 업데이트
-          set({
-            isAuthenticated: true,
-            user,
-            accessToken,
-          });
-
-          // 토큰이 sessionStorage에 제대로 저장되었는지 확인
-          console.log(
-            'Token saved to sessionStorage:',
-            tokenService.getAccessToken(),
-          );
-        } else if (!isAuthenticated) {
-          // 로그아웃 시 토큰 제거
-          tokenService.removeAccessToken();
-
-          // 상태 초기화
-          set({
-            isAuthenticated: false,
-            user: null,
-            accessToken: null,
-          });
-        } else {
-          // accessToken 없이 인증만 설정하는 경우 (기존 토큰 유지)
-          set({
-            isAuthenticated,
-            user,
-          });
-        }
-      },
-
-      hasRefreshToken: () => {
-        return document.cookie
-          .split('; ')
-          .some((row) => row.startsWith('refresh_token='));
-      },
-
-      logout: () => {
-        // 토큰 제거를 먼저 수행
-        tokenService.removeAccessToken();
-
-        // 캐시 무효화
-        const queryClient = get().queryClient;
-        if (queryClient) {
-          // null 체크 추가
-          try {
-            // 사용자 정보 관련 쿼리 무효화
-            queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-            queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
-          } catch (error) {
-            console.error('Failed to invalidate queries during logout:', error);
-          }
-        }
-
-        // 상태 초기화
-        set({
-          isAuthenticated: false,
-          user: null,
-          accessToken: null,
-          snsProvider: null,
-          snsProviderId: null,
-          registrationInProgress: false,
-        });
-
-        console.log('로그아웃 완료: 인증 상태 및 세션 정보 초기화');
-      },
-
-      setSnsAuth: (provider, providerId) => {
-        set({
-          snsProvider: provider,
-          snsProviderId: providerId,
-          registrationInProgress: true,
-        });
-      },
-
-      resetSnsAuth: () => {
-        set({
-          snsProvider: null,
-          snsProviderId: null,
-          registrationInProgress: false,
-        });
-      },
-    }),
-    {
-      name: 'auth-session',
-      // sessionStorage 사용하도록 지정
-      storage: createJSONStorage(() => sessionStorageAdapter),
-      // 저장할 상태 지정
-      partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        accessToken: state.accessToken,
-        snsProvider: state.snsProvider,
-        snsProviderId: state.snsProviderId,
-      }),
-    },
-  ),
-);
+  snsProvider: null,
+  snsProviderId: null,
+  setSnsAuth: (provider, providerId) => {
+    set({
+      snsProvider: provider,
+      snsProviderId: providerId,
+      registrationInProgress: true, // SNS 인증 시작 시 회원가입 프로세스 시작
+    });
+  },
+  resetSnsAuth: () => {
+    set({
+      snsProvider: null,
+      snsProviderId: null,
+      registrationInProgress: false,
+    });
+  },
+}));

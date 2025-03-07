@@ -1,10 +1,6 @@
 import { useState } from 'react';
-import {
-  useMutation,
-  UseMutationResult,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { auth } from '@/api';
+import { useMutation, UseMutationResult } from '@tanstack/react-query';
+import { auth } from '../../api/index';
 import { useAuthStore } from '../client/authStore';
 import { tokenService } from '@/utils/tokenService';
 import { AxiosError } from 'axios';
@@ -36,6 +32,11 @@ interface PhoneVerificationData {
   findpw?: boolean;
 }
 
+interface PhoneVerificationResponse {
+  success: boolean;
+  message: string;
+}
+
 interface VerifyPhoneData {
   phone_number: string;
   verification_code: string;
@@ -62,7 +63,6 @@ export const useLogin = (): UseMutationResult<
   LoginCredentials
 > => {
   const { setAuth } = useAuthStore();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (credentials: LoginCredentials) => {
@@ -75,9 +75,8 @@ export const useLogin = (): UseMutationResult<
     onSuccess: (data) => {
       const { access_token, user } = data;
       if (access_token) {
-        setAuth(true, user, access_token);
-        queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-        queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
+        tokenService.setAccessToken(access_token);
+        setAuth(true, user, access_token); // access_token도 함께 전달
       }
     },
     onError: () => {
@@ -89,14 +88,11 @@ export const useLogin = (): UseMutationResult<
 
 export const useLogout = () => {
   const { logout } = useAuthStore();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: () => auth.logout(),
     onSuccess: () => {
       logout();
-      queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-      queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
     },
     onError: () => {
       logout();
@@ -106,7 +102,6 @@ export const useLogout = () => {
 
 export const useSNSLogin = () => {
   const { setAuth, setSnsAuth } = useAuthStore();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -121,13 +116,9 @@ export const useSNSLogin = () => {
     },
     onSuccess: (data, variables) => {
       const { access_token, user } = data;
-      if (access_token && user) {
-        tokenService.setAccessToken(access_token);
-        setAuth(true, user, access_token);
-        setSnsAuth(variables.provider, user.id);
-        queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-        queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
-      }
+      tokenService.setAccessToken(access_token);
+      setAuth(true, user);
+      setSnsAuth(variables.provider, user.id);
     },
     onError: () => {
       tokenService.removeAccessToken();
@@ -138,7 +129,6 @@ export const useSNSLogin = () => {
 
 export const useRefreshToken = () => {
   const { setAuth } = useAuthStore();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
@@ -147,11 +137,8 @@ export const useRefreshToken = () => {
     },
     onSuccess: (data) => {
       const { access_token, user } = data;
-      if (access_token && user) {
-        setAuth(true, user, access_token);
-        queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-        queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
-      }
+      tokenService.setAccessToken(access_token);
+      setAuth(true, user);
     },
     onError: () => {
       tokenService.removeAccessToken();
@@ -205,11 +192,8 @@ export const useRequestPhoneVerification = () =>
 
 export const useVerifyPhone = () =>
   useMutation({
-    mutationFn: async ({
-      phone_number,
-      verification_code,
-    }: VerifyPhoneData) => {
-      const response = await auth.verifyPhone(phone_number, verification_code);
+    mutationFn: async ({ phoneNumber, verificationCode }: VerifyPhoneData) => {
+      const response = await auth.verifyPhone(phoneNumber, verificationCode);
       return response.data;
     },
   });
@@ -233,7 +217,6 @@ export const useProcessCallback = (): UseMutationResult<
   { provider: string; code: string }
 > => {
   const { startRegistration, completeRegistration, setAuth } = useAuthStore();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ provider, code }) => {
@@ -249,12 +232,8 @@ export const useProcessCallback = (): UseMutationResult<
         completeRegistration();
 
         const { access_token, user } = refreshResponse.data;
-        if (access_token && user) {
-          tokenService.setAccessToken(access_token);
-          setAuth(true, user, access_token);
-          queryClient.invalidateQueries({ queryKey: ['userInfo'] });
-          queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
-        }
+        tokenService.setAccessToken(access_token);
+        setAuth(true, user);
 
         return {
           type: 'success',
@@ -296,7 +275,7 @@ export const useAuth = () => {
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     try {
-      return await loginMutation.mutateAsync(credentials);
+      await loginMutation.mutateAsync(credentials);
     } finally {
       setIsLoading(false);
     }
@@ -305,7 +284,7 @@ export const useAuth = () => {
   const register = async (data: RegisterData) => {
     setIsLoading(true);
     try {
-      return await registerMutation.mutateAsync(data);
+      await registerMutation.mutateAsync(data);
     } finally {
       setIsLoading(false);
     }
@@ -323,7 +302,7 @@ export const useAuth = () => {
   const snsLogin = async (provider: string, token: string) => {
     setIsLoading(true);
     try {
-      return await snsLoginMutation.mutateAsync({ provider, token });
+      await snsLoginMutation.mutateAsync({ provider, token });
     } finally {
       setIsLoading(false);
     }
@@ -353,15 +332,12 @@ export const useAuth = () => {
     }
   };
 
-  const verifyPhone = async (
-    phone_number: string,
-    verification_code: string,
-  ) => {
+  const verifyPhone = async (phoneNumber: string, verificationCode: string) => {
     setIsLoading(true);
     try {
       return await verifyPhoneMutation.mutateAsync({
-        phone_number,
-        verification_code,
+        phoneNumber,
+        verificationCode,
       });
     } finally {
       setIsLoading(false);
