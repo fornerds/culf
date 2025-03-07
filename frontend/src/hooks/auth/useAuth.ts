@@ -79,7 +79,7 @@ export const useUser = () => {
               email: response.data.email,
               nickname: response.data.nickname,
             },
-            currentToken,
+            currentToken || undefined,
           );
 
           return response.data;
@@ -256,13 +256,7 @@ export const useUser = () => {
   }, [tokenService.getAccessToken(), isInitialized]);
 
   return {
-    isLoading:
-      userInfoQuery.isLoading ||
-      tokenInfoQuery.isLoading ||
-      updateUserInfoMutation.isLoading ||
-      deleteAccountMutation.isLoading ||
-      verifyPasswordMutation.isLoading ||
-      changePasswordMutation.isLoading,
+    isLoading: userInfoQuery.isLoading || tokenInfoQuery.isLoading,
     isError: userInfoQuery.isError,
     error: userInfoQuery.error,
     isInitialized,

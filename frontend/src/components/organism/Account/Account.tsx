@@ -11,18 +11,20 @@ import logoimage from '@/assets/images/culf.png';
 export function Account() {
   const navigate = useNavigate();
   const { logout, isLoading: isLogoutLoading } = useAuth();
-  const { 
+  const {
     getUserInfo: { data: userInfo, isLoading: isUserLoading },
     updateUserInfo,
     verifyPassword,
     changePassword,
-    isLoading: isUpdateLoading 
+    isLoading: isUpdateLoading,
   } = useUser();
 
   // 팝업 상태 관리
-  const [isPasswordErrorPopupOpen, setIsPasswordErrorPopupOpen] = useState(false);
+  const [isPasswordErrorPopupOpen, setIsPasswordErrorPopupOpen] =
+    useState(false);
   const [isLogoutPopupOpen, setIsLogoutPopupOpen] = useState(false);
-  const [isUpdateSuccessPopupOpen, setIsUpdateSuccessPopupOpen] = useState(false);
+  const [isUpdateSuccessPopupOpen, setIsUpdateSuccessPopupOpen] =
+    useState(false);
 
   const [form, setForm] = useState({
     email: '',
@@ -30,7 +32,7 @@ export function Account() {
     phoneNumber: '',
     currentPassword: '',
     newPassword: '',
-    newPasswordConfirm: ''
+    newPasswordConfirm: '',
   });
 
   const [emailMessage, setEmailMessage] = useState('');
@@ -43,11 +45,11 @@ export function Account() {
 
   useEffect(() => {
     if (userInfo) {
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         nickname: userInfo.nickname || '',
         phoneNumber: userInfo.phone_number || '',
-        email: userInfo.email || ''
+        email: userInfo.email || '',
       }));
     }
   }, [userInfo]);
@@ -59,7 +61,11 @@ export function Account() {
     });
 
     // 비밀번호 관련 메시지 초기화
-    if (id === 'currentPassword' || id === 'newPassword' || id === 'newPasswordConfirm') {
+    if (
+      id === 'currentPassword' ||
+      id === 'newPassword' ||
+      id === 'newPasswordConfirm'
+    ) {
       setPasswordMessage('');
     }
   };
@@ -108,26 +114,28 @@ export function Account() {
       setPasswordMessage('먼저 현재 비밀번호를 확인해주세요.');
       return;
     }
-  
+
     if (!validateNewPassword()) {
       return;
     }
-  
+
     setIsChangingPassword(true);
     try {
       await changePassword(form.currentPassword, form.newPassword);
       setIsUpdateSuccessPopupOpen(true);
       // 비밀번호 변경 후 폼 초기화
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         currentPassword: '',
         newPassword: '',
-        newPasswordConfirm: ''
+        newPasswordConfirm: '',
       }));
       setIsPasswordValid(false);
       setPasswordMessage('');
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.detail?.message || '비밀번호 변경에 실패했습니다.';
+      const errorMessage =
+        error?.response?.data?.detail?.message ||
+        '비밀번호 변경에 실패했습니다.';
       setPasswordMessage(errorMessage);
       setIsPasswordValid(false);
     } finally {
@@ -139,7 +147,7 @@ export function Account() {
     try {
       const updateData = {
         nickname: form.nickname,
-        phone_number: isPhoneVerified ? form.phoneNumber : undefined
+        phone_number: isPhoneVerified ? form.phoneNumber : undefined,
       };
 
       await updateUserInfo(updateData);
@@ -170,15 +178,25 @@ export function Account() {
 
   if (isUserLoading) {
     return (
-      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+      <div
+        style={{
+          marginTop: '250px',
+          display: 'flex',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '10px',
+        }}
+      >
         <LoadingAnimation
           imageUrl={logoimage}
           alt="Description"
           width={58}
           height={19}
-          duration={2200} 
+          duration={2200}
         />
-        <p className='font-tag-1' style={{color: "#a1a1a1"}}>회원정보 조회 중</p>
+        <p className="font-tag-1" style={{ color: '#a1a1a1' }}>
+          회원정보 조회 중
+        </p>
       </div>
     );
   }
@@ -223,12 +241,14 @@ export function Account() {
               value={form.currentPassword}
               buttonSize="size4"
               buttonVariant="default"
-              buttonText={isVerifyingPassword ? "확인 중..." : "확인"}
+              buttonText={isVerifyingPassword ? '확인 중...' : '확인'}
               buttonDisabled={isVerifyingPassword}
               onChangeObj={handleFormChange}
               onClick={handlePasswordVerification}
-              validationMessage={isPasswordValid ? '비밀번호가 확인되었습니다.' : passwordMessage}
-              validationMessageType={isPasswordValid ? "success" : "error"}
+              validationMessage={
+                isPasswordValid ? '비밀번호가 확인되었습니다.' : passwordMessage
+              }
+              validationMessageType={isPasswordValid ? 'success' : 'error'}
             />
             {isPasswordValid && (
               <>
@@ -251,12 +271,12 @@ export function Account() {
                   validationMessageType="error"
                 />
                 <div className={styles.changePasswordButtonWrapper}>
-                  <Button 
+                  <Button
                     size="size3"
                     onClick={handlePasswordChange}
                     disabled={isChangingPassword}
                   >
-                    {isChangingPassword ? "변경 중..." : "비밀번호 변경"}
+                    {isChangingPassword ? '변경 중...' : '비밀번호 변경'}
                   </Button>
                 </div>
               </>
@@ -264,10 +284,7 @@ export function Account() {
           </section>
         </div>
         <div className={styles.accountBottom}>
-          <Button 
-            onClick={handleSaveChanges}
-            disabled={isUpdateLoading}
-          >
+          <Button onClick={handleSaveChanges} disabled={isUpdateLoading}>
             {isUpdateLoading ? '저장 중...' : '변경사항 저장'}
           </Button>
           <div className={styles.buttonGroup}>
@@ -310,7 +327,10 @@ export function Account() {
       <Popup
         type="alert"
         isOpen={isUpdateSuccessPopupOpen}
-        onClose={() => {navigate('/mypage/account'); setIsUpdateSuccessPopupOpen(false);}}
+        onClose={() => {
+          navigate('/mypage/account');
+          setIsUpdateSuccessPopupOpen(false);
+        }}
         content="정상적으로 수정되었습니다."
       />
     </>
