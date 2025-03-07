@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useQueryClient, UseQueryResult } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueryClient,
+  UseQueryResult,
+} from '@tanstack/react-query';
 import styles from './ChatDetail.module.css';
 import {
   ChatInput,
@@ -8,7 +12,7 @@ import {
   QuestionBox,
   MarkdownChat,
   SlideUpModal,
-  SuggestedQuestions
+  SuggestedQuestions,
 } from '@/components/molecule';
 import CameraIcon from '@/assets/icons/camera.svg?react';
 import CloseIcon from '@/assets/icons/close.svg?react';
@@ -55,54 +59,59 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-const resizeImage = async (file: File, maxWidth = 1920, maxHeight = 1080, quality = 0.8): Promise<File> => {
+const resizeImage = async (
+  file: File,
+  maxWidth = 1920,
+  maxHeight = 1080,
+  quality = 0.8,
+): Promise<File> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.src = URL.createObjectURL(file);
-    
+
     img.onload = () => {
       URL.revokeObjectURL(img.src);
-      
+
       let width = img.width;
       let height = img.height;
-      
+
       if (width > maxWidth || height > maxHeight) {
         const ratio = Math.min(maxWidth / width, maxHeight / height);
         width *= ratio;
         height *= ratio;
       }
-      
+
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      
+
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         reject(new Error('Canvas context not available'));
         return;
       }
-      
+
       ctx.drawImage(img, 0, 0, width, height);
-      
+
       canvas.toBlob(
         (blob) => {
           if (!blob) {
             reject(new Error('Blob creation failed'));
             return;
           }
-          
+
           const resizedFile = new File([blob], file.name, {
             type: file.type,
             lastModified: Date.now(),
           });
-          
+
           resolve(resizedFile);
         },
         file.type,
-        quality
+        quality,
       );
     };
-    
+
     img.onerror = () => {
       URL.revokeObjectURL(img.src);
       reject(new Error('Image loading failed'));
@@ -152,24 +161,24 @@ export function ChatDetail() {
     staleTime: 1000,
   });
 
-  const { data: tokenInfo, error: tokenError }: UseQueryResult<any, Error> = useQuery({
-    queryKey: ['tokenInfo'],
-    queryFn: async () => {
-      const response = await token.getMyTokenInfo();
-      return response.data;
-    },
-    staleTime: 0, // 항상 최신 데이터를 가져오도록 수정
-  });
-  
-  const { data: subscriptionInfo, error: subscriptionError }: UseQueryResult<any, Error> = useQuery({
+  const { data: tokenInfo, error: tokenError }: UseQueryResult<any, Error> =
+    useQuery({
+      queryKey: ['tokenInfo'],
+      queryFn: async () => {
+        const response = await token.getMyTokenInfo();
+        return response.data;
+      },
+      staleTime: 0, // 항상 최신 데이터를 가져오도록 수정
+    });
+
+  const { data: subscriptionInfo } = useQuery({
     queryKey: ['subscriptionInfo'],
     queryFn: async () => {
-      const response = await subscription.getMySubscription();
+      const response = await subscription.isSubscribed();
       return response.data;
     },
-    staleTime: 0, // 항상 최신 데이터를 가져오도록 수정
+    staleTime: 0,
   });
-
 
   useEffect(() => {
     if (roomData) {
@@ -181,13 +190,13 @@ export function ChatDetail() {
           curatorInfo: {
             name: curatorData.curator.name,
             profileImage: curatorData.curator.profile_image,
-            persona: curatorData.curator.persona
-          }
+            persona: curatorData.curator.persona,
+          },
         });
         setTitle(curatorData.curator.name);
         setShowSuggestions(true);
         setMessages([]);
-      } 
+      }
       // 기존 채팅방인 경우
       else {
         useChatRoomStore.getState().setCurrentRoom({
@@ -196,29 +205,31 @@ export function ChatDetail() {
           curatorInfo: {
             name: roomData.curator.name,
             profileImage: roomData.curator.profile_image,
-            persona: roomData.curator.persona
-          }
+            persona: roomData.curator.persona,
+          },
         });
         setTitle(roomData.curator.name);
 
         if (roomData.conversations) {
-          const messages = roomData.conversations.map(conv => [
-            {
-              type: 'user' as const,
-              content: conv.question,
-              ...(conv.question_images && {
-                imageUrls: Array.isArray(conv.question_images) 
-                  ? conv.question_images 
-                  : [conv.question_images],
-                imageSizeInfo: conv.image_size_info
-              })
-            },
-            {
-              type: 'ai' as const,
-              content: conv.answer,
-              recommendedQuestions: conv.recommended_questions
-            }
-          ]).flat();
+          const messages = roomData.conversations
+            .map((conv) => [
+              {
+                type: 'user' as const,
+                content: conv.question,
+                ...(conv.question_images && {
+                  imageUrls: Array.isArray(conv.question_images)
+                    ? conv.question_images
+                    : [conv.question_images],
+                  imageSizeInfo: conv.image_size_info,
+                }),
+              },
+              {
+                type: 'ai' as const,
+                content: conv.answer,
+                recommendedQuestions: conv.recommended_questions,
+              },
+            ])
+            .flat();
           setMessages(messages);
           setShowSuggestions(false);
         }
@@ -231,11 +242,11 @@ export function ChatDetail() {
       if (!currentRoom?.roomId) {
         throw new Error('채팅방 정보가 없습니다.');
       }
-  
+
       // 메시지 전송 전에 토큰과 구독 정보를 먼저 갱신
       await queryClient.invalidateQueries({ queryKey: ['tokenInfo'] });
       await queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] });
-  
+
       try {
         // 갱신된 데이터를 순차적으로 가져옴
         const tokenData = await queryClient.fetchQuery({
@@ -245,9 +256,9 @@ export function ChatDetail() {
             console.log('Token Response:', response.data);
             return response.data;
           },
-          staleTime: 0
+          staleTime: 0,
         });
-  
+
         const subscriptionData = await queryClient.fetchQuery({
           queryKey: ['subscriptionInfo'],
           queryFn: async () => {
@@ -255,24 +266,23 @@ export function ChatDetail() {
             console.log('Subscription Response:', response.data);
             return response.data;
           },
-          staleTime: 0
+          staleTime: 0,
         });
-  
+
         // 유효한 토큰이나 구독이 있는지 확인
         const hasValidTokens = tokenData?.total_tokens > 0;
-        const hasActiveSubscription = subscriptionData?.some(sub => sub.status === 'ACTIVE');
-  
+        const hasActiveSubscription = subscriptionInfo?.is_subscribed;
+
         console.log('Validation Results:', {
           hasValidTokens,
           hasActiveSubscription,
-          tokenCount: tokenData?.total_tokens
+          tokenCount: tokenData?.total_tokens,
         });
-  
+
         if (!hasValidTokens && !hasActiveSubscription) {
           setIsModalOpen(true);
           return;
         }
-  
       } catch (error: any) {
         console.error('Token/Subscription check error:', error);
         // 404 에러는 무시하고 계속 진행 (토큰/구독 중 하나라도 있으면 진행)
@@ -280,54 +290,54 @@ export function ChatDetail() {
           throw error;
         }
       }
-  
-      const imageFiles = previewImages.map(preview => preview.file);
-      
-      if (imageFiles.some(file => file.size > MAX_FILE_SIZE)) {
+
+      const imageFiles = previewImages.map((preview) => preview.file);
+
+      if (imageFiles.some((file) => file.size > MAX_FILE_SIZE)) {
         alert('10메가바이트 이상의 사진을 첨부할 수 없습니다.');
         return;
       }
-  
+
       const formData = new FormData();
       if (message) formData.append('question', message);
       formData.append('room_id', currentRoom.roomId);
-      imageFiles.forEach(file => formData.append('image_files', file));
-  
+      imageFiles.forEach((file) => formData.append('image_files', file));
+
       // 기존 추천 질문 숨기기
       setShowSuggestions(false);
       setCurrentSuggestions([]);
       messageCompleteRef.current = false;
-  
+
       // 새 메시지 추가
       const userMessage: MessageType = {
         type: 'user',
         content: message || '',
         ...(previewImages.length > 0 && {
-          imageUrls: previewImages.map(preview => preview.url),
-          imageSizeInfo: previewImages.map(preview => ({
+          imageUrls: previewImages.map((preview) => preview.url),
+          imageSizeInfo: previewImages.map((preview) => ({
             originalSize: preview.originalSize,
-            resizedSize: preview.resizedSize
-          }))
-        })
+            resizedSize: preview.resizedSize,
+          })),
+        }),
       };
-  
+
       const aiMessage = {
         type: 'ai' as const,
         content: '',
-        isStreaming: true
+        isStreaming: true,
       };
-  
-      setMessages(prev => [...prev, userMessage, aiMessage]);
+
+      setMessages((prev) => [...prev, userMessage, aiMessage]);
       setPreviewImages([]);
       setIsUploadMenuOpen(false);
-  
+
       let currentContent = '';
       let currentRecommendedQuestions: string[] = [];
-  
+
       try {
         const response = await chat.sendMessage(formData, (chunk) => {
           currentContent += chunk;
-          setMessages(prev => {
+          setMessages((prev) => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
             if (lastMessage?.type === 'ai' && lastMessage.isStreaming) {
@@ -335,18 +345,18 @@ export function ChatDetail() {
                 ...prev.slice(0, -1),
                 {
                   ...lastMessage,
-                  content: currentContent
-                }
+                  content: currentContent,
+                },
               ];
             }
             return prev;
           });
         });
-  
+
         console.log('Stream completed, response data:', response);
-  
+
         // 스트리밍 완료 후 최종 메시지 업데이트
-        setMessages(prev => {
+        setMessages((prev) => {
           const lastMessage = prev[prev.length - 1];
           if (lastMessage?.type === 'ai') {
             return [
@@ -354,13 +364,13 @@ export function ChatDetail() {
               {
                 type: 'ai' as const,
                 content: currentContent,
-                isStreaming: false
-              }
+                isStreaming: false,
+              },
             ];
           }
           return prev;
         });
-  
+
         // 추천 질문 업데이트
         if (response?.recommended_questions?.length) {
           currentRecommendedQuestions = response.recommended_questions;
@@ -369,51 +379,52 @@ export function ChatDetail() {
             setShowSuggestions(true);
           }, 300);
         }
-  
+
         messageCompleteRef.current = true;
-  
+
         // 쿼리 캐시 업데이트
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['chatRooms'] }),
-          queryClient.invalidateQueries({ queryKey: ['chatRoom', currentRoom.roomId] }),
+          queryClient.invalidateQueries({
+            queryKey: ['chatRoom', currentRoom.roomId],
+          }),
           queryClient.invalidateQueries({ queryKey: ['tokenInfo'] }),
-          queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] })
+          queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] }),
         ]);
-  
+
         // 채팅창 스크롤
         if (chatContainerRef.current) {
           chatContainerRef.current.scrollTo({
             top: chatContainerRef.current.scrollHeight,
-            behavior: 'smooth'
+            behavior: 'smooth',
           });
         }
-  
       } catch (streamError) {
         console.error('Streaming error:', streamError);
         throw streamError;
       }
-  
     } catch (error) {
       console.error('Message send error:', error);
       messageCompleteRef.current = true;
-      
+
       // 에러 메시지 표시
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev.slice(0, -1),
         {
           type: 'ai' as const,
           content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다.',
-          isStreaming: false
-        }
+          isStreaming: false,
+        },
       ]);
-  
+
       // 추천 질문 초기화
       setShowSuggestions(false);
       setCurrentSuggestions([]);
-  
+
       // 404 에러 처리
       if (error instanceof Error) {
-        const is404Error = 'response' in error && (error as any).response?.status === 404;
+        const is404Error =
+          'response' in error && (error as any).response?.status === 404;
         if (is404Error) {
           setIsModalOpen(true);
         }
@@ -426,7 +437,7 @@ export function ChatDetail() {
       alert('이미지 파일만 업로드할 수 있습니다.');
       return;
     }
-  
+
     if (previewImages.length >= MAX_IMAGES) {
       alert(`최대 ${MAX_IMAGES}개의 이미지만 업로드할 수 있습니다.`);
       return;
@@ -452,9 +463,9 @@ export function ChatDetail() {
           file: resizedFile,
           url: e.target?.result as string,
           originalSize,
-          resizedSize
+          resizedSize,
         };
-        setPreviewImages(prev => [...prev, newImage]);
+        setPreviewImages((prev) => [...prev, newImage]);
       };
       reader.readAsDataURL(resizedFile);
       setIsUploadMenuOpen(false);
@@ -462,8 +473,7 @@ export function ChatDetail() {
       console.log(`Image resized: 
 Original size: ${formatFileSize(originalSize)}
 Resized size: ${formatFileSize(resizedSize)}
-Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
-      
+Reduction: ${(((originalSize - resizedSize) / originalSize) * 100).toFixed(1)}%`);
     } catch (error) {
       console.error('Image resize error:', error);
       alert('이미지 처리 중 오류가 발생했습니다.');
@@ -473,19 +483,19 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const remainingSlots = MAX_IMAGES - previewImages.length;
-    
+
     if (files.length > remainingSlots) {
       alert(`이미지는 최대 ${MAX_IMAGES}개까지만 업로드할 수 있습니다.`);
-      files.slice(0, remainingSlots).forEach(file => handleFileSelect(file));
+      files.slice(0, remainingSlots).forEach((file) => handleFileSelect(file));
     } else {
-      files.forEach(file => handleFileSelect(file));
+      files.forEach((file) => handleFileSelect(file));
     }
     e.target.value = '';
   };
 
   const handleCameraCapture = () => {
     if (cameraInputRef.current) {
-      cameraInputRef.current.accept = "image/*";
+      cameraInputRef.current.accept = 'image/*';
       cameraInputRef.current.setAttribute('capture', 'environment');
       cameraInputRef.current.click();
     }
@@ -493,14 +503,14 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
 
   const handleAlbumSelect = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.accept = "image/*";
+      fileInputRef.current.accept = 'image/*';
       fileInputRef.current.removeAttribute('capture');
       fileInputRef.current.click();
     }
   };
 
   const handleRemoveImage = (id: string) => {
-    setPreviewImages(prev => prev.filter(image => image.id !== id));
+    setPreviewImages((prev) => prev.filter((image) => image.id !== id));
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -514,7 +524,7 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
         setInputGroupHeight(height);
         document.documentElement.style.setProperty(
           '--input-group-height',
-          `${height}px`
+          `${height}px`,
         );
       }
     };
@@ -543,7 +553,7 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
       setTimeout(() => {
         chatContainerRef.current?.scrollTo({
           top: chatContainerRef.current.scrollHeight,
-          behavior: 'smooth'
+          behavior: 'smooth',
         });
       }, 100);
     }
@@ -566,11 +576,13 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
       {previewImages.length > 0 && (
         <div
           className={styles.imagePreviewContainer}
-          style={{
-            '--preview-bottom': isUploadMenuOpen
-              ? `calc(var(--input-group-height) + 75px + env(safe-area-inset-bottom) - 17px)`
-              : `calc(var(--input-group-height) + env(safe-area-inset-bottom) - 17px)`,
-          } as React.CSSProperties}
+          style={
+            {
+              '--preview-bottom': isUploadMenuOpen
+                ? `calc(var(--input-group-height) + 75px + env(safe-area-inset-bottom) - 17px)`
+                : `calc(var(--input-group-height) + env(safe-area-inset-bottom) - 17px)`,
+            } as React.CSSProperties
+          }
         >
           {previewImages.map((image) => (
             <div key={image.id} className={styles.imagePreviewWrapper}>
@@ -583,7 +595,13 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
                 <span>원본: {formatFileSize(image.originalSize)}</span>
                 <span>변환: {formatFileSize(image.resizedSize)}</span>
                 <span>
-                  ({((image.originalSize - image.resizedSize) / image.originalSize * 100).toFixed(1)}% 감소)
+                  (
+                  {(
+                    ((image.originalSize - image.resizedSize) /
+                      image.originalSize) *
+                    100
+                  ).toFixed(1)}
+                  % 감소)
                 </span>
               </div>
               <button
@@ -612,7 +630,7 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
             );
           } else if (message.type === 'user') {
             return (
-              <QuestionBox 
+              <QuestionBox
                 key={index}
                 type="user"
                 content={message.content}
@@ -640,14 +658,16 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
           onToggle={() => setIsUploadMenuOpen(!isUploadMenuOpen)}
           disabled={previewImages.length >= MAX_IMAGES}
         />
-        <ChatInput 
+        <ChatInput
           onSendMessage={handleSendMessage}
           hasImage={previewImages.length > 0}
           disabled={messageCompleteRef.current === false}
         />
       </section>
 
-      <div className={`${styles.uploadMenu} ${isUploadMenuOpen ? styles.visible : ''}`}>
+      <div
+        className={`${styles.uploadMenu} ${isUploadMenuOpen ? styles.visible : ''}`}
+      >
         {isMobile ? (
           <>
             <button
@@ -658,8 +678,8 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
               <CameraIcon />
               카메라
             </button>
-            <button 
-              onClick={handleAlbumSelect} 
+            <button
+              onClick={handleAlbumSelect}
               className={styles.actionButton}
               disabled={previewImages.length >= MAX_IMAGES}
             >
@@ -684,8 +704,8 @@ Reduction: ${((originalSize - resizedSize) / originalSize * 100).toFixed(1)}%`);
             />
           </>
         ) : (
-          <label 
-            htmlFor="fileInput" 
+          <label
+            htmlFor="fileInput"
             className={`${styles.fileInputLabel} ${previewImages.length >= MAX_IMAGES ? styles.disabled : ''}`}
           >
             <AlbumIcon />

@@ -32,12 +32,11 @@ export function DeleteAccount() {
   const queryClient = useQueryClient();
   const { deleteAccount, isLoading } = useUser();
   const { logout } = useAuthStore();
-  
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showCompletePopup, setShowCompletePopup] = useState(false);
-  const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
+  // const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isOtherReasonSelected = selectedReasons.includes(OTHER_REASON_ID);
@@ -50,16 +49,16 @@ export function DeleteAccount() {
       const response = await subscription.getMySubscription();
       return response.data;
     },
-    staleTime: 0
+    staleTime: 0,
   });
 
   const handleReasonChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id, checked } = e.target;
-    
-    setSelectedReasons(prev => {
-      const newReasons = checked 
+
+    setSelectedReasons((prev) => {
+      const newReasons = checked
         ? [...prev, id]
-        : prev.filter(reasonId => reasonId !== id);
+        : prev.filter((reasonId) => reasonId !== id);
 
       if (id === OTHER_REASON_ID && !checked) {
         setFeedback('');
@@ -82,13 +81,13 @@ export function DeleteAccount() {
       return;
     }
 
-    // 활성 구독이 있는지 확인
-    const hasActiveSubscription = subscriptionInfo?.some(sub => sub.status === 'ACTIVE');
-    
-    if (hasActiveSubscription) {
-      setShowSubscriptionPopup(true);
-      return;
-    }
+    // // 활성 구독이 있는지 확인
+    // const hasActiveSubscription = subscriptionInfo?.some(sub => sub.status === 'ACTIVE');
+
+    // if (hasActiveSubscription) {
+    //   setShowSubscriptionPopup(true);
+    //   return;
+    // }
 
     await processDeleteAccount();
   };
@@ -96,14 +95,14 @@ export function DeleteAccount() {
   const processDeleteAccount = async () => {
     try {
       const reasons = selectedReasons
-        .map(id => DELETE_REASONS.find(reason => reason.id === id)?.label)
+        .map((id) => DELETE_REASONS.find((reason) => reason.id === id)?.label)
         .filter(Boolean)
         .join(', ');
 
       const feedbackText = isOtherReasonSelected ? feedback : '';
 
       await deleteAccount(reasons, feedbackText);
-      
+
       setShowCompletePopup(true);
     } catch (err) {
       setError('회원탈퇴 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -118,9 +117,9 @@ export function DeleteAccount() {
     navigate('/login', { replace: true });
   };
 
-  const handleSubscriptionPopupConfirm = () => {
-    navigate('/mypage/payment');
-  };
+  // const handleSubscriptionPopupConfirm = () => {
+  //   navigate('/mypage/payment');
+  // };
 
   const handleCancel = () => {
     navigate(-1);
@@ -140,11 +139,11 @@ export function DeleteAccount() {
           <br />
           불편한점이 있으셨나봐요.
         </div>
-        
+
         <div className={`${styles.textSub} font-text-3`}>
           저희에게 알려주시면 더욱 나아진 모습이 되겠습니다.
         </div>
-        
+
         <div className={styles.formWrapper}>
           {DELETE_REASONS.map((reason) => (
             <Checkbox
@@ -156,7 +155,7 @@ export function DeleteAccount() {
               disabled={isLoading}
             />
           ))}
-          
+
           <textarea
             ref={textareaRef}
             id="feedback"
@@ -170,31 +169,33 @@ export function DeleteAccount() {
             maxLength={MAX_FEEDBACK_LENGTH}
             rows={1}
           />
-          
+
           {error && (
             <div className={`${styles.error} font-text-3`} role="alert">
               {error}
             </div>
           )}
         </div>
-        
+
         <div className={styles.bottom}>
           <div className="font-text-3">
             탈퇴하시면 그동안 결제한 서비스는 더이상 이용하지 못합니다. 그래도
             탈퇴하시겠어요?
           </div>
-          
+
           <div className={styles.buttonGroup}>
             <Button
               size="size3"
               variant="warning"
-              className={!hasSelectedReasons ? `${styles.button} ${styles.textSub}` : ''}
+              className={
+                !hasSelectedReasons ? `${styles.button} ${styles.textSub}` : ''
+              }
               onClick={handleDeleteAccount}
               disabled={isLoading || !hasSelectedReasons}
             >
               {isLoading ? '처리중...' : '예, 탈퇴할게요'}
             </Button>
-            
+
             <Button
               size="size3"
               variant="less-highlight"
@@ -215,7 +216,7 @@ export function DeleteAccount() {
         confirmText="확인"
       />
 
-      <Popup
+      {/* <Popup
         type="confirm"
         isOpen={showSubscriptionPopup}
         onClose={() => setShowSubscriptionPopup(false)}
@@ -223,7 +224,7 @@ export function DeleteAccount() {
         content="현재 구독중인 상품이 있습니다. 회원 탈퇴 전에 상품 구독을 취소하시겠습니까?"
         confirmText="예"
         cancelText="아니오"
-      />
+      /> */}
     </>
   );
 }

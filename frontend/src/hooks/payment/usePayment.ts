@@ -1,6 +1,6 @@
 // hooks/payment/usePayment.ts
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { payment } from '@/api';
 import { PAYMENT_CONFIG } from '@/config/payment';
@@ -76,15 +76,18 @@ const paymentLogger = {
       response: error?.response?.data,
       status: error?.response?.status,
     });
-  }
+  },
 };
 
 export const usePayment = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod['id'] | ''>('');
+  const [selectedPayment, setSelectedPayment] = useState<
+    PaymentMethod['id'] | ''
+  >('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const pgProviders = PAYMENT_CONFIG.pgProviders;
   const payMethods = PAYMENT_CONFIG.payMethods;
@@ -99,7 +102,10 @@ export const usePayment = () => {
   });
 
   // 개별 상품 조회
-  const getProductById = (productId: string, productType: 'subscription' | 'token') =>
+  const getProductById = (
+    productId: string,
+    productType: 'subscription' | 'token',
+  ) =>
     useQuery({
       queryKey: ['product', productId, productType],
       queryFn: async () => {
@@ -130,7 +136,9 @@ export const usePayment = () => {
         const response = await payment.validateCoupon(couponCode);
         return response.data;
       } catch (error: any) {
-        throw new Error(error.response?.data?.message || '쿠폰 검증에 실패했습니다.');
+        throw new Error(
+          error.response?.data?.message || '쿠폰 검증에 실패했습니다.',
+        );
       }
     },
   });
@@ -140,10 +148,15 @@ export const usePayment = () => {
       try {
         const verifyResponse = await payment.verifyPayment({
           imp_uid: rsp.imp_uid,
-          merchant_uid: rsp.merchant_uid
+          merchant_uid: rsp.merchant_uid,
         });
-        
+
         if (verifyResponse.status === 200) {
+          // 결제 성공 후 토큰과 구독 정보 갱신
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['tokenInfo'] }),
+            queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] }),
+          ]);
           navigate('/payment/result?success=true');
         } else {
           throw new Error('결제 검증에 실패했습니다.');
@@ -155,7 +168,9 @@ export const usePayment = () => {
     } else {
       setErrorMessage(rsp.error_msg || '결제에 실패했습니다.');
       setShowErrorPopup(true);
-      navigate(`/payment/result?fail&reason=${rsp.error_msg || "결제에 실패했습니다"}`);
+      navigate(
+        `/payment/result?fail&reason=${rsp.error_msg || '결제에 실패했습니다'}`,
+      );
     }
   };
 
@@ -163,33 +178,42 @@ export const usePayment = () => {
     mutationFn: async (paymentData: PaymentData) => {
       try {
         paymentLogger.debug('Processing single payment:', paymentData);
-        
+
         validatePaymentData(paymentData);
         const response = await payment.createSinglePayment(paymentData);
-        
+
         paymentLogger.debug('Payment creation response:', response);
-        
+
         if (!response?.data) {
           throw new Error('결제 응답이 올바르지 않습니다.');
         }
 
         const { IMP } = window;
         if (!IMP) {
-          paymentLogger.error('Portone SDK not loaded', new Error('SDK not found'));
+          paymentLogger.error(
+            'Portone SDK not loaded',
+            new Error('SDK not found'),
+          );
           throw new Error('포트원 SDK가 로드되지 않았습니다.');
         }
 
         return new Promise((resolve, reject) => {
-          paymentLogger.debug('Requesting payment:', response.data.payment_data);
-          
-          IMP.request_pay(response.data.payment_data, async function(rsp: any) {
-            const success = await handlePaymentCompletion(rsp);
-            if (success) {
-              resolve(rsp);
-            } else {
-              reject(new Error(rsp.error_msg || '결제에 실패했습니다.'));
-            }
-          });
+          paymentLogger.debug(
+            'Requesting payment:',
+            response.data.payment_data,
+          );
+
+          IMP.request_pay(
+            response.data.payment_data,
+            async function (rsp: any) {
+              const success = await handlePaymentCompletion(rsp);
+              if (success) {
+                resolve(rsp);
+              } else {
+                reject(new Error(rsp.error_msg || '결제에 실패했습니다.'));
+              }
+            },
+          );
         });
       } catch (error: any) {
         paymentLogger.error('Payment processing failed:', error);
@@ -205,7 +229,7 @@ export const usePayment = () => {
       try {
         validatePaymentData(subscriptionData);
         const response = await payment.createSubscription(subscriptionData);
-        
+
         if (!response?.data?.payment_data) {
           throw new Error('결제 데이터가 올바르지 않습니다.');
         }
@@ -214,14 +238,17 @@ export const usePayment = () => {
         if (!IMP) throw new Error('포트원 SDK가 로드되지 않았습니다.');
 
         return new Promise((resolve, reject) => {
-          IMP.request_pay(response.data.payment_data, async function(rsp: any) {
-            const success = await handlePaymentCompletion(rsp);
-            if (success) {
-              resolve(rsp);
-            } else {
-              reject(new Error(rsp.error_msg || '결제에 실패했습니다.'));
-            }
-          });
+          IMP.request_pay(
+            response.data.payment_data,
+            async function (rsp: any) {
+              const success = await handlePaymentCompletion(rsp);
+              if (success) {
+                resolve(rsp);
+              } else {
+                reject(new Error(rsp.error_msg || '결제에 실패했습니다.'));
+              }
+            },
+          );
         });
       } catch (error: any) {
         setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
@@ -230,7 +257,6 @@ export const usePayment = () => {
       }
     },
   });
-
 
   // 쿠폰 검증
   const validateCoupon = async (couponCode: string) => {

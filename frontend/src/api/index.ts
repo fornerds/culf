@@ -18,7 +18,6 @@ interface CleanedPaymentData {
   coupon_code?: string;
 }
 
-
 export const API_BASE_URL = `${import.meta.env.VITE_API_URL}/v1`;
 
 const api: AxiosInstance = axios.create({
@@ -62,7 +61,7 @@ api.interceptors.response.use(
         // 기존 상태 초기화
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
-        
+
         const res = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
@@ -74,8 +73,9 @@ api.interceptors.response.use(
         if (res.status === 200 && res.data.access_token) {
           // 새로운 토큰으로 갱신
           tokenService.setAccessToken(res.data.access_token);
-          originalRequest.headers['Authorization'] = `Bearer ${res.data.access_token}`;
-          
+          originalRequest.headers['Authorization'] =
+            `Bearer ${res.data.access_token}`;
+
           // 새로운 토큰으로 원래 요청 재시도
           return api(originalRequest);
         }
@@ -85,9 +85,12 @@ api.interceptors.response.use(
         tokenService.removeAccessToken();
         useAuthStore.getState().setAuth(false, null);
         useAuthStore.getState().resetSnsAuth?.();
-        
+
         // 현재 URL이 로그인 페이지나 홈페이지가 아닌 경우에만 리다이렉트
-        if (!window.location.pathname.includes('/login') && window.location.pathname !== '/') {
+        if (
+          !window.location.pathname.includes('/login') &&
+          window.location.pathname !== '/'
+        ) {
           window.location.href = '/login';
         }
       }
@@ -108,7 +111,7 @@ export const auth = {
     // 로그인 전에 기존 토큰과 상태 초기화
     tokenService.removeAccessToken();
     useAuthStore.getState().setAuth(false, null);
-    
+
     return api.post('/auth/login', { email, password });
   },
 
@@ -142,15 +145,19 @@ export const auth = {
   refreshToken: async () => {
     // 기존 토큰 제거
     tokenService.removeAccessToken();
-    
-    const response = await api.post('/auth/refresh', {}, { 
-      withCredentials: true 
-    });
-    
+
+    const response = await api.post(
+      '/auth/refresh',
+      {},
+      {
+        withCredentials: true,
+      },
+    );
+
     if (response.data.access_token) {
       tokenService.setAccessToken(response.data.access_token);
     }
-    
+
     return response;
   },
 
@@ -217,22 +224,21 @@ export const user = {
   deleteAccount: (reason?: string, feedback?: string) =>
     api.delete('/users/me', { data: { reason, feedback } }),
   verifyPassword: (current_password: string) =>
-    api.post('/users/me/password', { 
-      current_password: current_password 
+    api.post('/users/me/password', {
+      current_password: current_password,
     }),
   changePassword: (new_password: string, new_password_confirm: string) =>
     api.put('/users/me/password', {
       new_password,
-      new_password_confirm
+      new_password_confirm,
     }),
 };
-
 
 // Chat API
 export const chat = {
   sendMessage: async (
     formData: FormData,
-    onMessage?: (message: string) => void
+    onMessage?: (message: string) => void,
   ): Promise<any> => {
     try {
       const token = tokenService.getAccessToken();
@@ -245,7 +251,7 @@ export const chat = {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-        body: formData
+        body: formData,
       });
 
       if (!response.ok) {
@@ -255,11 +261,15 @@ export const chat = {
         } else if (response.status === 404) {
           throw new Error('Chat room not found');
         } else if (response.status === 500) {
-          throw new Error('Internal server error occurred. Please try again later.');
+          throw new Error(
+            'Internal server error occurred. Please try again later.',
+          );
         } else {
           throw new Error(
             `Chat API Error: ${response.status}` +
-            (errorData.detail ? `, Details: ${JSON.stringify(errorData.detail)}` : '')
+              (errorData.detail
+                ? `, Details: ${JSON.stringify(errorData.detail)}`
+                : ''),
           );
         }
       }
@@ -278,7 +288,9 @@ export const chat = {
       return new Promise((resolve) => {
         const streamText = () => {
           if (isCancelled) {
-            resolve(() => { isCancelled = true; });
+            resolve(() => {
+              isCancelled = true;
+            });
             return;
           }
 
@@ -310,7 +322,7 @@ export const chat = {
               conversation_id: data.conversation_id,
               answer: data.answer,
               tokens_used: data.tokens_used,
-              recommended_questions: data.recommended_questions
+              recommended_questions: data.recommended_questions,
             });
           }
         };
@@ -364,8 +376,7 @@ export const chat = {
 
   getChatRoomById: (roomId: string) => api.get(`/chat-rooms/${roomId}`),
 
-  deleteChatRoom: (roomId: string) =>
-    api.delete(`/chat-rooms/${roomId}`),
+  deleteChatRoom: (roomId: string) => api.delete(`/chat-rooms/${roomId}`),
 
   getChatRoomCurator: (roomId: string) =>
     api.get(`/chat-rooms/${roomId}/curator`),
@@ -373,7 +384,7 @@ export const chat = {
 
 // Token API
 export const token = {
-  getMyTokenInfo: () => api.get('/me/tokens'),
+  getMyTokenInfo: () => api.get('/users/me/tokens'),
 };
 
 // Payment API
@@ -381,11 +392,11 @@ export const payment = {
   getProducts: () => api.get('/payments/products'),
   getProductById: (productId: string, productType: 'subscription' | 'token') =>
     api.get(`/payments/products/${productId}`, {
-      params: { product_type: productType }
+      params: { product_type: productType },
     }),
-    validateCoupon: (couponCode: string) =>
+  validateCoupon: (couponCode: string) =>
     api.post('/payments/coupons/validate', {
-      coupon_code: couponCode
+      coupon_code: couponCode,
     }),
   createPayment: (paymentData: any) => api.post('/payments', paymentData),
   createSinglePayment: (paymentData: PaymentData) => {
@@ -394,7 +405,10 @@ export const payment = {
     }
 
     // 다날 결제의 경우 pay_method 필수
-    if (paymentData.pg === PAYMENT_CONFIG.pgProviders.DANAL && !paymentData.pay_method) {
+    if (
+      paymentData.pg === PAYMENT_CONFIG.pgProviders.DANAL &&
+      !paymentData.pay_method
+    ) {
       throw new Error('휴대폰 결제 방식이 선택되지 않았습니다.');
     }
 
@@ -402,12 +416,12 @@ export const payment = {
       plan_id: Number(paymentData.plan_id),
       pg: paymentData.pg,
       pay_method: paymentData.pay_method,
-      ...(paymentData.coupon_code && { coupon_code: paymentData.coupon_code })
+      ...(paymentData.coupon_code && { coupon_code: paymentData.coupon_code }),
     };
 
     // 불필요한 undefined 값 제거
     const finalData: CleanedPaymentData = Object.fromEntries(
-      Object.entries(cleanedData).filter(([_, value]) => value !== undefined)
+      Object.entries(cleanedData).filter(([_, value]) => value !== undefined),
     ) as CleanedPaymentData;
 
     console.log('Cleaned payment data:', finalData);
@@ -424,12 +438,14 @@ export const payment = {
       plan_id: Number(subscriptionData.plan_id),
       pg: subscriptionData.pg,
       pay_method: subscriptionData.pay_method,
-      ...(subscriptionData.coupon_code && { coupon_code: subscriptionData.coupon_code })
+      ...(subscriptionData.coupon_code && {
+        coupon_code: subscriptionData.coupon_code,
+      }),
     };
 
     // 불필요한 undefined 값 제거
     const finalData: CleanedPaymentData = Object.fromEntries(
-      Object.entries(cleanedData).filter(([_, value]) => value !== undefined)
+      Object.entries(cleanedData).filter(([_, value]) => value !== undefined),
     ) as CleanedPaymentData;
 
     console.log('Cleaned subscription data:', finalData);
@@ -446,23 +462,26 @@ export const payment = {
     formData.append('file', file);
     return api.post('/upload-image', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
   },
   cancelPayment: (paymentId: string, formData: FormData) => {
     return api.post(`/users/me/payments/${paymentId}/cancel`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
   },
-  verifyPayment: (verificationData: { imp_uid: string; merchant_uid: string }) => {
+  verifyPayment: (verificationData: {
+    imp_uid: string;
+    merchant_uid: string;
+  }) => {
     return api.post('/payment-complete', verificationData, {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${tokenService.getAccessToken()}`
-      }
+        Authorization: `Bearer ${tokenService.getAccessToken()}`,
+      },
     });
   },
 };
@@ -470,6 +489,7 @@ export const payment = {
 // Subscription API
 export const subscription = {
   getMySubscription: () => api.get('/users/me/subscriptions'),
+  isSubscribed: () => api.get('/users/me/subscribed'),
   changeSubscription: (planId: number) =>
     api.put('/users/me/subscriptions', { plan_id: planId }),
   cancelSubscription: () => api.delete('/users/me/subscriptions'),
@@ -499,8 +519,8 @@ export const inquiry = {
   createInquiry: (inquiryData: FormData) => {
     return api.post('/inquiries', inquiryData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+        'Content-Type': 'multipart/form-data',
+      },
     });
   },
 };
@@ -514,11 +534,11 @@ export const terms = {
 // Curator API
 export const curator = {
   getCurators: (category?: string, tag?: string) =>
-    api.get('/curators', { 
-      params: { 
+    api.get('/curators', {
+      params: {
         category,
-        tag 
-      } 
+        tag,
+      },
     }),
 };
 
