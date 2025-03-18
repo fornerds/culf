@@ -11,6 +11,7 @@ import {
 import { AxiosError } from 'axios';
 import { chat } from '@/api';
 import { useAuthStore } from '@/state/client/authStore';
+import { useTokenStore } from '@/state/client/useStoneStore';
 
 // Types
 export interface Message {
@@ -46,6 +47,7 @@ export interface ChatResponse {
   conversation_id: string;
   answer: string;
   tokens_used: number;
+  recommended_questions?: string[];
 }
 
 export interface ChatRoom {
@@ -75,6 +77,7 @@ export interface UseChatParams {
 export const useChat = ({ onMessageStream }: UseChatParams = {}) => {
   const [isLoading, setIsLoading] = useState(false);
   const { isAuthenticated } = useAuthStore();
+  const { setShouldRefresh } = useTokenStore();
 
   // Send Message Mutation
   const sendMessageMutation = useMutation<
@@ -85,12 +88,21 @@ export const useChat = ({ onMessageStream }: UseChatParams = {}) => {
   >({
     mutationFn: async ({ question, imageFile, roomId }) => {
       const response = await chat.sendMessage(
-        question, 
-        imageFile, 
+        question,
+        imageFile,
         roomId,
-        onMessageStream
+        onMessageStream,
       );
       return response;
+    },
+    onSuccess: (data) => {
+      // 메시지 전송 성공 후 토큰이 사용되었으므로 새로고침 필요 표시
+      if (data && data.tokens_used) {
+        setShouldRefresh(true);
+      }
+    },
+    onError: (error) => {
+      console.error('Message send error:', error);
     },
   });
 
@@ -108,7 +120,7 @@ export const useChat = ({ onMessageStream }: UseChatParams = {}) => {
         pageParam,
         10,
         'question_time:desc',
-        false
+        false,
       );
       return response.data;
     },

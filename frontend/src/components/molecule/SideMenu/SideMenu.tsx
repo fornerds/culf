@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import styles from './SideMenu.module.css';
 import CloseIcon from '@/assets/icons/close.svg?react';
 import UserIcon from '@/assets/icons/user.svg?react';
@@ -8,6 +8,7 @@ import InquiryIcon from '@/assets/icons/inquiry.svg?react';
 import LinkIcon from '@/assets/icons/link.svg?react';
 import { useUser } from '@/hooks/user/useUser';
 import { useAuthStore } from '@/state/client/authStore';
+import { useTokenStore } from '@/state/client/useStoneStore';
 import { tokenService } from '@/utils/tokenService';
 import { Button } from '@/components/atom';
 
@@ -18,20 +19,19 @@ interface SideMenuProps {
 
 export function SideMenu({ isOpen, onClose }: SideMenuProps) {
   const { getUserInfo } = useUser();
+  const { tokens, setShouldRefresh } = useTokenStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
 
   const accessToken = tokenService.getAccessToken();
-
   const userInfo = getUserInfo.data;
-  const remainingTokens = userInfo?.total_tokens ?? 0;
 
+  // SideMenu가 열릴 때마다 사용자 데이터 새로고침
   useEffect(() => {
-    if (isOpen && process.env.NODE_ENV === 'development') {
-      console.log('SideMenu opened');
-      console.log(userInfo);
+    if (isOpen && accessToken) {
+      setShouldRefresh(true);
     }
-  }, [isOpen]);
+  }, [isOpen, accessToken, setShouldRefresh]);
 
   if (!isOpen) return null;
 
@@ -43,18 +43,22 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
           <div className={styles.sideMenuHeader}>
             {accessToken ? (
               <div className={styles.sideMenuHeaderTitle}>
-                <h3 className="font-title-3">{userInfo?.nickname || '사용자'}</h3>
+                <h3 className="font-title-3">
+                  {userInfo?.nickname || '사용자'}
+                </h3>
                 <p className="font-text-1">님</p>
               </div>
             ) : (
               <div className={styles.loginButtonWrap}>
-                <h3 className="font-title-3">서비스를 이용하려면 로그인이 필요합니다.</h3>
-                <Button 
-                  size="size1" 
-                  variant="default" 
+                <h3 className="font-title-3">
+                  서비스를 이용하려면 로그인이 필요합니다.
+                </h3>
+                <Button
+                  size="size1"
+                  variant="default"
                   onClick={() => {
                     onClose();
-                    navigate("/login");
+                    navigate('/login');
                   }}
                 >
                   로그인하러 가기
@@ -70,7 +74,7 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
               <div className={styles.tokenRemainInfo}>
                 <h4 className="font-title-3">남은 스톤</h4>
                 <div className={styles.tokenRemainCount}>
-                  <div className="font-title-2">{remainingTokens}</div>
+                  <div className="font-title-2">{tokens}</div>
                   <div className={styles.tokenRemainCountText}>개</div>
                 </div>
               </div>
@@ -89,7 +93,11 @@ export function SideMenu({ isOpen, onClose }: SideMenuProps) {
         </header>
         <nav className={styles.menuItems}>
           {accessToken && (
-            <Link to="/mypage/account" onClick={onClose} className="font-text-2">
+            <Link
+              to="/mypage/account"
+              onClick={onClose}
+              className="font-text-2"
+            >
               <span>
                 <UserIcon /> 마이페이지
               </span>
