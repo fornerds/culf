@@ -2,6 +2,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { user as userApi, token } from '../../api';
 import { useAuthStore } from '../../state/client/authStore';
+import { useTokenStore } from '../../state/client/useStoneStore';
 import { useEffect, useState } from 'react';
 import { tokenService } from '@/utils/tokenService';
 
@@ -48,20 +49,12 @@ interface TokenInfo {
 
 export const useUser = () => {
   const { setAuth, registrationInProgress } = useAuthStore();
+  const { setTokens, shouldRefresh, setShouldRefresh } = useTokenStore();
   const [isInitialized, setIsInitialized] = useState(false);
 
   const userInfoQuery = useQuery<UserInfo, Error>({
     queryKey: ['userInfo'],
     queryFn: async () => {
-      // 현재 상태 디버깅
-      // console.group('🔍 Fetching User Info');
-      // console.log('Current State:', {
-      //   pathname: window.location.pathname,
-      //   accessToken: tokenService.getAccessToken(),
-      //   registrationInProgress
-      // });
-      // console.groupEnd();
-
       // Login Status 체크
       const loginStatus = document.cookie
         .split('; ')
@@ -95,6 +88,9 @@ export const useUser = () => {
             currentToken,
           );
 
+          // 토큰 스토어 업데이트
+          setTokens(response.data.total_tokens || 0);
+
           return response.data;
         }
 
@@ -103,7 +99,7 @@ export const useUser = () => {
         console.error('Failed to fetch user info:', error);
         const currentToken = tokenService.getAccessToken();
 
-        // 스톤이 있는 경우는 일단 에러를 무시
+        // 토큰이 있는 경우는 일단 에러를 무시
         if (currentToken) {
           return null;
         }
@@ -153,6 +149,15 @@ export const useUser = () => {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  // shouldRefresh 상태가 true일 때 사용자 정보 갱신
+  useEffect(() => {
+    if (shouldRefresh && tokenService.getAccessToken()) {
+      userInfoQuery.refetch().then(() => {
+        setShouldRefresh(false);
+      });
+    }
+  }, [shouldRefresh, setShouldRefresh, userInfoQuery]);
 
   const updateUserInfoMutation = useMutation<UserInfo, Error, UpdateUserData>({
     mutationFn: async (userData) => {
@@ -253,18 +258,6 @@ export const useUser = () => {
       setIsInitialized(false);
     };
   }, []);
-
-  useEffect(() => {
-    // if (process.env.NODE_ENV === 'development') {
-    //   console.group('👤 User State Updated');
-    //   console.log('Query Status:', userInfoQuery.status);
-    //   console.log('Is Initialized:', isInitialized);
-    //   console.log('Registration in Progress:', registrationInProgress);
-    //   console.log('User Data:', userInfoQuery.data);
-    //   console.log('Access Token:', tokenService.getAccessToken());
-    //   console.groupEnd();
-    // }
-  }, [userInfoQuery.status, isInitialized, registrationInProgress]);
 
   return {
     isLoading:
