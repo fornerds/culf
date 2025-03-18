@@ -63,23 +63,37 @@ export function Payment() {
     couponDiscount: 0,
     totalPrice: 0,
   });
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
 
-  // 커스텀 훅 사용
+  // 커스텀 훅 사용 - 수정된 부분
   const {
-    getProductById,
+    getProduct,
     validateCoupon,
-    processSinglePayment,
-    processSubscription,
-    isLoading,
-    pgProviders,
-    payMethods,
-    errorMessage,
-    setErrorMessage,
-    showErrorPopup,
-    setShowErrorPopup,
+    createPayment: processSinglePayment,
+    createSubscription: processSubscription,
+    isLoading: hookLoading,
   } = usePayment();
 
-  const { data: productData } = getProductById(id!, productType);
+  // 상품 정보 조회 - 수정된 부분
+  const productQuery = getProduct(id!, productType);
+  const productData = productQuery.data;
+  const isLoading = hookLoading || productQuery.isLoading;
+
+  // PG 프로바이더 및 결제 방법 정의
+  const pgProviders = {
+    KAKAO: 'kakaopay',
+    KAKAO_SUBSCRIPTION: 'kakaopay.TCSUBSCRIP',
+    DANAL_TPAY: 'danal_tpay',
+    DANAL: 'danal',
+  };
+
+  const payMethods = {
+    CARD: 'card',
+    TRANS: 'trans',
+    VBANK: 'vbank',
+    PHONE: 'phone',
+  };
 
   const isSubscription = (data: any): data is SubscriptionProduct => {
     return 'plan_id' in data;
@@ -264,6 +278,25 @@ export function Payment() {
         />
         <p className="font-tag-1" style={{ color: '#a1a1a1' }}>
           로딩 중
+        </p>
+      </div>
+    );
+  }
+
+  // 상품 정보가 없는 경우 처리
+  if (productQuery.isError || !productData) {
+    return (
+      <div
+        style={{
+          marginTop: '250px',
+          display: 'flex',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '10px',
+        }}
+      >
+        <p className="font-tag-1" style={{ color: '#a1a1a1' }}>
+          상품 정보를 불러올 수 없습니다.
         </p>
       </div>
     );
