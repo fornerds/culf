@@ -14,9 +14,11 @@ interface SelectedPlan {
 export function Pricing() {
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
   const navigate = useNavigate();
-  const { getProducts, isLoading } = usePayment();
+
+  // 올바른 방식으로 products 데이터 가져오기
+  const { products: productsQuery, isLoading } = usePayment();
   const { getTokenInfo } = useUser();
-  const { data: products } = getProducts;
+  const products = productsQuery.data;
   const { data: tokenData } = getTokenInfo;
 
   function handleSelect(type: 'subscription' | 'stone', id: number) {
@@ -35,8 +37,19 @@ export function Pricing() {
 
   const remainingTokens = tokenData?.total_tokens || 0;
 
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-96">로딩중...</div>;
+  if (isLoading || productsQuery.isLoading) {
+    return (
+      <div className="flex justify-center items-center h-96">로딩중...</div>
+    );
+  }
+
+  // 데이터가 없는 경우 처리
+  if (productsQuery.isError || !products) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        상품 정보를 불러올 수 없습니다.
+      </div>
+    );
   }
 
   return (
@@ -48,7 +61,7 @@ export function Pricing() {
 
       <div className={styles.section}>
         <h3 className="font-card-title-2">스톤 구독 플랜</h3>
-        {products?.subscription_plans.map((plan) => (
+        {products.subscription_plans?.map((plan) => (
           <PriceCard
             key={plan.plan_id}
             type="subscription"
@@ -73,10 +86,12 @@ export function Pricing() {
       <div className={styles.section}>
         <div className={styles.tokenHeader}>
           <h3 className="font-card-title-2">스톤 패키지 구매</h3>
-          <span className={styles.tokenCount}>보유 스톤 {remainingTokens}개</span>
+          <span className={styles.tokenCount}>
+            보유 스톤 {remainingTokens}개
+          </span>
         </div>
         <div className={styles.cardGrid}>
-          {products?.token_plans.map((plan) => (
+          {products.token_plans?.map((plan) => (
             <PriceCard
               key={plan.token_plan_id}
               type="stone"
