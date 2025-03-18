@@ -30,7 +30,7 @@ interface TokenProduct {
 }
 
 // 기존 방식대로 named export 사용
-export function Pricing() {
+export function Payment() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'subscription' | 'token'>(
     'subscription',
