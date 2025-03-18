@@ -29,6 +29,7 @@ interface TokenProduct {
   updated_at: string;
 }
 
+// 기존 방식대로 named export 사용
 export function Pricing() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'subscription' | 'token'>(
@@ -166,5 +167,3 @@ export function Pricing() {
     </div>
   );
 }
-
-export default Pricing;
