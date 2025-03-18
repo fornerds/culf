@@ -46,7 +46,7 @@ export function Payment() {
   const { type, id } = useParams<{ type: string; id: string }>();
   const productType = type as 'subscription' | 'token';
   const isPortoneInitialized = usePortoneInit();
-  
+
   // 상태 관리
   const [selectedMethod, setSelectedMethod] = useState<{
     pg: string;
@@ -63,24 +63,36 @@ export function Payment() {
     couponDiscount: 0,
     totalPrice: 0,
   });
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
 
+  // PG 프로바이더 및 결제 방법 정의
+  const pgProviders = {
+    KAKAO: 'kakaopay',
+    KAKAO_SUBSCRIPTION: 'kakaopay.TCSUBSCRIP',
+    DANAL_TPAY: 'danal_tpay',
+    DANAL: 'danal',
+  };
+
+  const payMethods = {
+    CARD: 'card',
+    TRANS: 'trans',
+    VBANK: 'vbank',
+    PHONE: 'phone',
+  };
 
   // 커스텀 훅 사용
   const {
-    getProductById,
-    validateCoupon,
-    processSinglePayment,
-    processSubscription,
-    isLoading,
-    pgProviders,
-    payMethods,
-    errorMessage,
-    setErrorMessage,
-    showErrorPopup,
-    setShowErrorPopup
+    isLoading: hookLoading,
+    validateCoupon: hookValidateCoupon,
+    createPayment: hookCreatePayment,
+    createSubscription: hookCreateSubscription,
   } = usePayment();
 
-  const { data: productData } = getProductById(id!, productType);
+  // 상품 정보 조회를 위한 React Query 사용
+  const productQuery = usePayment().getProduct(id!, productType);
+  const productData = productQuery.data;
+  const isLoading = hookLoading || productQuery.isLoading;
 
   const isSubscription = (data: any): data is SubscriptionProduct => {
     return 'plan_id' in data;
@@ -92,7 +104,7 @@ export function Payment() {
       label: '카카오페이',
       pg: pgProviders.KAKAO,
       method: '',
-      disabled: productType === 'subscription'
+      disabled: productType === 'subscription',
     },
     // {
     //   id: 'kakaopay_subscription',
@@ -106,29 +118,29 @@ export function Payment() {
       label: '신용카드',
       pg: pgProviders.DANAL_TPAY,
       method: payMethods.CARD,
-      disabled: false
+      disabled: false,
     },
     {
       id: 'trans',
       label: '실시간 계좌이체',
       pg: pgProviders.DANAL_TPAY,
       method: payMethods.TRANS,
-      disabled: false
+      disabled: false,
     },
     {
       id: 'vbank',
       label: '가상계좌',
       pg: pgProviders.DANAL_TPAY,
       method: payMethods.VBANK,
-      disabled: false
+      disabled: false,
     },
     {
       id: 'phone',
       label: '휴대폰 결제',
       pg: pgProviders.DANAL,
       method: payMethods.PHONE,
-      disabled: productType === 'subscription'
-    }
+      disabled: productType === 'subscription',
+    },
   ];
 
   // Effects
@@ -148,16 +160,15 @@ export function Payment() {
   // Handlers
   const handlePaymentMethodChange = (id: string, checked: boolean) => {
     if (!checked) return;
-    
-    const selected = paymentMethods.find(method => method.id === id);
+
+    const selected = paymentMethods.find((method) => method.id === id);
     if (selected) {
       setSelectedMethod({
         pg: selected.pg,
-        method: selected.method
+        method: selected.method,
       });
     }
   };
-
 
   // 쿠폰 관련 함수들
   const handleCouponChange = (value: string) => {
@@ -165,7 +176,7 @@ export function Payment() {
     setShowValidation(false);
     if (isCouponApplied) {
       setIsCouponApplied(false);
-      setPaymentInfo(prev => ({
+      setPaymentInfo((prev) => ({
         ...prev,
         couponDiscount: 0,
         totalPrice: prev.totalPrice + prev.couponDiscount,
@@ -175,19 +186,19 @@ export function Payment() {
 
   const handleCouponApply = async () => {
     try {
-      const response = await validateCoupon(couponCode);
+      const response = await hookValidateCoupon(couponCode);
       setShowValidation(true);
 
       if (response.is_valid) {
         setIsCouponApplied(true);
         setValidationMessage('쿠폰이 성공적으로 적용되었습니다.');
-        
+
         if (response.discount_value) {
           const newDiscount = response.discount_value;
-          setPaymentInfo(prev => ({
+          setPaymentInfo((prev) => ({
             ...prev,
             couponDiscount: newDiscount,
-            totalPrice: Math.max(0, prev.totalPrice - newDiscount)
+            totalPrice: Math.max(0, prev.totalPrice - newDiscount),
           }));
         }
       } else {
@@ -206,7 +217,9 @@ export function Payment() {
     if (!isPaymentEnabled) return;
 
     if (!isPortoneInitialized) {
-      setErrorMessage('결제 시스템을 초기화하는 중입니다. 잠시만 기다려주세요.');
+      setErrorMessage(
+        '결제 시스템을 초기화하는 중입니다. 잠시만 기다려주세요.',
+      );
       setShowErrorPopup(true);
       return;
     }
@@ -216,20 +229,19 @@ export function Payment() {
         plan_id: Number(id),
         pg: selectedMethod.pg,
         pay_method: selectedMethod.method || undefined,
-        ...(isCouponApplied && couponCode && { coupon_code: couponCode })
+        ...(isCouponApplied && couponCode && { coupon_code: couponCode }),
       };
 
       if (productType === 'subscription') {
-        await processSubscription(paymentData);
+        await hookCreateSubscription(paymentData);
       } else {
-        await processSinglePayment(paymentData);
+        await hookCreatePayment(paymentData);
       }
     } catch (error: any) {
       setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
       setShowErrorPopup(true);
     }
   };
-  
 
   // Validation 관련 함수들
   const getValidationMessage = () => {
@@ -247,21 +259,51 @@ export function Payment() {
   // 로딩 상태 처리
   if (isLoading) {
     return (
-      <div style={{marginTop: "250px", display: "flex", alignItems: "center", flexDirection: "column", gap: "10px" }}>
+      <div
+        style={{
+          marginTop: '250px',
+          display: 'flex',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '10px',
+        }}
+      >
         <LoadingAnimation
           imageUrl={logoimage}
           alt="로딩 이미지"
           width={58}
           height={19}
-          duration={2200} 
+          duration={2200}
         />
-        <p className='font-tag-1' style={{color: "#a1a1a1"}}>로딩 중</p>
+        <p className="font-tag-1" style={{ color: '#a1a1a1' }}>
+          로딩 중
+        </p>
       </div>
     );
   }
 
-  return (<>
-    <main className={styles.main}>
+  // 상품 정보가 없는 경우 처리
+  if (productQuery.isError || !productData) {
+    return (
+      <div
+        style={{
+          marginTop: '250px',
+          display: 'flex',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '10px',
+        }}
+      >
+        <p className="font-tag-1" style={{ color: '#a1a1a1' }}>
+          상품 정보를 불러올 수 없습니다.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <main className={styles.main}>
         <div className={styles.cardWrapper}>
           <div
             className={styles.cardBackground}
@@ -287,18 +329,21 @@ export function Payment() {
               <div className={styles.infoRow}>
                 <span className="font-text-4">상품명</span>
                 <span className={`${styles.highlight} font-tag-1`}>
-                  {productData && (isSubscription(productData)
-                    ? productData.plan_name
-                    : `스톤 ${(productData as TokenProduct).tokens}개`)}
+                  {productData &&
+                    (isSubscription(productData)
+                      ? productData.plan_name
+                      : `스톤 ${(productData as TokenProduct).tokens}개`)}
                 </span>
               </div>
               {type === 'subscription' && (
                 <div className={styles.infoRow}>
                   <span className="font-text-4">다음 결제일</span>
                   <span className="font-tag-1">
-                    {new Date(
-                      new Date().setMonth(new Date().getMonth() + 1)
-                    ).toISOString().split('T')[0]}
+                    {
+                      new Date(new Date().setMonth(new Date().getMonth() + 1))
+                        .toISOString()
+                        .split('T')[0]
+                    }
                   </span>
                 </div>
               )}
@@ -368,7 +413,7 @@ export function Payment() {
               </h2>
               <div className={styles.paymentMethods}>
                 {paymentMethods
-                  .filter(method => !method.disabled)
+                  .filter((method) => !method.disabled)
                   .map((method) => (
                     <RadioButton
                       key={method.id}
@@ -376,8 +421,11 @@ export function Payment() {
                       name="paymentMethod"
                       value={method.id}
                       label={method.label}
-                      checked={selectedMethod.pg === method.pg && selectedMethod.method === method.method}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                      checked={
+                        selectedMethod.pg === method.pg &&
+                        selectedMethod.method === method.method
+                      }
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                         handlePaymentMethodChange(method.id, e.target.checked)
                       }
                     />
@@ -389,7 +437,13 @@ export function Payment() {
               <h2 className={`${styles.sectionTitle} font-card-title-1`}>
                 서비스 제공 기간
               </h2>
-              {type === 'subscription' ? <p className="font-text-4">매월 자동 결제 성공 즉시 다음 결제일까지 이용 가능</p> : <p className="font-text-4">상품 결제 시 즉시 지급</p>}
+              {type === 'subscription' ? (
+                <p className="font-text-4">
+                  매월 자동 결제 성공 즉시 다음 결제일까지 이용 가능
+                </p>
+              ) : (
+                <p className="font-text-4">상품 결제 시 즉시 지급</p>
+              )}
             </section>
           </div>
         </div>
@@ -413,13 +467,13 @@ export function Payment() {
           결제하기
         </button>
       </main>
-    <Popup
+      <Popup
         type="alert"
         isOpen={showErrorPopup}
         onClose={() => setShowErrorPopup(false)}
         content={errorMessage || '알 수 없는 오류가 발생했습니다.'}
         confirmText="확인"
       />
-  </>
+    </>
   );
 }
