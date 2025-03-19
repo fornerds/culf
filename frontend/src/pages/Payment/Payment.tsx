@@ -44,7 +44,8 @@ interface TokenProduct {
 
 export function Payment() {
   const { type, id } = useParams<{ type: string; id: string }>();
-  const productType = type as 'subscription' | 'token';
+  const productType =
+    type === 'stone' ? 'token' : (type as 'subscription' | 'token');
   const isPortoneInitialized = usePortoneInit();
 
   // 상태 관리

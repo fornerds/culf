@@ -390,10 +390,17 @@ export const token = {
 // Payment API
 export const payment = {
   getProducts: () => api.get('/payments/products'),
-  getProductById: (productId: string, productType: 'subscription' | 'token') =>
-    api.get(`/payments/products/${productId}`, {
-      params: { product_type: productType },
-    }),
+  getProductById: (
+    productId: string,
+    productType: 'subscription' | 'stone' | 'token',
+  ) => {
+    // Map 'stone' to 'token' for the backend
+    const backendProductType = productType === 'stone' ? 'token' : productType;
+
+    return api.get(`/payments/products/${productId}`, {
+      params: { product_type: backendProductType },
+    });
+  },
   validateCoupon: (couponCode: string) =>
     api.post('/payments/coupons/validate', {
       coupon_code: couponCode,
