@@ -80,12 +80,17 @@ export const usePayment = () => {
   // 단일 상품 정보 조회 (스톤/구독)
   const getProductQuery = (
     productId: string,
-    productType: 'subscription' | 'token',
+    productType: 'subscription' | 'token' | 'stone',
   ) =>
     useQuery<Product, Error>({
       queryKey: ['payment', 'product', productId, productType],
       queryFn: async () => {
-        const response = await payment.getProductById(productId, productType);
+        // stone을 token으로 변환하여 API 호출
+        const apiProductType = productType === 'stone' ? 'token' : productType;
+        const response = await payment.getProductById(
+          productId,
+          apiProductType,
+        );
         return response.data;
       },
       enabled: !!productId,
