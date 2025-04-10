@@ -127,14 +127,14 @@ export function Payment() {
       label: '실시간 계좌이체',
       pg: pgProviders.DANAL_TPAY,
       method: payMethods.TRANS,
-      disabled: false,
+      disabled: productType === 'subscription',
     },
     {
       id: 'vbank',
       label: '가상계좌',
       pg: pgProviders.DANAL_TPAY,
       method: payMethods.VBANK,
-      disabled: false,
+      disabled: productType === 'subscription',
     },
     {
       id: 'phone',
