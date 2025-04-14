@@ -97,7 +97,7 @@ def initiate_subscription_payment(subscription_request, db: Session, current_use
     """첫 구독 결제 요청"""
     # 기존 활성화된 구독 정보 확인
 
-    existing_subscription = subscription_services.is_user_subscribed
+    existing_subscription = subscription_services.is_user_subscribed(db, current_user.user_id)
     if existing_subscription:
         raise HTTPException(
             status_code=400,
