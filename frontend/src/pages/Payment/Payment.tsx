@@ -234,13 +234,58 @@ export function Payment() {
         ...(isCouponApplied && couponCode && { coupon_code: couponCode }),
       };
 
+      // 백엔드에서 payment_data 받기
+      let response;
       if (productType === 'subscription') {
-        await processSubscription(paymentData);
+        response = await processSubscription(paymentData);
       } else {
-        await processSinglePayment(paymentData);
+        response = await processSinglePayment(paymentData);
       }
-    } catch (error: any) {
-      setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
+
+      console.log('Payment response:', response); // 응답 확인용 로그
+
+      // 여기서 PortOne 결제창 호출 - 이 부분이 없습니다!
+      if (!window.IMP) {
+        throw new Error('결제 모듈이 초기화되지 않았습니다.');
+      }
+
+      // 백엔드에서 받은 데이터를 사용하여 결제창 열기
+      window.IMP.request_pay(
+        {
+          pg: selectedMethod.pg,
+          pay_method: selectedMethod.method || undefined,
+          merchant_uid: response.merchant_uid,
+          name: response.payment_data.name,
+          amount: response.payment_data.amount,
+          buyer_email: response.payment_data.buyer_email,
+          buyer_name: response.payment_data.buyer_name,
+          buyer_tel: response.payment_data.buyer_tel,
+          m_redirect_url: response.payment_data.m_redirect_url,
+        },
+        function (rsp) {
+          // 결제 완료 후 처리
+          if (rsp.success) {
+            // 결제 성공 - 검증 API 호출
+            verifyPayment({
+              imp_uid: rsp.imp_uid,
+              merchant_uid: rsp.merchant_uid,
+            }).then(() => {
+              // 성공 페이지로 이동
+              window.location.href = '/payment/success';
+            });
+          } else {
+            // 결제 실패
+            setErrorMessage(rsp.error_msg || '결제에 실패했습니다.');
+            setShowErrorPopup(true);
+          }
+        },
+      );
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.detail ||
+        error.message ||
+        '결제 처리 중 오류가 발생했습니다.';
+      setErrorMessage(errorMsg);
       setShowErrorPopup(true);
     }
   };
