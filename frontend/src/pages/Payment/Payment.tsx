@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { usePayment } from '@/hooks/payment/usePayment';
 import styles from './Payment.module.css';
 import logoGray from '@/assets/images/culf_gray.png';
@@ -44,6 +44,7 @@ interface TokenProduct {
 
 export function Payment() {
   const { type, id } = useParams<{ type: string; id: string }>();
+  const navigate = useNavigate();
   const productType =
     type === 'stone' ? 'token' : (type as 'subscription' | 'token');
   const isPortoneInitialized = usePortoneInit();
@@ -67,16 +68,17 @@ export function Payment() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [showErrorPopup, setShowErrorPopup] = useState(false);
 
-  // 커스텀 훅 사용 - 수정된 부분
+  // 커스텀 훅 사용
   const {
     getProduct,
     validateCoupon,
     createPayment: processSinglePayment,
     createSubscription: processSubscription,
+    verifyPayment,
     isLoading: hookLoading,
   } = usePayment();
 
-  // 상품 정보 조회 - 수정된 부분
+  // 상품 정보 조회
   const productQuery = getProduct(id!, productType);
   const productData = productQuery.data;
   const isLoading = hookLoading || productQuery.isLoading;
@@ -227,20 +229,66 @@ export function Payment() {
     }
 
     try {
+      // 올바른 plan_id 값 사용
       const paymentData = {
-        plan_id: Number(id),
+        plan_id: isSubscription(productData!)
+          ? productData!.plan_id
+          : (productData! as TokenProduct).token_plan_id,
         pg: selectedMethod.pg,
         pay_method: selectedMethod.method || undefined,
         ...(isCouponApplied && couponCode && { coupon_code: couponCode }),
       };
 
+      console.log('Sending payment data:', paymentData);
+
+      // 백엔드에서 결제 데이터 받기
+      let response;
       if (productType === 'subscription') {
-        await processSubscription(paymentData);
+        response = await processSubscription(paymentData);
       } else {
-        await processSinglePayment(paymentData);
+        response = await processSinglePayment(paymentData);
       }
+
+      console.log('Payment response from backend:', response);
+
+      // PortOne 결제창 호출
+      if (!window.IMP) {
+        throw new Error('결제 모듈이 초기화되지 않았습니다.');
+      }
+
+      // 백엔드에서 반환된 결제 데이터 그대로 사용
+      window.IMP.request_pay(response.payment_data, function (rsp) {
+        console.log('Payment result:', rsp);
+
+        // 결제 완료 후 처리
+        if (rsp.success) {
+          // 결제 성공 - 검증 API 호출
+          verifyPayment({
+            imp_uid: rsp.imp_uid,
+            merchant_uid: response.merchant_uid,
+          })
+            .then(() => {
+              // 성공 페이지로 이동
+              navigate('/payment/success');
+            })
+            .catch((error) => {
+              console.error('Verification error:', error);
+              setErrorMessage('결제 검증 중 오류가 발생했습니다.');
+              setShowErrorPopup(true);
+            });
+        } else {
+          // 결제 실패
+          setErrorMessage(rsp.error_msg || '결제에 실패했습니다.');
+          setShowErrorPopup(true);
+        }
+      });
     } catch (error: any) {
-      setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
+      console.error('Payment error:', error);
+      const errorMsg =
+        error.response?.data?.detail ||
+        error.message ||
+        '결제 처리 중 오류가 발생했습니다.';
+      setErrorMessage(errorMsg);
       setShowErrorPopup(true);
     }
   };
