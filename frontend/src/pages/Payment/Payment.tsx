@@ -67,7 +67,7 @@ export function Payment() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [showErrorPopup, setShowErrorPopup] = useState(false);
 
-  // 커스텀 훅 사용 - 수정된 부분
+  // 커스텀 훅 사용
   const {
     getProduct,
     validateCoupon,
@@ -76,7 +76,7 @@ export function Payment() {
     isLoading: hookLoading,
   } = usePayment();
 
-  // 상품 정보 조회 - 수정된 부분
+  // 상품 정보 조회
   const productQuery = getProduct(id!, productType);
   const productData = productQuery.data;
   const isLoading = hookLoading || productQuery.isLoading;
@@ -214,7 +214,7 @@ export function Payment() {
     }
   };
 
-  // 결제 처리 함수
+  // 결제 처리 함수 - 이전 방식으로 수정
   const handlePaymentSubmit = async () => {
     if (!isPaymentEnabled) return;
 
@@ -227,17 +227,11 @@ export function Payment() {
     }
 
     try {
-      const paymentData = {
-        plan_id: Number(id),
-        pg: selectedMethod.pg,
-        pay_method: selectedMethod.method || undefined,
-        ...(isCouponApplied && couponCode && { coupon_code: couponCode }),
-      };
-
+      // 백엔드에서 제공한 데이터를 수정하지 않고 그대로 전달
       if (productType === 'subscription') {
-        await processSubscription(paymentData);
+        await processSubscription(productData);
       } else {
-        await processSinglePayment(paymentData);
+        await processSinglePayment(productData);
       }
     } catch (error: any) {
       setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
