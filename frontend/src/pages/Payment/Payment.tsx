@@ -66,8 +66,6 @@ export function Payment() {
   });
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [showErrorPopup, setShowErrorPopup] = useState(false);
-  // 디버깅용 로그 상태 추가
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
   // 커스텀 훅 사용
   const {
@@ -76,7 +74,6 @@ export function Payment() {
     createPayment: processSinglePayment,
     createSubscription: processSubscription,
     isLoading: hookLoading,
-    PaymentDataInterface, // PaymentData 인터페이스 정보를 가져옵니다(필요 시 구현)
   } = usePayment();
 
   // 상품 정보 조회
@@ -111,6 +108,13 @@ export function Payment() {
       method: '',
       disabled: productType === 'subscription',
     },
+    // {
+    //   id: 'kakaopay_subscription',
+    //   label: '카카오페이 정기결제',
+    //   pg: pgProviders.KAKAO_SUBSCRIPTION,
+    //   method: '',
+    //   disabled: productType === 'token'
+    // },
     {
       id: 'card',
       label: '신용카드',
@@ -210,7 +214,7 @@ export function Payment() {
     }
   };
 
-  // 결제 처리 함수 - 로그 추가
+  // 결제 처리 함수 - 백엔드 API 요구사항에 맞게 수정
   const handlePaymentSubmit = async () => {
     if (!isPaymentEnabled) return;
 
@@ -222,39 +226,18 @@ export function Payment() {
       return;
     }
 
-    if (!productData) {
-      setErrorMessage('상품 정보를 찾을 수 없습니다.');
-      setShowErrorPopup(true);
-      return;
-    }
-
-    // 로그 초기화
-    const logs: string[] = [];
-    logs.push(`Product Data: ${JSON.stringify(productData, null, 2)}`);
-    logs.push(`Product Type: ${productType}`);
-    logs.push(`Selected Method: ${JSON.stringify(selectedMethod)}`);
-
     try {
-      // 디버깅을 위해 PaymentData 구성 과정에서 로그 추가
-      const plan_id = isSubscription(productData)
-        ? productData.plan_id
-        : (productData as TokenProduct).token_plan_id;
-
-      logs.push(`Plan ID: ${plan_id}`);
-
+      // 백엔드 API 요구사항에 맞는 최소한의 데이터만 전송
       const paymentData = {
-        plan_id: plan_id,
+        plan_id: isSubscription(productData!)
+          ? productData!.plan_id
+          : (productData! as TokenProduct).token_plan_id,
         pg: selectedMethod.pg,
         pay_method: selectedMethod.method || undefined,
         ...(isCouponApplied && couponCode && { coupon_code: couponCode }),
       };
 
-      logs.push(`Payment Data: ${JSON.stringify(paymentData, null, 2)}`);
-
-      // 로그 상태 업데이트
-      setDebugLogs(logs);
-
-      // 디버깅용 콘솔 로그
+      // 콘솔 로그 추가 (디버깅용)
       console.log('Payment Data:', paymentData);
 
       if (productType === 'subscription') {
@@ -263,17 +246,7 @@ export function Payment() {
         await processSinglePayment(paymentData);
       }
     } catch (error: any) {
-      // 오류 정보 로깅
-      logs.push(`Error: ${error.message || '알 수 없는 오류'}`);
-      if (error.response) {
-        logs.push(
-          `Error Response: ${JSON.stringify(error.response.data || {}, null, 2)}`,
-        );
-      }
-
-      setDebugLogs(logs);
       console.error('Payment Error:', error);
-
       setErrorMessage(error.message || '결제 처리 중 오류가 발생했습니다.');
       setShowErrorPopup(true);
     }
@@ -481,29 +454,6 @@ export function Payment() {
                 <p className="font-text-4">상품 결제 시 즉시 지급</p>
               )}
             </section>
-
-            {/* Debug Logs - 디버깅용으로 추가된 섹션 */}
-            {debugLogs.length > 0 && (
-              <section className={styles.section}>
-                <h2 className={`${styles.sectionTitle} font-card-title-1`}>
-                  디버그 로그
-                </h2>
-                <div
-                  style={{
-                    backgroundColor: '#f5f5f5',
-                    padding: '10px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    whiteSpace: 'pre-wrap',
-                    overflowX: 'auto',
-                  }}
-                >
-                  {debugLogs.map((log, index) => (
-                    <div key={index}>{log}</div>
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
         </div>
 
