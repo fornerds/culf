@@ -239,7 +239,7 @@ export function Payment() {
         ...(isCouponApplied && couponCode && { coupon_code: couponCode }),
       };
 
-      console.log('Sending payment data:', paymentData);
+      // console.log('Sending payment data:', paymentData);
 
       // 백엔드에서 결제 데이터 받기
       let response;
@@ -249,7 +249,7 @@ export function Payment() {
         response = await processSinglePayment(paymentData);
       }
 
-      console.log('Payment response from backend:', response);
+      // console.log('Payment response from backend:', response);
 
       // PortOne 결제창 호출
       if (!window.IMP) {
@@ -258,7 +258,7 @@ export function Payment() {
 
       // 백엔드에서 반환된 결제 데이터 그대로 사용
       window.IMP.request_pay(response.payment_data, function (rsp) {
-        console.log('Payment result:', rsp);
+        // console.log('Payment result:', rsp);
 
         // 결제 완료 후 처리
         if (rsp.success) {
