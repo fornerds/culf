@@ -150,11 +150,40 @@ def initiate_subscription_payment(subscription_request, db: Session, current_use
 
     # PG사별 추가 설정
     if subscription_request.pg == "danal_tpay":
+        # 현재 날짜
+        current_date = datetime.now()
+        
+        # 다음 달 계산
+        if current_date.month < 12:
+            next_month = current_date.month + 1
+            next_year = current_date.year
+        else:
+            next_month = 1
+            next_year = current_date.year + 1
+        
+        # 다음 달의 마지막 날
+        _, last_day_of_next_month = monthrange(next_year, next_month)
+        
+        # 결제일
+        billing_day = current_date.day
+        next_billing_day = min(billing_day, last_day_of_next_month)
+        
+        # 다음 결제일 계산
+        next_billing_date = current_date.replace(
+            year=next_year,
+            month=next_month,
+            day=next_billing_day
+        )
+        
+        # period 설정
+        from_date = current_date.strftime("%Y%m%d")
+        to_date = (next_billing_date - timedelta(days=1)).strftime("%Y%m%d")
+        
         payment_data.update({
             "pay_method": "card",
             "period": {
-                "from": "20250101",
-                "to": "20260101"
+                "from": from_date,
+                "to": to_date
             }
         })
         payment_method = f"subscription_danal_tpay"
