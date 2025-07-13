@@ -231,7 +231,16 @@ export function ChatDetail() {
             ])
             .flat();
           setMessages(messages);
-          setShowSuggestions(false);
+
+          // 마지막 대화의 추천 질문 표시
+          const lastConversation =
+            roomData.conversations[roomData.conversations.length - 1];
+          if (lastConversation?.recommended_questions?.length) {
+            setCurrentSuggestions(lastConversation.recommended_questions);
+            setShowSuggestions(true);
+          } else {
+            setShowSuggestions(false);
+          }
         }
       }
     }
@@ -365,6 +374,7 @@ export function ChatDetail() {
                 type: 'ai' as const,
                 content: currentContent,
                 isStreaming: false,
+                recommendedQuestions: response?.recommended_questions || [],
               },
             ];
           }
@@ -373,8 +383,7 @@ export function ChatDetail() {
 
         // 추천 질문 업데이트
         if (response?.recommended_questions?.length) {
-          currentRecommendedQuestions = response.recommended_questions;
-          setCurrentSuggestions(currentRecommendedQuestions);
+          setCurrentSuggestions(response.recommended_questions);
           setTimeout(() => {
             setShowSuggestions(true);
           }, 300);
@@ -431,6 +440,21 @@ export function ChatDetail() {
       }
     }
   };
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (
+        lastMessage?.type === 'ai' &&
+        lastMessage.recommendedQuestions &&
+        !lastMessage.isStreaming &&
+        lastMessage.recommendedQuestions.length > 0
+      ) {
+        setCurrentSuggestions(lastMessage.recommendedQuestions);
+        setShowSuggestions(true);
+      }
+    }
+  }, [messages]);
 
   const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
