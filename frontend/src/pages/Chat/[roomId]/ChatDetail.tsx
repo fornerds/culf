@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   useQuery,
@@ -135,9 +135,25 @@ export function ChatDetail() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const messageCompleteRef = useRef<boolean>(true);
   const isMobile = window.innerWidth < 425;
-  const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // 추천 질문 상태를 하나로 통합
+  const [suggestions, setSuggestions] = useState<{
+    questions: string[];
+    visible: boolean;
+  }>({
+    questions: [],
+    visible: false,
+  });
+
   const { setTitle } = useHeaderStore();
+
+  // 추천 질문 업데이트 함수
+  const updateSuggestions = useCallback(
+    (questions: string[], visible: boolean) => {
+      setSuggestions({ questions, visible });
+    },
+    [],
+  );
 
   // 채팅방 데이터 조회
   const { data: roomData } = useQuery({
@@ -168,7 +184,7 @@ export function ChatDetail() {
         const response = await token.getMyTokenInfo();
         return response.data;
       },
-      staleTime: 0, // 항상 최신 데이터를 가져오도록 수정
+      staleTime: 0,
     });
 
   const { data: subscriptionInfo } = useQuery({
@@ -194,7 +210,7 @@ export function ChatDetail() {
           },
         });
         setTitle(curatorData.curator.name);
-        setShowSuggestions(true);
+        updateSuggestions([], true); // 새 채팅방에서는 빈 추천 질문으로 시작
         setMessages([]);
       }
       // 기존 채팅방인 경우
@@ -232,19 +248,18 @@ export function ChatDetail() {
             .flat();
           setMessages(messages);
 
-          // 마지막 대화의 추천 질문 표시
+          // 마지막 대화의 추천 질문 표시 - 한 번만 설정
           const lastConversation =
             roomData.conversations[roomData.conversations.length - 1];
           if (lastConversation?.recommended_questions?.length) {
-            setCurrentSuggestions(lastConversation.recommended_questions);
-            setShowSuggestions(true);
+            updateSuggestions(lastConversation.recommended_questions, true);
           } else {
-            setShowSuggestions(false);
+            updateSuggestions([], false);
           }
         }
       }
     }
-  }, [roomData, curatorData]);
+  }, [roomData, curatorData, updateSuggestions]);
 
   const handleSendMessage = async (message?: string) => {
     try {
@@ -257,7 +272,6 @@ export function ChatDetail() {
       await queryClient.invalidateQueries({ queryKey: ['subscriptionInfo'] });
 
       try {
-        // 갱신된 데이터를 순차적으로 가져옴
         const tokenData = await queryClient.fetchQuery({
           queryKey: ['tokenInfo'],
           queryFn: async () => {
@@ -278,7 +292,6 @@ export function ChatDetail() {
           staleTime: 0,
         });
 
-        // 유효한 토큰이나 구독이 있는지 확인
         const hasValidTokens = tokenData?.total_tokens > 0;
         const hasActiveSubscription = subscriptionInfo?.is_subscribed;
 
@@ -294,7 +307,6 @@ export function ChatDetail() {
         }
       } catch (error: any) {
         console.error('Token/Subscription check error:', error);
-        // 404 에러는 무시하고 계속 진행 (토큰/구독 중 하나라도 있으면 진행)
         if (error.response?.status !== 404) {
           throw error;
         }
@@ -312,9 +324,8 @@ export function ChatDetail() {
       formData.append('room_id', currentRoom.roomId);
       imageFiles.forEach((file) => formData.append('image_files', file));
 
-      // 기존 추천 질문 숨기기
-      setShowSuggestions(false);
-      setCurrentSuggestions([]);
+      // 추천 질문 숨기기 - 한 번만 호출
+      updateSuggestions([], false);
       messageCompleteRef.current = false;
 
       // 새 메시지 추가
@@ -341,7 +352,6 @@ export function ChatDetail() {
       setIsUploadMenuOpen(false);
 
       let currentContent = '';
-      let currentRecommendedQuestions: string[] = [];
 
       try {
         const response = await chat.sendMessage(formData, (chunk) => {
@@ -364,7 +374,7 @@ export function ChatDetail() {
 
         console.log('Stream completed, response data:', response);
 
-        // 스트리밍 완료 후 최종 메시지 업데이트
+        // 스트리밍 완료 후 최종 메시지 업데이트와 추천 질문을 한 번에 처리
         setMessages((prev) => {
           const lastMessage = prev[prev.length - 1];
           if (lastMessage?.type === 'ai') {
@@ -381,12 +391,11 @@ export function ChatDetail() {
           return prev;
         });
 
-        // 추천 질문 업데이트
+        // 추천 질문 업데이트 - 지연 없이 바로 설정
         if (response?.recommended_questions?.length) {
-          setCurrentSuggestions(response.recommended_questions);
-          setTimeout(() => {
-            setShowSuggestions(true);
-          }, 300);
+          updateSuggestions(response.recommended_questions, true);
+        } else {
+          updateSuggestions([], false);
         }
 
         messageCompleteRef.current = true;
@@ -427,8 +436,7 @@ export function ChatDetail() {
       ]);
 
       // 추천 질문 초기화
-      setShowSuggestions(false);
-      setCurrentSuggestions([]);
+      updateSuggestions([], false);
 
       // 404 에러 처리
       if (error instanceof Error) {
@@ -441,20 +449,7 @@ export function ChatDetail() {
     }
   };
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (
-        lastMessage?.type === 'ai' &&
-        lastMessage.recommendedQuestions &&
-        !lastMessage.isStreaming &&
-        lastMessage.recommendedQuestions.length > 0
-      ) {
-        setCurrentSuggestions(lastMessage.recommendedQuestions);
-        setShowSuggestions(true);
-      }
-    }
-  }, [messages]);
+  // 중복된 useEffect 제거 - 이미 handleSendMessage에서 처리됨
 
   const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -573,7 +568,6 @@ Reduction: ${(((originalSize - resizedSize) / originalSize) * 100).toFixed(1)}%`
 
   useEffect(() => {
     if (chatContainerRef.current) {
-      // 약간의 지연을 주어 추천 질문이 렌더링된 후 스크롤 조정
       setTimeout(() => {
         chatContainerRef.current?.scrollTo({
           top: chatContainerRef.current.scrollHeight,
@@ -668,9 +662,9 @@ Reduction: ${(((originalSize - resizedSize) / originalSize) * 100).toFixed(1)}%`
       </div>
 
       <SuggestedQuestions
-        questions={currentSuggestions}
+        questions={suggestions.questions}
         onQuestionClick={handleSuggestionClick}
-        visible={showSuggestions}
+        visible={suggestions.visible}
       />
 
       <section
