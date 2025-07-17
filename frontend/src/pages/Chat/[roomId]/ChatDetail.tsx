@@ -150,6 +150,7 @@ export function ChatDetail() {
   // 추천 질문 업데이트 함수
   const updateSuggestions = useCallback(
     (questions: string[], visible: boolean) => {
+      console.log('updateSuggestions called:', { questions, visible }); // 디버깅용
       setSuggestions({ questions, visible });
     },
     [],
@@ -210,11 +211,11 @@ export function ChatDetail() {
           },
         });
         setTitle(curatorData.curator.name);
-        updateSuggestions([], true); // 새 채팅방에서는 빈 추천 질문으로 시작
+        updateSuggestions([], false); // 새 채팅방에서는 추천 질문 숨김
         setMessages([]);
       }
       // 기존 채팅방인 경우
-      else {
+      else if (roomData.conversations?.length) {
         useChatRoomStore.getState().setCurrentRoom({
           roomId: roomData.room_id,
           curatorId: roomData.curator.curator_id,
@@ -226,36 +227,36 @@ export function ChatDetail() {
         });
         setTitle(roomData.curator.name);
 
-        if (roomData.conversations) {
-          const messages = roomData.conversations
-            .map((conv) => [
-              {
-                type: 'user' as const,
-                content: conv.question,
-                ...(conv.question_images && {
-                  imageUrls: Array.isArray(conv.question_images)
-                    ? conv.question_images
-                    : [conv.question_images],
-                  imageSizeInfo: conv.image_size_info,
-                }),
-              },
-              {
-                type: 'ai' as const,
-                content: conv.answer,
-                recommendedQuestions: conv.recommended_questions,
-              },
-            ])
-            .flat();
-          setMessages(messages);
+        const messages = roomData.conversations
+          .map((conv) => [
+            {
+              type: 'user' as const,
+              content: conv.question,
+              ...(conv.question_images && {
+                imageUrls: Array.isArray(conv.question_images)
+                  ? conv.question_images
+                  : [conv.question_images],
+                imageSizeInfo: conv.image_size_info,
+              }),
+            },
+            {
+              type: 'ai' as const,
+              content: conv.answer,
+              recommendedQuestions: conv.recommended_questions,
+            },
+          ])
+          .flat();
+        setMessages(messages);
 
-          // 마지막 대화의 추천 질문 표시 - 한 번만 설정
-          const lastConversation =
-            roomData.conversations[roomData.conversations.length - 1];
-          if (lastConversation?.recommended_questions?.length) {
+        // 마지막 대화의 추천 질문 표시 - 메시지 설정 후 약간의 지연
+        const lastConversation =
+          roomData.conversations[roomData.conversations.length - 1];
+        if (lastConversation?.recommended_questions?.length) {
+          setTimeout(() => {
             updateSuggestions(lastConversation.recommended_questions, true);
-          } else {
-            updateSuggestions([], false);
-          }
+          }, 200);
+        } else {
+          updateSuggestions([], false);
         }
       }
     }
@@ -374,7 +375,7 @@ export function ChatDetail() {
 
         console.log('Stream completed, response data:', response);
 
-        // 스트리밍 완료 후 최종 메시지 업데이트와 추천 질문을 한 번에 처리
+        // 스트리밍 완료 후 최종 메시지 업데이트
         setMessages((prev) => {
           const lastMessage = prev[prev.length - 1];
           if (lastMessage?.type === 'ai') {
@@ -391,9 +392,12 @@ export function ChatDetail() {
           return prev;
         });
 
-        // 추천 질문 업데이트 - 지연 없이 바로 설정
+        // 추천 질문 업데이트 - 약간의 지연을 주어 메시지 렌더링 완료 후 표시
         if (response?.recommended_questions?.length) {
-          updateSuggestions(response.recommended_questions, true);
+          // 메시지 업데이트 후 추천 질문 표시를 위한 최소 지연
+          setTimeout(() => {
+            updateSuggestions(response.recommended_questions, true);
+          }, 100);
         } else {
           updateSuggestions([], false);
         }
