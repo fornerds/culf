@@ -35,6 +35,7 @@ const PaymentCreate = React.lazy(() => import('./views/payments/PaymentCreate'))
 const PaymentRefund = React.lazy(() => import('./views/payments/PaymentRefund'))
 
 const SystemSettings = React.lazy(() => import('./views/settings/SystemSettings'))
+const CulturalHub = React.lazy(() => import('./views/cultural-hub/CulturalHub'))
 
 const routes = [
   { path: '/', exact: true, name: '홈' },
@@ -60,6 +61,7 @@ const routes = [
   { path: '/payments/create', name: '수동 결제 생성', element: PaymentCreate },
   { path: '/payments/:id', name: '결제 상세', element: PaymentDetail },
   { path: '/payments/:id/refund', name: '결제 환불', element: PaymentRefund },
+  { path: '/data-management', name: '데이터 관리', element: CulturalHub },
   { path: '/settings', name: '시스템 설정', element: SystemSettings }
 ]
 

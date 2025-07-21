@@ -19,7 +19,7 @@ class Payment(Base):
     payment_method = Column(String(50), nullable=False)
     used_coupon_id = Column(Integer, ForeignKey('coupons.coupon_id'), nullable=True)
     payment_date = Column(TIMESTAMP, nullable=False)
-    status = Column(Enum('SUCCESS', 'FAILED', 'CANCELLED', 'REFUNDED'), nullable=False, default='FAILED')
+    status = Column(Enum('SUCCESS', 'FAILED', 'CANCELLED', 'REFUNDED', name='payment_status_enum'), nullable=False, default='FAILED')
     manual_payment_reason = Column(String, nullable=True)
 
     # Relationships
@@ -41,7 +41,7 @@ class Refund(Base):
     inquiry_id = Column(Integer, ForeignKey('inquiries.inquiry_id', ondelete="CASCADE"), nullable=False)
     amount = Column(Float, nullable=False, default=0)
     reason = Column(String, nullable=True)
-    status = Column(Enum('PENDING', 'APPROVED', 'REJECTED'), nullable=False, default='PENDING')
+    status = Column(Enum('PENDING', 'APPROVED', 'REJECTED', name='refund_status_enum'), nullable=False, default='PENDING')
     processed_at = Column(TIMESTAMP, nullable=True)
     processed_by = Column(Integer, ForeignKey('users.user_id'), nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
@@ -58,7 +58,7 @@ class Coupon(Base):
 
     coupon_id = Column(Integer, primary_key=True, autoincrement=True)
     coupon_code = Column(String(20), unique=True, nullable=False)
-    discount_type = Column(Enum('RATE', 'AMOUNT'), nullable=False, default='RATE')
+    discount_type = Column(Enum('RATE', 'AMOUNT', name='discount_type_enum'), nullable=False, default='RATE')
     discount_value = Column(Float, nullable=False, default=0)
     valid_from = Column(TIMESTAMP, nullable=False)
     valid_to = Column(TIMESTAMP, nullable=False)
