@@ -19,3 +19,18 @@ pydantic==2.9.2
 motor==3.6.0
 httpx==0.25.0
 xmltodict==0.13.0
+
+# PDF 및 문서 처리
+PyPDF2==3.0.1
+pdf2image==1.16.3
+pillow==10.0.1
+python-docx==1.1.2
+
+# 데이터 처리
+pandas==2.0.3
+openpyxl==3.1.2
+xlrd==2.0.1
+
+# 벡터 DB 및 임베딩
+pgvector==0.2.4
+numpy==1.24.3

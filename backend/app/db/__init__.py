@@ -12,4 +12,3 @@ from app.domains.banner.models import Banner
 from app.domains.admin.models import SystemSetting
 from app.domains.footer.models import Footer
 from app.domains.terms.models import Terms
-from app.domains.exhibition.models import Institution, DataSource, Exhibition

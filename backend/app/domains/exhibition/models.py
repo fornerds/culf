@@ -1,133 +1,280 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey, JSON, Index, UniqueConstraint
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from app.db.base_class import Base
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, Float, ForeignKey, Index, UniqueConstraint, func
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
+
+# ================================
+# OpenAPI 수집 데이터 모델
+# ================================
+
+class CultureHub(Base):
+    """OpenAPI로 수집된 문화행사 데이터"""
+    __tablename__ = "culture_hubs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # 기본 정보
+    title = Column(String(500), nullable=False, index=True)
+    description = Column(Text)
+    
+    # 기간 정보
+    start_date = Column(Date, index=True)
+    end_date = Column(Date, index=True)
+    period = Column(String(300))  # 기간 문자열 (API에서 오는 원본)
+    
+    # 장소 정보
+    venue = Column(String(300), index=True)
+    
+    # 분류
+    category = Column(String(100), index=True)  # 전시, 공연, 체험 등
+    
+    # 참여자
+    artist = Column(String(300))     # 작가/연주자
+    
+    # 요금
+    price = Column(String(200))      # 요금 정보
+    
+    # 웹 정보
+    website = Column(String(500))
+    image_url = Column(String(500))
+    
+    # API 메타데이터
+    api_source = Column(String(100), nullable=False, index=True)
+    culture_code = Column(String(200), nullable=True, index=True)  # 문화 콘텐츠 고유 코드
+    
+    # 시스템
+    collected_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # 인덱스 및 제약
+    __table_args__ = (
+        Index('idx_culture_hub_period', 'start_date', 'end_date'),
+        Index('idx_culture_hub_venue', 'venue'),
+        Index('idx_culture_hub_category', 'category'),
+        Index('idx_culture_hub_api_source', 'api_source'),
+    )
+
+
+# ================================
+# 관리자 관리 데이터 모델
+# ================================
 
 class Institution(Base):
-    """기관 정보 모델"""
+    """관리자가 관리하는 기관 정보"""
     __tablename__ = "institutions"
     
-    institution_id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False, unique=True, index=True)
-    description = Column(Text)
-    address = Column(String(500))
-    phone = Column(String(50))
-    website = Column(String(500))
-    email = Column(String(100))
+    id = Column(Integer, primary_key=True, index=True)
     
-    # 위치 정보
+    # 기본 정보
+    name = Column(String(300), nullable=False, index=True)
+    type = Column(String(100), index=True)  # 미술관, 박물관, 공연장 등
+    category = Column(String(100))          # 세부 분류
+    
+    # 연락처
+    contact = Column(String(100))  # 연락처 (전화번호, 팩스 등)
+    email = Column(String(200))
+    website = Column(String(500))
+    manager = Column(String(100))  # 담당자명
+    
+    # 위치
+    address = Column(String(500))
     latitude = Column(Float)
     longitude = Column(Float)
     
-    # 메타데이터
-    source = Column(String(100))  # 데이터 출처
-    is_active = Column(Boolean, default=True)
+    # 설명
+    description = Column(Text)
     
-    # 시스템 필드
+    # 시스템
+    is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_by = Column(String(100))  # 등록한 관리자
     
     # 관계
-    exhibitions = relationship("Exhibition", back_populates="institution")
-
-
-class DataSource(Base):
-    """데이터 소스 정보 모델"""
-    __tablename__ = "data_sources"
+    exhibitions = relationship("Exhibition", back_populates="institution", cascade="all, delete-orphan")
     
-    source_id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False, unique=True, index=True)
-    source_type = Column(String(50))  # api, file, crawl 등
-    description = Column(String(500))  # 데이터 소스 설명
-    url = Column(String(1000))
-    api_endpoint = Column(String(1000))  # CulturalHub 시스템 호환을 위한 API 엔드포인트
-    api_key_required = Column(Boolean, default=False)
-    config = Column(JSON)  # API 설정 정보
-    
-    # CulturalHub 시스템 호환 필드
-    status = Column(String(50), default='active')
-    last_collected_at = Column(DateTime(timezone=True))
-    total_records = Column(Integer, default=0)
-    success_rate = Column(Float, default=100.0)
-    collection_info = Column(JSON)
-    
-    # 수집 관련 설정
-    is_active = Column(Boolean, default=True)
-    collection_interval = Column(Integer, default=3600)  # 초 단위
-    last_collected = Column(DateTime(timezone=True))
-    
-    # 시스템 필드
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # 호환성을 위한 별칭
-    @property
-    def id(self):
-        return self.source_id
+    __table_args__ = (
+        Index('idx_institution_type', 'type', 'category'),
+        Index('idx_institution_location', 'latitude', 'longitude'),
+    )
 
 
 class Exhibition(Base):
-    """전시 정보 모델"""
+    """관리자가 관리하는 전시/공연 정보"""
     __tablename__ = "exhibitions"
     
-    exhibition_id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    institution_id = Column(Integer, ForeignKey("institutions.id", ondelete="CASCADE"), nullable=True)
+    
+    # 기본 정보
     title = Column(String(500), nullable=False, index=True)
+    subtitle = Column(String(500))
     description = Column(Text)
-    venue = Column(String(300), index=True)
+    
+    # 기간
+    start_date = Column(Date, nullable=True, index=True)
+    end_date = Column(Date, nullable=True, index=True)
+    
+    # 장소
+    venue = Column(String(200))
     address = Column(String(500))
-    start_date = Column(DateTime, index=True)
-    end_date = Column(DateTime, index=True)
-    period = Column(String(300))  # CulturalHub 시스템 호환을 위한 기간 정보
-    time_info = Column(String(300))  # 시간 정보
+    
+    # 분류
+    category = Column(String(100), index=True)
+    genre = Column(String(100))
+    
+    # 참여자
+    artist = Column(String(300))
+    host = Column(String(300))
+    
+    # 연락처
+    contact = Column(String(200))
+    
+    # 요금
     price = Column(String(200))
-    contact = Column(String(100))
+    
+    # 웹 정보
     website = Column(String(500))
     image_url = Column(String(500))
-    category = Column(String(100), index=True)
-    organizer = Column(String(300))
     
-    # CulturalHub 시스템 추가 필드
-    genre = Column(String(100))  # 장르
-    artist = Column(String(300))  # 작가
-    website_url = Column(String(500))  # 홈페이지주소
-    contact_info = Column(String(200))  # 문의
-    admission_fee = Column(String(300))  # 관람료할인정보
-    external_id = Column(String(100), index=True)  # 전시ID (중복 검사용)
+    # 기타
+    keywords = Column(String(500))
     
-    # 기관 관계
-    institution_id = Column(Integer, ForeignKey("institutions.institution_id"))
-    institution = relationship("Institution", back_populates="exhibitions")
-    
-    # 메타데이터
-    source = Column(String(100), index=True)  # 데이터 출처
-    api_source = Column(String(100), index=True)  # CulturalHub 시스템 호환을 위한 API 소스
-    source_id = Column(String(100))  # 원본 데이터 ID
+    # 상태
+    status = Column(String(30), default='active', index=True)
     is_active = Column(Boolean, default=True, index=True)
     
-    # 위치 정보
-    latitude = Column(Float)
-    longitude = Column(Float)
-    
-    # 시스템 필드
+    # 시스템
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    collected_at = Column(DateTime(timezone=True), index=True)
+    created_by = Column(String(100))
     
-    # 중복 방지를 위한 복합 인덱스들
+    # 관계
+    institution = relationship("Institution", back_populates="exhibitions")
+    
     __table_args__ = (
-        # 기관+제목+장소 기준 복합 인덱스 (중복 검사 최적화)
-        Index('idx_exhibition_duplicate_check', 'institution_id', 'title', 'venue'),
-        
-        # API 소스+외부 ID 기준 복합 인덱스 (외부 시스템 연동 최적화)
-        Index('idx_exhibition_external', 'api_source', 'external_id'),
-        
-        # 수집 시간 기준 인덱스 (증분 수집 최적화)
-        Index('idx_exhibition_collected', 'collected_at', 'api_source'),
-        
-        # 전시 기간 검색 최적화
-        Index('idx_exhibition_period', 'start_date', 'end_date', 'is_active'),
-        
-        # 유니크 제약 조건 (동일 API 소스에서 같은 외부 ID 중복 방지)
-        UniqueConstraint('api_source', 'external_id', name='uq_exhibition_api_external_id'),
-    ) 
+        Index('idx_exhibition_period', 'start_date', 'end_date'),
+        Index('idx_exhibition_status', 'status', 'is_active'),
+        Index('idx_exhibition_title', 'title'),
+        Index('idx_exhibition_category', 'category'),
+    )
+
+
+# ================================
+# 파일 관리 모델
+# ================================
+
+class SmartFile(Base):
+    """파일 업로드 및 AI 처리 관리"""
+    __tablename__ = "smart_files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # 파일 정보
+    filename = Column(String(500), nullable=False)
+    file_path = Column(String(1000), nullable=False)
+    file_size = Column(Integer)
+    file_type = Column(String(50))      # pdf, doc, txt 등
+    mime_type = Column(String(100))
+    
+    # 연결 정보
+    institution_id = Column(Integer, ForeignKey("institutions.id", ondelete="CASCADE"))
+    exhibition_id = Column(Integer, ForeignKey("exhibitions.id", ondelete="CASCADE"))
+    
+    # AI 처리 결과
+    ai_summary = Column(Text)
+    ai_category = Column(String(100))    # exhibition_catalog, artist_info 등
+    confidence_score = Column(Float)
+    
+    # 처리 상태
+    processing_status = Column(String(30), default='pending')  # pending, processing, completed, failed
+    processing_error = Column(Text)
+    
+    # 추출 정보
+    total_pages = Column(Integer)
+    extracted_text = Column(Text)
+    
+    # 시스템
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    processed_at = Column(DateTime(timezone=True))
+    is_active = Column(Boolean, default=True)
+    
+    __table_args__ = (
+        Index('idx_smart_file_institution', 'institution_id'),
+        Index('idx_smart_file_exhibition', 'exhibition_id'),
+        Index('idx_smart_file_status', 'processing_status'),
+    )
+
+
+# ================================
+# 임베딩 및 검색 모델
+# ================================
+
+class EventEmbedding(Base):
+    """문화행사 AI 임베딩 (검색용)"""
+    __tablename__ = "event_embeddings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # 연결 정보 (둘 중 하나만 있음)
+    culture_hub_id = Column(Integer, ForeignKey("culture_hubs.id", ondelete="CASCADE"))
+    exhibition_id = Column(Integer, ForeignKey("exhibitions.id", ondelete="CASCADE"))
+    
+    # 임베딩 데이터
+    embedding_vector = Column(Text, nullable=False)  # JSON 배열로 저장
+    text_content = Column(Text)                      # 원본 텍스트
+    
+    # 메타데이터
+    embedding_model = Column(String(50), default='text-embedding-3-small')
+    vector_dimension = Column(Integer, default=1536)
+    
+    # 시스템
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    __table_args__ = (
+        Index('idx_embedding_culture_hub', 'culture_hub_id'),
+        Index('idx_embedding_exhibition', 'exhibition_id'),
+    )
+
+
+# ================================
+# API 관리 모델
+# ================================
+
+class ApiSource(Base):
+    """OpenAPI 소스 관리"""
+    __tablename__ = "api_sources"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # 기본 정보
+    api_key = Column(String(200), unique=True, nullable=False, index=True)
+    name = Column(String(300), nullable=False)
+    description = Column(Text)
+    base_url = Column(String(500))
+    location = Column(String(100))
+    
+    # 상태
+    is_active = Column(Boolean, default=True)
+    
+    # 통계
+    total_collected = Column(Integer, default=0)
+    last_collection_at = Column(DateTime(timezone=True))
+    
+    # 시스템
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    __table_args__ = (
+        Index('idx_api_source_active', 'is_active'),
+    )
+
+
+ 

@@ -21,7 +21,6 @@ from app.domains.subscription import routes as subscription_routes
 from app.domains.payment import routes as payment_routes
 from app.domains.footer import routes as footer_routes
 from app.domains.exhibition import routes as exhibition_routes
-from app.domains.exhibition.cultural_hub_service import setup_cultural_data_sources
 from app.db.session import get_db
 from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 from fastapi.security import OAuth2
@@ -123,15 +122,11 @@ app.include_router(exhibition_routes.router, prefix=f"{settings.API_V1_STR}/exhi
 
 @app.on_event("startup")
 async def startup_event():
-    """앱 시작 시 데이터 소스 초기화"""
+    """앱 시작 시 초기화"""
     try:
-        db = next(get_db())
-        setup_cultural_data_sources(db)
-        logger.info("문화 데이터 소스 초기화 완료")
+        logger.info("애플리케이션 시작 완료")
     except Exception as e:
-        logger.error(f"데이터 소스 초기화 실패: {e}")
-    finally:
-        db.close()
+        logger.error(f"애플리케이션 초기화 실패: {e}")
 
 @app.get("/")
 def read_root():
