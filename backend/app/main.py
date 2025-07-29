@@ -20,6 +20,8 @@ from app.domains.admin import routes as admin_routes
 from app.domains.subscription import routes as subscription_routes
 from app.domains.payment import routes as payment_routes
 from app.domains.footer import routes as footer_routes
+from app.domains.exhibition import routes as exhibition_routes
+from app.db.session import get_db
 from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 from fastapi.security import OAuth2
 import logging
@@ -116,6 +118,15 @@ app.include_router(payment_routes.router, prefix=f"{settings.API_V1_STR}", tags=
 app.include_router(subscription_routes.router, prefix=f"{settings.API_V1_STR}", tags=["subscription"])
 app.include_router(admin_routes.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"])
 app.include_router(footer_routes.router, prefix=f"{settings.API_V1_STR}", tags=["footer"])
+app.include_router(exhibition_routes.router, prefix=f"{settings.API_V1_STR}/exhibitions", tags=["exhibitions"])
+
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 초기화"""
+    try:
+        logger.info("애플리케이션 시작 완료")
+    except Exception as e:
+        logger.error(f"애플리케이션 초기화 실패: {e}")
 
 @app.get("/")
 def read_root():

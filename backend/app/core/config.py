@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     PORTONE_DANAL_KEYS: str
     PORTONE_DANAL_BIZ_NUM: str
 
+    # 전시 데이터 수집 API 키들
+    SEMA_ARCHIVE_API_KEY: str = ""
+
     class Config:
         env_file = ".env"
 

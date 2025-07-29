@@ -15,7 +15,7 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     notification_id = Column(Integer, primary_key=True, index=True)
-    type = Column(Enum(NotificationType), nullable=False)
+    type = Column(Enum(NotificationType, name='notification_type_enum'), nullable=False)
     message = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -39,7 +39,7 @@ class UserNotificationSetting(Base):
 
     setting_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.user_id'), nullable=False)
-    notification_type = Column(Enum(NotificationType), nullable=False)
+    notification_type = Column(Enum(NotificationType, name='user_notification_type_enum'), nullable=False)
     is_enabled = Column(Boolean, default=True)
 
     user = relationship("User", back_populates="notification_settings")

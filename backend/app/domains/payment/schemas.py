@@ -18,7 +18,7 @@ class SubscriptionPlanSchema(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         from_attributes = True  # 추가
 
 class TokenPlanSchema(BaseModel):
@@ -32,7 +32,7 @@ class TokenPlanSchema(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         from_attributes = True  # 추가
 
 # 결제 
@@ -62,7 +62,7 @@ class PaymentResponse(PaymentBase):
     manual_payment_reason: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class PaycancelResponse(BaseModel):
     inquiry_id: int = Field(..., description="문의 ID")
@@ -109,7 +109,7 @@ class CouponResponse(BaseModel):
     used_count: Optional[int]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class CouponValidationRequest(BaseModel):
     coupon_code: str
@@ -139,7 +139,7 @@ class PaymentAdminResponse(BaseModel):
     payment_date: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class RefundResponse(BaseModel):
     refund_id: int
@@ -151,7 +151,7 @@ class RefundResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         from_attributes = True
 
 class AdminPaymentListResponse(BaseModel):
@@ -165,7 +165,7 @@ class AdminPaymentListResponse(BaseModel):
     refund: Optional[RefundResponse]  # 환불 정보 포함
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class InquiryResponse(BaseModel):
     inquiry_id: int
@@ -178,7 +178,7 @@ class InquiryResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class AdminPaymentDetailResponse(BaseModel):
     payment_id: UUID
@@ -192,7 +192,7 @@ class AdminPaymentDetailResponse(BaseModel):
     inquiries: Optional[List[InquiryResponse]]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 #portone
 class OneTimePaymentRequest(BaseModel):

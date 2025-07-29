@@ -9,7 +9,10 @@ import {
   cilBell,
   cilEnvelopeClosed,
   cilDollar,
-  cilSettings
+  cilSettings,
+  cilCloudDownload,
+  cilBuilding,
+  cilLibrary
 } from '@coreui/icons'
 import { CNavItem, CNavGroup } from '@coreui/react'
 
@@ -61,6 +64,24 @@ const _nav = [
     name: '결제 관리',
     to: '/payments',
     icon: <CIcon icon={cilDollar} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavItem,
+    name: '기관 관리',
+    to: '/institutions',
+    icon: <CIcon icon={cilBuilding} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavItem,
+    name: '전시 관리',
+    to: '/exhibitions',
+    icon: <CIcon icon={cilLibrary} customClassName="nav-icon" />,
+  },
+  {
+    component: CNavItem,
+    name: '데이터 관리',
+    to: '/data-management',
+    icon: <CIcon icon={cilCloudDownload} customClassName="nav-icon" />,
   },
   {
     component: CNavItem,

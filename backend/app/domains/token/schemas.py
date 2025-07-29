@@ -10,7 +10,7 @@ class TokenInfo(BaseModel):
     last_charged_at: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TokenPlanBase(BaseModel):
     tokens: int
@@ -31,4 +31,4 @@ class TokenPlanResponse(TokenPlanBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True

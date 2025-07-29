@@ -58,7 +58,7 @@ class UserInfo(BaseModel):
     notice_reads: Optional[List[UserNoticeRead]] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = Field(None, min_length=2, max_length=50)
@@ -102,7 +102,7 @@ class UserInDBBase(UserBase):
     is_corporate: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class User(UserInDBBase):
     pass
@@ -121,7 +121,7 @@ class CorporateUserInDB(CorporateUserCreate):
     user_id: UUID
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserResponse(BaseModel):
     id: int

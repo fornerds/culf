@@ -1,4 +1,4 @@
-FROM postgres:16
+FROM pgvector/pgvector:pg16
 
 COPY init.sql /docker-entrypoint-initdb.d/
 

@@ -32,7 +32,7 @@ class AdminUserResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class AdminUserUpdate(BaseModel):
     nickname: Optional[str] = Field(None, min_length=2, max_length=50)
