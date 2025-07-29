@@ -16,7 +16,7 @@ class SubscriptionPlanResponse(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         from_attributes = True
 
 class UserSubscriptionResponse(BaseModel):
@@ -30,7 +30,7 @@ class UserSubscriptionResponse(BaseModel):
     subscriptions_method: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserSubscriptionUpdate(BaseModel):
     plan_id: Optional[int] = None  # 변경할 구독 플랜 ID

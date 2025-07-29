@@ -314,8 +314,8 @@ class ExhibitionDataCollector:
             # 새 기관 생성
             institution = Institution(
                 name=name,
-                institution_type=self._determine_institution_type(name),
-                is_active=True
+                institution_type=self._determine_institution_type(name)
+                # is_active=True  # DB에 컬럼이 없음
             )
             self.db.add(institution)
             self.db.commit()

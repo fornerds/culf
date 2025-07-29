@@ -11,7 +11,7 @@ class Tag(TagBase):
     tag_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class CuratorBase(BaseModel):
     name: str = Field(..., example="열정맨", description="큐레이터의 이름")
@@ -56,4 +56,4 @@ class Curator(CuratorBase):
     tags: List[Tag]
 
     class Config:
-        orm_mode = True
+        from_attributes = True

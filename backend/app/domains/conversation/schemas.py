@@ -56,8 +56,8 @@ class ConversationCreate(BaseModel):
         example="b39190ce-a097-4965-bf20-13100cb0420d"
     )
     class Config:
-        allow_population_by_field_name = True
-        schema_extra = {
+        populate_by_name = True
+        json_schema_extra = {
             "example": {
                 "question": "What's in these images?",
                 "question_images": [

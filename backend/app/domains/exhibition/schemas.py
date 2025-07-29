@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 
@@ -6,11 +6,14 @@ from pydantic import BaseModel
 # Institution 스키마
 class InstitutionBase(BaseModel):
     name: str
-    institution_type: Optional[str] = None
+    type: Optional[str] = None
+    category: Optional[str] = None
     address: Optional[str] = None
     contact: Optional[str] = None
+    email: Optional[str] = None
     website: Optional[str] = None
     description: Optional[str] = None
+    manager: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
@@ -73,21 +76,24 @@ class DataSource(DataSourceInDB):
 # Exhibition 스키마
 class ExhibitionBase(BaseModel):
     title: str
+    subtitle: Optional[str] = None
     description: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     venue: Optional[str] = None
     address: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    price: Optional[str] = None
+    category: Optional[str] = None
+    genre: Optional[str] = None
+    artist: Optional[str] = None
+    host: Optional[str] = None
     contact: Optional[str] = None
+    price: Optional[str] = None
     website: Optional[str] = None
     image_url: Optional[str] = None
-    category: Optional[str] = None
-    organizer: Optional[str] = None
-    source: Optional[str] = None
-    source_id: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    keywords: Optional[str] = None
+    status: Optional[str] = None
+    institution_id: Optional[int] = None
+    is_active: Optional[bool] = True
 
 
 class ExhibitionCreate(ExhibitionBase):
