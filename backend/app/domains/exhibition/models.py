@@ -49,7 +49,7 @@ class CultureHub(Base):
     
     # 시스템
     collected_at = Column(DateTime(timezone=True), server_default=func.now())
-    is_active = Column(Boolean, default=True, index=True)
+    is_active = Column(Boolean, default=True, index=True)  # 운영 상태: 활성/비활성
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -92,7 +92,8 @@ class Institution(Base):
     description = Column(Text)
     
     # 시스템
-    is_active = Column(Boolean, default=True, index=True)
+    is_active = Column(Boolean, default=True, index=True)  # 운영 상태: 활성/비활성
+    is_deleted = Column(Boolean, default=False, index=True)  # 삭제 상태: 삭제됨/삭제되지않음
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     created_by = Column(String(100))  # 등록한 관리자
@@ -150,6 +151,7 @@ class Exhibition(Base):
     # 상태
     status = Column(String(30), default='active', index=True)
     is_active = Column(Boolean, default=True, index=True)
+    is_deleted = Column(Boolean, default=False, index=True)  # 삭제 상태
     
     # 시스템
     created_at = Column(DateTime(timezone=True), server_default=func.now())

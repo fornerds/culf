@@ -44,7 +44,8 @@ def get_exhibitions(
 ):
     """전시 목록 조회 (관리자가 직접 입력한 Exhibition 데이터)"""
     try:
-        query = db.query(Exhibition)
+        # 삭제되지 않은 전시만 조회
+        query = db.query(Exhibition).filter(Exhibition.is_deleted == False)
         
         # 관리자 뷰가 아니면 활성화된 전시만 조회
         if not admin_view:
@@ -184,18 +185,46 @@ def update_exhibition(exhibition_id: int, exhibition_data: ExhibitionCreate, db:
         raise HTTPException(status_code=500, detail=f"전시 수정 실패: {str(e)}")
 
 
+@router.delete("/exhibitions/{exhibition_id}", response_model=Dict[str, Any])
+def delete_exhibition(exhibition_id: int, db: Session = Depends(get_db)):
+    """전시 삭제 (소프트 삭제)"""
+    try:
+        exhibition = db.query(Exhibition).filter(Exhibition.id == exhibition_id).first()
+        if not exhibition:
+            raise HTTPException(status_code=404, detail="전시를 찾을 수 없습니다.")
+        
+        # 소프트 삭제
+        exhibition.is_deleted = True
+        db.commit()
+        
+        return {
+            'message': '전시가 성공적으로 삭제되었습니다.'
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"전시 삭제 실패: {str(e)}")
+
+
 # 기관 관리 엔드포인트들
 @router.get("/institutions", response_model=List[Dict[str, Any]])
 def get_institutions(
     db: Session = Depends(get_db),
     type: Optional[str] = Query(None, description="기관 유형"),
     category: Optional[str] = Query(None, description="카테고리"),
+    include_inactive: bool = Query(False, description="비활성 기관 포함 여부"),
     limit: int = Query(100, ge=1, le=1000, description="조회 개수"),
     offset: int = Query(0, ge=0, description="시작 위치")
 ):
     """기관 목록 조회"""
     try:
-        query = db.query(Institution).filter(Institution.is_active == True)
+        # 삭제되지 않은 기관만 조회
+        query = db.query(Institution).filter(Institution.is_deleted == False)
+        
+        # include_inactive가 False면 활성 기관만 조회 (기본값)
+        if not include_inactive:
+            query = query.filter(Institution.is_active == True)
         
         if type:
             query = query.filter(Institution.type == type)
@@ -284,7 +313,7 @@ def delete_institution(
             raise HTTPException(status_code=404, detail="기관을 찾을 수 없습니다.")
         
         # 소프트 삭제
-        institution.is_active = False
+        institution.is_deleted = True
         db.commit()
         
         return {
@@ -293,6 +322,9 @@ def delete_institution(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"기관 삭제 실패: {str(e)}")
+
+
+
 
 # 파일 관리 엔드포인트들
 @router.get("/institutions/{institution_id}/files", response_model=List[Dict[str, Any]])
@@ -638,13 +670,16 @@ def get_events(
     size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     search: Optional[str] = Query(None, description="검색어 (제목, 장소, 작가)"),
     source: Optional[str] = Query(None, description="API 소스"),
+    include_inactive: bool = Query(False, description="비활성 이벤트 포함 여부"),
     sort_by: str = Query("created_at", description="정렬 기준"),
     sort_order: str = Query("desc", description="정렬 순서 (asc/desc)")
 ):
     """문화행사 목록 조회 (페이지네이션)"""
     try:
         # 기본 쿼리
-        query = db.query(CultureHub).filter(CultureHub.is_active == True)
+        query = db.query(CultureHub)
+        if not include_inactive:
+            query = query.filter(CultureHub.is_active == True)
         
         # 검색 조건
         if search:
@@ -701,6 +736,7 @@ def get_events(
                 'website': event.website,
                 'image_url': event.image_url,
                     'api_source': event.api_source,
+                'is_active': event.is_active,
     
                     'collected_at': event.collected_at.isoformat() if event.collected_at else None,
                     'created_at': event.created_at.isoformat() if event.created_at else None
@@ -986,6 +1022,12 @@ async def cancel_collection(progress_id: str):
     except Exception as e:
         logging.error(f"취소 요청 처리 오류: {str(e)}")
         raise HTTPException(status_code=500, detail=f"취소 요청 실패: {str(e)}")
+
+
+
+
+
+
 
 @router.delete("/cultural-hub/collect/force-stop")
 async def force_stop_all_collections():

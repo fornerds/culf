@@ -74,6 +74,17 @@ const Exhibitions = () => {
   // 파일 업로드 상태
   const [files, setFiles] = useState([])
   const [uploadLoading, setUploadLoading] = useState(false)
+  const [activeExhibitionTab, setActiveExhibitionTab] = useState('basic')
+  const [activeFileTab, setActiveFileTab] = useState('files')
+
+  // 탭 변경 핸들러
+  const handleExhibitionTabChange = (newTab) => {
+    setActiveExhibitionTab(newTab)
+  }
+
+  const handleFileTabChange = (newTab) => {
+    setActiveFileTab(newTab)
+  }
 
   useEffect(() => {
     loadExhibitions()
@@ -104,6 +115,7 @@ const Exhibitions = () => {
 
   const handleCreate = () => {
     setModalMode('create')
+    setActiveExhibitionTab('basic')
     setFormData({
       title: '',
       subtitle: '',
@@ -130,6 +142,7 @@ const Exhibitions = () => {
 
   const handleEdit = (exhibition) => {
     setModalMode('edit')
+    setActiveExhibitionTab('basic')
     setFormData({
       title: exhibition.title || '',
       subtitle: exhibition.subtitle || '',
@@ -160,17 +173,41 @@ const Exhibitions = () => {
     try {
       setLoading(true)
       
+      // 빈 문자열을 null로 변환하여 데이터 정리
+      const cleanedData = {
+        ...formData,
+        institution_id: formData.institution_id === '' ? null : parseInt(formData.institution_id) || null,
+        start_date: formData.start_date === '' ? null : formData.start_date,
+        end_date: formData.end_date === '' ? null : formData.end_date
+      }
+      
       if (modalMode === 'create') {
-        await httpClient.post('/exhibitions/exhibitions', formData)
+        await httpClient.post('/exhibitions/exhibitions', cleanedData)
       } else {
-        await httpClient.put(`/exhibitions/exhibitions/${selectedExhibition.id}`, formData)
+        await httpClient.put(`/exhibitions/exhibitions/${selectedExhibition.id}`, cleanedData)
       }
       
       setShowModal(false)
       await loadExhibitions()
     } catch (err) {
       console.error('전시 저장 오류:', err)
-      setError(`전시 ${modalMode === 'create' ? '등록' : '수정'}에 실패했습니다.`)
+      
+      // 상세한 에러 메시지 처리
+      let errorMessage = `전시 ${modalMode === 'create' ? '등록' : '수정'}에 실패했습니다.`
+      
+      if (err.response?.data?.message) {
+        errorMessage += `\n${err.response.data.message}`
+      } else if (err.response?.data?.details) {
+        const details = err.response.data.details
+        if (Array.isArray(details)) {
+          errorMessage += '\n세부 오류:'
+          details.forEach(detail => {
+            errorMessage += `\n- ${detail.msg}`
+          })
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -180,11 +217,18 @@ const Exhibitions = () => {
     if (window.confirm(`"${exhibition.title}" 전시를 삭제하시겠습니까?`)) {
       try {
         setLoading(true)
-        await httpClient.delete(`/exhibitions/events/${exhibition.id}`)
+        await httpClient.delete(`/exhibitions/exhibitions/${exhibition.id}`)
         await loadExhibitions()
       } catch (err) {
         console.error('전시 삭제 오류:', err)
-        setError('전시 삭제에 실패했습니다.')
+        
+        // 상세한 에러 메시지 처리
+        let errorMessage = '전시 삭제에 실패했습니다.'
+        if (err.response?.data?.message) {
+          errorMessage += `\n${err.response.data.message}`
+        }
+        
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -193,6 +237,7 @@ const Exhibitions = () => {
 
   const handleFileManagement = (exhibition) => {
     setSelectedExhibition(exhibition)
+    setActiveFileTab('files')
     setShowFileModal(true)
     loadExhibitionFiles(exhibition.id)
   }
@@ -374,7 +419,7 @@ const Exhibitions = () => {
         </CModalHeader>
         <CModalBody>
           <CForm onSubmit={handleSubmit}>
-            <CTabs activeItemKey="basic">
+            <CTabs activeItemKey={activeExhibitionTab} onChange={handleExhibitionTabChange}>
               <CTabList variant="tabs">
                 <CTab itemKey="basic">기본 정보</CTab>
                 <CTab itemKey="details">상세 정보</CTab>
@@ -611,7 +656,7 @@ const Exhibitions = () => {
           </CModalTitle>
         </CModalHeader>
         <CModalBody>
-          <CTabs activeItemKey="files">
+          <CTabs activeItemKey={activeFileTab} onChange={handleFileTabChange}>
             <CTabList variant="tabs">
               <CTab itemKey="files">파일 목록</CTab>
               <CTab itemKey="upload">파일 업로드</CTab>

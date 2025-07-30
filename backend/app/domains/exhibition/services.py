@@ -23,7 +23,7 @@ class ExhibitionDataCollector:
     
     def __init__(self, db: Session):
         self.db = db
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.AsyncClient(timeout=300.0)  # 5분
         
         # 16개 API 설정 (업데이트된 버전)
         self.api_configs = {

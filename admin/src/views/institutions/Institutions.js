@@ -65,6 +65,12 @@ const Institutions = () => {
   const [files, setFiles] = useState([])
   const [uploadLoading, setUploadLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('info')
+  const [activeFileTab, setActiveFileTab] = useState('files')
+
+  // 탭 변경 핸들러
+  const handleFileTabChange = (newTab) => {
+    setActiveFileTab(newTab)
+  }
 
   useEffect(() => {
     loadInstitutions()
@@ -73,7 +79,8 @@ const Institutions = () => {
   const loadInstitutions = async () => {
     try {
       setLoading(true)
-      const response = await httpClient.get('/exhibitions/institutions')
+      // 관리자는 비활성 기관도 포함해서 조회
+      const response = await httpClient.get('/exhibitions/institutions?include_inactive=true')
       setInstitutions(response.data || [])
     } catch (err) {
       console.error('기관 목록 로드 오류:', err)
@@ -154,8 +161,11 @@ const Institutions = () => {
     }
   }
 
+
+
   const handleFileManagement = (institution) => {
     setSelectedInstitution(institution)
+    setActiveFileTab('files')
     setShowFileModal(true)
     loadInstitutionFiles(institution.id)
   }
@@ -255,7 +265,9 @@ const Institutions = () => {
                     {institutions.map((institution) => (
                       <CTableRow key={institution.id}>
                         <CTableDataCell>
-                          <strong>{institution.name}</strong>
+                          <strong>
+                            {institution.name}
+                          </strong>
                         </CTableDataCell>
                         <CTableDataCell>{institution.type}</CTableDataCell>
                         <CTableDataCell>{institution.category}</CTableDataCell>
@@ -449,7 +461,7 @@ const Institutions = () => {
           </CModalTitle>
         </CModalHeader>
         <CModalBody>
-          <CTabs activeItemKey="files">
+          <CTabs activeItemKey={activeFileTab} onChange={handleFileTabChange}>
             <CTabList variant="tabs">
               <CTab itemKey="files">파일 목록</CTab>
               <CTab itemKey="upload">파일 업로드</CTab>

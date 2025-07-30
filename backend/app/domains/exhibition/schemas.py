@@ -16,6 +16,8 @@ class InstitutionBase(BaseModel):
     manager: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    is_active: Optional[bool] = True
+    is_deleted: Optional[bool] = False
 
 
 class InstitutionCreate(InstitutionBase):
@@ -24,11 +26,14 @@ class InstitutionCreate(InstitutionBase):
 
 class InstitutionUpdate(InstitutionBase):
     name: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_deleted: Optional[bool] = None
 
 
 class InstitutionInDB(InstitutionBase):
     id: int
     is_active: bool
+    is_deleted: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -94,6 +99,7 @@ class ExhibitionBase(BaseModel):
     status: Optional[str] = None
     institution_id: Optional[int] = None
     is_active: Optional[bool] = True
+    is_deleted: Optional[bool] = False
 
 
 class ExhibitionCreate(ExhibitionBase):
@@ -102,11 +108,13 @@ class ExhibitionCreate(ExhibitionBase):
 
 class ExhibitionUpdate(ExhibitionBase):
     title: Optional[str] = None
+    is_deleted: Optional[bool] = None
 
 
 class ExhibitionInDB(ExhibitionBase):
     id: int
     is_active: bool
+    is_deleted: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
 

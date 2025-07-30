@@ -55,10 +55,10 @@ class CulturalHubAPISystem:
         
                     # 문화 허브 안전 연결 설정
         self.safe_config = {
-            'base_delay': 1.0,          # 기본 대기 시간 (1초)
-            'max_delay': 5.0,           # 최대 대기 시간 (5초)
-            'retry_count': 5,           # 재시도 횟수
-            'timeout': 30,              # 타임아웃 (30초)
+            'base_delay': 1.5,          # 기본 대기 시간 (1.5초)
+            'max_delay': 8.0,           # 최대 대기 시간 (8초)
+            'retry_count': 3,           # 재시도 횟수 (줄임)
+            'timeout': 300,             # 타임아웃 (5분)
             'max_workers': 2,           # 최대 동시 작업자 (2개로 제한)
             'exponential_backoff': True, # 지수 백오프 사용
             'sequential_fallback': True  # 순차 처리 폴백
@@ -596,9 +596,9 @@ class CulturalHubAPISystem:
         try:
             logging.debug(f"문화 허브 API 호출 시작: {config['name']} (시도: {attempt + 1})")
             
-            # 취소 확인 가능한 짧은 타임아웃으로 요청
-            short_timeout = 5  # 5초로 짧게 설정
-            max_retries = 3    # 최대 3회 재시도
+            # 취소 확인 가능한 적절한 타임아웃으로 요청
+            short_timeout = 30  # 30초로 설정
+            max_retries = 2     # 최대 2회 재시도
             
             for retry in range(max_retries):
                 # 각 재시도 전에 취소 확인

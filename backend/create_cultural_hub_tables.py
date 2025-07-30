@@ -53,6 +53,7 @@ def create_cultural_hub_tables():
         longitude FLOAT,
         description TEXT,
         is_active BOOLEAN DEFAULT TRUE,
+        is_deleted BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE,
         created_by VARCHAR(100)
@@ -60,6 +61,7 @@ def create_cultural_hub_tables():
 
     CREATE INDEX idx_institution_type ON institutions(type, category);
     CREATE INDEX idx_institution_location ON institutions(latitude, longitude);
+    CREATE INDEX idx_institutions_is_deleted ON institutions(is_deleted);
 
     -- 전시/공연 테이블 (관리자가 직접 관리)
     CREATE TABLE exhibitions (
@@ -103,6 +105,7 @@ def create_cultural_hub_tables():
         -- 상태
         status VARCHAR(30) DEFAULT 'active',
         is_active BOOLEAN DEFAULT TRUE,
+        is_deleted BOOLEAN DEFAULT FALSE,
         
         -- 시스템
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -114,6 +117,7 @@ def create_cultural_hub_tables():
     CREATE INDEX idx_exhibition_status ON exhibitions(status, is_active);
     CREATE INDEX idx_exhibition_title ON exhibitions(title);
     CREATE INDEX idx_exhibition_category ON exhibitions(category);
+    CREATE INDEX idx_exhibitions_is_deleted ON exhibitions(is_deleted);
 
     -- OpenAPI 수집 데이터 테이블
     CREATE TABLE culture_hubs (

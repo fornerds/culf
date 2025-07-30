@@ -184,6 +184,7 @@ const CulturalHub = () => {
         size: 20,
         search: searchTerm,
         source: filterSource,
+        include_inactive: false,
         sort_by: sortBy,
         sort_order: sortOrder
       })
@@ -431,6 +432,15 @@ const CulturalHub = () => {
             }
           } catch (pollError) {
             console.error('폴링 에러:', pollError)
+            
+            // 504 Gateway Timeout의 경우 계속 시도
+            if (pollError.response && pollError.response.status === 504) {
+              console.log('504 타임아웃 에러 발생, 폴링 계속 시도...')
+              // 504 에러는 무시하고 계속 폴링
+              return
+            }
+            
+            // 다른 에러의 경우 폴링 중단
             clearInterval(interval)
             setPollingInterval(null)
             setCollectionProgress({
@@ -442,7 +452,7 @@ const CulturalHub = () => {
               error: pollError.message
             })
           }
-        }, 500)  // setInterval 닫는 괄호와 폴링 간격
+        }, 5000)  // setInterval 닫는 괄호와 폴링 간격 (5초)
 
         // 폴링 시작 저장
         setPollingInterval(interval)
@@ -536,6 +546,10 @@ const CulturalHub = () => {
   const formatNumber = (num) => {
     return num ? num.toLocaleString() : '0'
   }
+
+
+
+
 
   const formatDate = (dateString) => {
     if (!dateString) return '-'
@@ -1079,7 +1093,7 @@ const CulturalHub = () => {
                                           {item.price || '정보없음'}
                                         </small>
                         </CTableDataCell>
-                        <CTableDataCell>
+                                                <CTableDataCell>
                                         <small className="text-muted">
                                           {formatDate(item.created_at)}
                                         </small>
@@ -1198,8 +1212,8 @@ const CulturalHub = () => {
               <small className="text-muted">
                 • <strong>50페이지</strong>: 약 30,000개 (일반 수집 권장)<br/>
                 • <strong>100페이지</strong>: 약 58,000개 (많은 데이터)<br/>
-                • <strong>150페이지</strong>: 약 85,000개 (전체 수집 완료)<br/>
-                <span className="fw-bold text-success">💡 전체 데이터 수집: 150페이지 입력</span>
+                • <strong>500페이지</strong>: 약 85,000개 (전체 수집 완료)<br/>
+                <span className="fw-bold text-success">💡 전체 데이터 수집: 500페이지 입력</span>
               </small>
           </CCol>
           <CCol md={6}>
@@ -1245,9 +1259,9 @@ const CulturalHub = () => {
                 <strong>권장 설정</strong><br/>
                 • <strong>빠른 테스트</strong>: 최대 페이지 5개, 순차 수집, 스마트 업데이트 ON<br/>
                 • <strong>일반적인 수집</strong>: 최대 페이지 50~100개, 순차 수집, 스마트 업데이트 ON<br/>
-                • <strong>전체 데이터 수집</strong>: 최대 페이지 150개, 순차 수집, 스마트 업데이트 OFF<br/>
+                • <strong>전체 데이터 수집</strong>: 최대 페이지 500개, 순차 수집, 스마트 업데이트 OFF<br/>
                 <small className="text-muted">
-                  ※ 전체 약 85,000개 데이터 수집 완료까지 150페이지 필요 (100페이지로 약 58,000개 수집 가능)
+                  ※ 전체 약 85,000개 데이터 수집 완료까지 500페이지 필요<br/>
                 </small>
             </div>
           </CCol>
